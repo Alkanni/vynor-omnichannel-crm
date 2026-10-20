@@ -22,6 +22,16 @@ get:
       schema:
         type: string
       description: Filters conversations with messages containing the search term
+    - name: assignee_id
+      in: query
+      schema:
+        type: integer
+      description: Scopes `assigned_count` to conversations assigned to this agent.
+    - name: unread
+      in: query
+      schema:
+        type: boolean
+      description: When `true`, counts only conversations with unread incoming messages.
     - name: inbox_id
       in: query
       schema:

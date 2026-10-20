@@ -12,6 +12,8 @@ class ConversationFinder
 
   # params
   # assignee_type, inbox_id, :status
+  # assignee_id narrows assignee_type 'assigned' (and assigned_count) to a single agent
+  # unread 'true' keeps only conversations with unread incoming messages
 
   def initialize(current_user, params)
     @current_user = current_user
@@ -24,7 +26,7 @@ class ConversationFinder
     set_up
 
     mine_count, unassigned_count, all_count = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    assigned_count = count_assigned_conversations(all_count, unassigned_count)
 
     filter_by_assignee_type
 
@@ -43,7 +45,7 @@ class ConversationFinder
     set_up
 
     mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    assigned_count = count_assigned_conversations(all_count, unassigned_count)
 
     {
       count: {
@@ -68,6 +70,7 @@ class ConversationFinder
     filter_by_labels
     filter_by_query
     filter_by_source_id
+    filter_by_unread
   end
 
   def set_inboxes
@@ -113,7 +116,7 @@ class ConversationFinder
     when 'unassigned'
       @conversations = @conversations.unassigned
     when 'assigned'
-      @conversations = @conversations.assigned
+      @conversations = params[:assignee_id] ? @conversations.where(assignee_id: params[:assignee_id]) : @conversations.assigned
     end
     @conversations
   end
@@ -165,6 +168,18 @@ class ConversationFinder
 
     @conversations = @conversations.joins(:contact_inbox)
     @conversations = @conversations.where(contact_inboxes: { source_id: params[:source_id] })
+  end
+
+  def filter_by_unread
+    return unless params[:unread] == 'true'
+
+    @conversations = @conversations.where(Conversation.unread_messages_count_arel.gt(0))
+  end
+
+  def count_assigned_conversations(all_count, unassigned_count)
+    return all_count - unassigned_count unless params[:assignee_id]
+
+    @conversations.where(assignee_id: params[:assignee_id]).count
   end
 
   def set_count_for_all_conversations

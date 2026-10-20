@@ -3,7 +3,13 @@ export default {
   ASSIGNEE_TYPE: {
     ME: 'me',
     UNASSIGNED: 'unassigned',
+    ASSIGNED: 'assigned',
     ALL: 'all',
+  },
+  CHAT_LIST_TAB: {
+    ASSIGNED: 'assigned',
+    UNASSIGNED: 'unassigned',
+    COMPLETED: 'completed',
   },
   STATUS_TYPE: {
     OPEN: 'open',

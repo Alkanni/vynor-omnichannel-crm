@@ -47,7 +47,7 @@ import {
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
 import { sortComparator } from '../store/modules/conversations/helpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
-import { ASSIGNEE_TYPE_TAB_PERMISSIONS } from 'dashboard/constants/permissions.js';
+import { CHAT_LIST_TAB_PERMISSIONS } from 'dashboard/constants/permissions.js';
 
 const props = defineProps({
   conversationInbox: { type: [String, Number], default: 0 },
@@ -68,7 +68,10 @@ const { buildConversationListPath } = useConversationRoutePath();
 
 const resolveAttributesModalRef = ref(null);
 
-const activeAssigneeTab = ref(wootConstants.ASSIGNEE_TYPE.ME);
+const activeAssigneeTab = ref(wootConstants.CHAT_LIST_TAB.ASSIGNED);
+// null lists the chats of every agent
+const activeAgentId = ref(null);
+const showUnreadOnly = ref(false);
 const activeStatus = ref(wootConstants.STATUS_TYPE.OPEN);
 const activeSortBy = ref(wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC);
 const showAdvancedFilters = ref(false);
@@ -88,7 +91,7 @@ const advancedFilterTypes = ref(
 
 const currentUser = useMapGetter('getCurrentUser');
 const chatLists = useMapGetter('getFilteredConversations');
-const mineChatsList = useMapGetter('getMineChats');
+const assignedChatsList = useMapGetter('getAssignedChats');
 const allChatList = useMapGetter('getAllStatusChats');
 const unAssignedChatsList = useMapGetter('getUnAssignedChats');
 const participatingChatsList = useMapGetter('getParticipatingChats');
@@ -172,35 +175,62 @@ const userPermissions = computed(() => {
   return getUserPermissions(currentUser.value, currentAccountId.value);
 });
 
+const isCompletedTab = computed(
+  () => activeAssigneeTab.value === wootConstants.CHAT_LIST_TAB.COMPLETED
+);
+
+// Counts fetched for Completed cover resolved chats only, so the tab badges
+// keep the last counts of the active chats instead.
+const activeChatsStats = ref({ ...conversationStats.value });
+watch(
+  () => ({ ...conversationStats.value }),
+  stats => {
+    if (!isCompletedTab.value) activeChatsStats.value = stats;
+  }
+);
+
 const assigneeTabItems = computed(() => {
   return filterItemsByPermission(
-    ASSIGNEE_TYPE_TAB_PERMISSIONS,
+    CHAT_LIST_TAB_PERMISSIONS,
     userPermissions.value,
     item => item.permissions
   ).map(({ key, count: countKey }) => ({
     key,
     name: t(`CHAT_LIST.ASSIGNEE_TYPE_TABS.${key}`),
-    count: conversationStats.value[countKey] || 0,
+    count: countKey ? activeChatsStats.value[countKey] || 0 : undefined,
   }));
 });
+
+// Completed lists resolved chats of every assignee unless an agent is picked.
+const activeAssigneeType = computed(() => {
+  const { ASSIGNED, UNASSIGNED, ALL } = wootConstants.ASSIGNEE_TYPE;
+  if (activeAssigneeTab.value === wootConstants.CHAT_LIST_TAB.UNASSIGNED) {
+    return UNASSIGNED;
+  }
+  return isCompletedTab.value && !activeAgentId.value ? ALL : ASSIGNED;
+});
+
+const activeConversationStatus = computed(() =>
+  isCompletedTab.value ? wootConstants.STATUS_TYPE.RESOLVED : activeStatus.value
+);
 
 const showAssigneeInConversationCard = computed(() => {
   return (
     hasAppliedFiltersOrActiveFolders.value ||
-    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ALL
+    activeAssigneeType.value !== wootConstants.ASSIGNEE_TYPE.UNASSIGNED
   );
 });
 
 const currentPageFilterKey = computed(() => {
   return hasAppliedFiltersOrActiveFolders.value
     ? 'appliedFilters'
-    : activeAssigneeTab.value;
+    : activeAssigneeType.value;
 });
 
 const inbox = useFunctionGetter('inboxes/getInbox', activeInbox);
 const currentPage = useFunctionGetter(
   'conversationPage/getCurrentPageFilter',
-  activeAssigneeTab
+  activeAssigneeType
 );
 const currentFiltersPage = useFunctionGetter(
   'conversationPage/getCurrentPageFilter',
@@ -246,8 +276,10 @@ const conversationListPagination = computed(() => {
 const conversationFilters = computed(() => {
   return {
     inboxId: props.conversationInbox ? props.conversationInbox : undefined,
-    assigneeType: activeAssigneeTab.value,
-    status: activeStatus.value,
+    assigneeType: activeAssigneeType.value,
+    assigneeId: activeAgentId.value || undefined,
+    unread: showUnreadOnly.value || undefined,
+    status: activeConversationStatus.value,
     sortBy: activeSortBy.value,
     page: conversationListPagination.value,
     labels: props.label ? [props.label] : undefined,
@@ -290,16 +322,20 @@ const pageTitle = computed(() => {
   if (hasActiveFolders.value) {
     return activeFolder.value.name;
   }
-  return t('CHAT_LIST.TAB_HEADING');
+  // The agent filter takes the title's place on the plain chat list.
+  return '';
 });
 
 function filterByAssigneeTab(conversations) {
-  if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ME) {
-    return conversations.filter(
-      c => c.meta?.assignee?.id === currentUser.value?.id
+  if (activeAssigneeType.value === wootConstants.ASSIGNEE_TYPE.ASSIGNED) {
+    return conversations.filter(c =>
+      activeAgentId.value
+        ? c.meta?.assignee_type === 'User' &&
+          c.meta.assignee?.id === activeAgentId.value
+        : c.meta?.assignee
     );
   }
-  if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.UNASSIGNED) {
+  if (activeAssigneeType.value === wootConstants.ASSIGNEE_TYPE.UNASSIGNED) {
     return conversations.filter(c => !c.meta?.assignee);
   }
   return [...conversations];
@@ -322,9 +358,13 @@ const conversationList = computed(() => {
       localConversationList = filterByAssigneeTab(
         participatingChatsList.value(filters)
       );
-    } else if (activeAssigneeTab.value === 'me') {
-      localConversationList = [...mineChatsList.value(filters)];
-    } else if (activeAssigneeTab.value === 'unassigned') {
+    } else if (
+      activeAssigneeType.value === wootConstants.ASSIGNEE_TYPE.ASSIGNED
+    ) {
+      localConversationList = [...assignedChatsList.value(filters)];
+    } else if (
+      activeAssigneeType.value === wootConstants.ASSIGNEE_TYPE.UNASSIGNED
+    ) {
       localConversationList = [...unAssignedChatsList.value(filters)];
     } else {
       localConversationList = [...allChatList.value(filters)];
@@ -491,7 +531,7 @@ function setParamsForEditFolderModal() {
 
 function initializeExistingFilterToModal() {
   const statusFilter = initializeStatusAndAssigneeFilterToModal(
-    activeStatus.value,
+    activeConversationStatus.value,
     currentUserDetails.value,
     activeAssigneeTab.value
   );
@@ -605,16 +645,32 @@ function loadMoreConversations() {
 
 function updateAssigneeTab(selectedTab) {
   if (activeAssigneeTab.value !== selectedTab) {
+    // Completed lists resolved chats, so entering or leaving it changes status.
+    const changesStatus = [activeAssigneeTab.value, selectedTab].includes(
+      wootConstants.CHAT_LIST_TAB.COMPLETED
+    );
     resetBulkActions();
     emitter.emit('clearSearchInput');
     activeAssigneeTab.value = selectedTab;
-    if (!currentPage.value) {
+    if (changesStatus) {
+      resetAndFetchData();
+    } else if (!currentPage.value) {
       fetchConversations();
     } else {
       store.dispatch('invalidateConversationListRequests');
       store.dispatch('updateChatListFilters', conversationFilters.value);
     }
   }
+}
+
+function onAgentFilterChange(agentId) {
+  activeAgentId.value = agentId;
+  resetAndFetchData();
+}
+
+function toggleUnreadFilter() {
+  showUnreadOnly.value = !showUnreadOnly.value;
+  resetAndFetchData();
 }
 
 function onBasicFilterChange(value, type) {
@@ -888,7 +944,10 @@ watch(appliedFilters, () => resetBulkActions());
       :contact-filter="appliedContactFilter"
       :has-applied-filters="hasAppliedFilters"
       :has-active-folders="hasActiveFolders"
-      :active-status="activeStatus"
+      :active-status="activeConversationStatus"
+      :show-status-filter="!isCompletedTab"
+      :active-agent-id="activeAgentId"
+      :show-unread-only="showUnreadOnly"
       :is-on-expanded-layout="isOnExpandedLayout"
       :conversation-stats="conversationStats"
       :is-list-loading="chatListLoading && !conversationList.length"
@@ -897,6 +956,8 @@ watch(appliedFilters, () => resetBulkActions());
       @filters-modal="onToggleAdvanceFiltersModal"
       @reset-filters="resetAndFetchData"
       @basic-filter-change="onBasicFilterChange"
+      @agent-filter-change="onAgentFilterChange"
+      @toggle-unread="toggleUnreadFilter"
     />
 
     <TeleportWithDirection

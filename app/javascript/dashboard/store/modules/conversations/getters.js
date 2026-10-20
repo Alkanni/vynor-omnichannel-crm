@@ -105,6 +105,26 @@ const getters = {
     const hasAppliedFilters = _state.appliedFilters.length !== 0;
     return hasAppliedFilters ? filterQueryGenerator(_state.appliedFilters) : [];
   },
+  getAssignedChats: (_state, _, __, rootGetters) => activeFilters => {
+    const currentUser = rootGetters.getCurrentUser;
+    const currentAccountId = rootGetters.getCurrentAccountId;
+    const permissions = getUserPermissions(currentUser, currentAccountId);
+    const userRole = getUserRole(currentUser, currentAccountId);
+    const assigneeId = Number(activeFilters.assigneeId);
+
+    return _state.allConversations.filter(conversation => {
+      const { assignee, assignee_type: assigneeType } = conversation.meta;
+      const isAssigned = assigneeId
+        ? assigneeType === 'User' && assignee?.id === assigneeId
+        : !!assignee;
+
+      return (
+        isAssigned &&
+        applyPageFilters(conversation, activeFilters) &&
+        applyRoleFilter(conversation, userRole, permissions, currentUser.id)
+      );
+    });
+  },
   getUnAssignedChats: _state => activeFilters => {
     return _state.allConversations.filter(conversation => {
       const isUnAssigned = !conversation.meta.assignee;

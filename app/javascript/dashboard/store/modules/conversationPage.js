@@ -3,12 +3,14 @@ import * as types from '../mutation-types';
 const state = {
   currentPage: {
     me: 0,
+    assigned: 0,
     unassigned: 0,
     all: 0,
     appliedFilters: 0,
   },
   hasEndReached: {
     me: false,
+    assigned: false,
     unassigned: false,
     all: false,
   },
@@ -49,6 +51,7 @@ export const mutations = {
     if (filter === 'all') {
       $state.hasEndReached = {
         ...$state.hasEndReached,
+        assigned: true,
         unassigned: true,
         me: true,
       };
@@ -61,6 +64,7 @@ export const mutations = {
   [types.default.CLEAR_CONVERSATION_PAGE]: $state => {
     $state.currentPage = {
       me: 0,
+      assigned: 0,
       unassigned: 0,
       all: 0,
       appliedFilters: 0,
@@ -68,6 +72,7 @@ export const mutations = {
 
     $state.hasEndReached = {
       me: false,
+      assigned: false,
       unassigned: false,
       all: false,
       appliedFilters: false,

@@ -8,7 +8,7 @@
     },
     "FAILED_TO_SEND": "Failed to send",
     "FETCH_ERROR": "Couldn't load conversations. Please try again.",
-    "TAB_HEADING": "Conversations",
+    "TAB_HEADING": "Chat",
     "MENTION_HEADING": "Mentions",
     "UNATTENDED_HEADING": "Unattended",
     "SEARCH": {
@@ -16,10 +16,16 @@
     },
     "FILTER_ALL": "All",
     "ASSIGNEE_TYPE_TABS": {
-      "me": "Mine",
+      "assigned": "Assigned",
       "unassigned": "Unassigned",
-      "all": "All"
+      "completed": "Completed"
     },
+    "AGENT_FILTER": {
+      "ALL_AGENTS": "All Agents",
+      "TOOLTIP": "Show chats handled by an agent"
+    },
+    "SEARCH_TOOLTIP": "Search chats",
+    "UNREAD_FILTER_TOOLTIP": "Show unread chats only",
     "CHAT_STATUS_FILTER_ITEMS": {
       "open": {
         "TEXT": "Open"

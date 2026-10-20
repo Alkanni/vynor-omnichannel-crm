@@ -23,9 +23,16 @@ describe('#mutations', () => {
       };
       mutations[types.default.CLEAR_CONVERSATION_PAGE](state);
       expect(state).toEqual({
-        currentPage: { me: 0, unassigned: 0, all: 0, appliedFilters: 0 },
+        currentPage: {
+          me: 0,
+          assigned: 0,
+          unassigned: 0,
+          all: 0,
+          appliedFilters: 0,
+        },
         hasEndReached: {
           me: false,
+          assigned: false,
           unassigned: false,
           all: false,
           appliedFilters: false,
@@ -51,13 +58,19 @@ describe('#mutations', () => {
 
     it('set all state to true if all end has reached', () => {
       const state = {
-        hasEndReached: { me: false, unassigned: false, all: false },
+        hasEndReached: {
+          me: false,
+          assigned: false,
+          unassigned: false,
+          all: false,
+        },
       };
       mutations[types.default.SET_CONVERSATION_END_REACHED](state, {
         filter: 'all',
       });
       expect(state.hasEndReached).toEqual({
         me: true,
+        assigned: true,
         unassigned: true,
         all: true,
       });

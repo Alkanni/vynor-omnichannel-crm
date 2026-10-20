@@ -17,6 +17,11 @@ get:
         enum: ['me', 'unassigned', 'all', 'assigned']
         default: 'all'
       description: Filter conversations by assignee type.
+    - name: assignee_id
+      in: query
+      schema:
+        type: integer
+      description: Narrows `assignee_type=assigned` to conversations assigned to this agent and scopes `meta.assigned_count` to the same agent.
     - name: status
       in: query
       schema:
@@ -29,6 +34,11 @@ get:
       schema:
         type: string
       description: Filters conversations with messages containing the search term
+    - name: unread
+      in: query
+      schema:
+        type: boolean
+      description: When `true`, returns only conversations with unread incoming messages.
     - name: inbox_id
       in: query
       schema:
