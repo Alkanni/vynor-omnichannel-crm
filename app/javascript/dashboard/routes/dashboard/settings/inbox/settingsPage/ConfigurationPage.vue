@@ -15,6 +15,7 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 import TextArea from 'next/textarea/TextArea.vue';
 import { sanitizeAllowedDomains } from 'dashboard/helper/URLHelper';
 import WhatsappBusinessManagementToken from './WhatsappBusinessManagementToken.vue';
+import WhatsappAppSecret from './WhatsappAppSecret.vue';
 import HmacSecretKey from './components/HmacSecretKey.vue';
 
 export default {
@@ -27,6 +28,7 @@ export default {
     NextButton,
     TextArea,
     WhatsappBusinessManagementToken,
+    WhatsappAppSecret,
     HmacSecretKey,
   },
   mixins: [inboxMixin],
@@ -461,6 +463,10 @@ export default {
             </NextButton>
           </div>
         </SettingsFieldSection>
+        <WhatsappAppSecret
+          v-if="inbox.provider === 'whatsapp_cloud'"
+          :inbox="inbox"
+        />
       </template>
       <WhatsappBusinessManagementToken
         v-if="

@@ -1,12 +1,13 @@
 class Whatsapp::ManualSetupService
   attr_reader :channel, :webhook_error
 
-  def initialize(account:, waba_id:, phone_number_id:, access_token:, inbox_name: nil)
+  def initialize(account:, waba_id:, phone_number_id:, access_token:, inbox_name: nil, app_secret: nil) # rubocop:disable Metrics/ParameterLists
     @account = account
     @waba_id = waba_id
     @phone_number_id = phone_number_id
     @access_token = access_token
     @inbox_name = inbox_name
+    @app_secret = app_secret
   end
 
   def perform
@@ -39,8 +40,9 @@ class Whatsapp::ManualSetupService
           api_key: @access_token,
           phone_number_id: preview[:phone_number_id],
           business_account_id: preview[:waba_id],
-          source: 'manual_setup_v2'
-        }
+          source: 'manual_setup_v2',
+          app_secret: @app_secret.presence
+        }.compact
       )
       @account.inboxes.create!(
         name: @inbox_name.to_s.strip.presence || preview[:suggested_inbox_name],
