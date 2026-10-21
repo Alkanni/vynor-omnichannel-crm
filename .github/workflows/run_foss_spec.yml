@@ -9,25 +9,34 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Container jobs default to sh; the shard script relies on bash arrays
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # Separate linting jobs for faster feedback
   lint-backend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Keep the Ruby version in sync with .ruby-version
+    container: ruby:3.4.4-bookworm
     steps:
       - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
+      - uses: ./.github/actions/bundle-install
       - name: Run Rubocop
         run: bundle exec rubocop --parallel
 
   security-scan:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Keep the Ruby version in sync with .ruby-version
+    container: ruby:3.4.4-bookworm
     steps:
       - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
+      - uses: ./.github/actions/bundle-install
       - name: Run Brakeman
         # Non-blocking for now: Brakeman surfaces 35 pre-existing findings
         # (13 High confidence) that need security-team triage before this
@@ -40,7 +49,10 @@ jobs:
           bundle exec bundle-audit check
 
   lint-frontend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    container: node:24-bookworm
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -55,7 +67,10 @@ jobs:
 
   # Frontend tests run in parallel with backend
   frontend-tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    container: node:24-bookworm
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -70,12 +85,18 @@ jobs:
 
   # Backend tests with parallelization
   backend-tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Keep the Ruby version in sync with .ruby-version
+    container: ruby:3.4.4-bookworm
     strategy:
       fail-fast: false
+      # A single self-hosted runner executes shards one after another,
+      # so fewer shards keep the per-shard setup overhead down
       matrix:
-        ci_node_total: [16]
-        ci_node_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        ci_node_total: [4]
+        ci_node_index: [0, 1, 2, 3]
 
     services:
       postgres:
@@ -85,8 +106,6 @@ jobs:
           POSTGRES_PASSWORD: ''
           POSTGRES_DB: postgres
           POSTGRES_HOST_AUTH_METHOD: trust
-        ports:
-          - 5432:5432
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd pg_isready
@@ -95,9 +114,13 @@ jobs:
           --health-retries 5
       redis:
         image: redis:alpine
-        ports:
-          - 6379:6379
         options: --entrypoint redis-server
+
+    # Services are reached by name from the job container, so no host ports
+    # are published (they would clash with other stacks on the runner host)
+    env:
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -106,9 +129,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
+      - uses: ./.github/actions/bundle-install
 
       - uses: actions/setup-node@v4
         with:
