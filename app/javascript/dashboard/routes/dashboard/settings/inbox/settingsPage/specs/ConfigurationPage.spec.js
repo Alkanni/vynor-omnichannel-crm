@@ -2,6 +2,7 @@ import { shallowMount } from '@vue/test-utils';
 import { createStore } from 'vuex';
 import ConfigurationPage from '../ConfigurationPage.vue';
 import SmtpSettings from '../../SmtpSettings.vue';
+import WhatsappAppSecret from '../WhatsappAppSecret.vue';
 
 vi.mock('dashboard/composables', () => ({
   useAlert: vi.fn(),
@@ -84,4 +85,21 @@ describe('ConfigurationPage', () => {
 
     expect(wrapper.vm.showWhatsAppReconfigure).toBe(false);
   });
+
+  it.each([
+    ['manual WhatsApp Cloud', 'whatsapp_cloud', 'manual_setup_v2', true],
+    ['embedded signup', 'whatsapp_cloud', 'embedded_signup', false],
+    ['360dialog', 'default', undefined, false],
+  ])(
+    'shows the app secret section only for manual WhatsApp Cloud inboxes (%s)',
+    (_name, provider, source, expected) => {
+      const wrapper = mountComponent({
+        channel_type: 'Channel::Whatsapp',
+        provider,
+        provider_config: { source, webhook_verify_token: 'verify-token' },
+      });
+
+      expect(wrapper.findComponent(WhatsappAppSecret).exists()).toBe(expected);
+    }
+  );
 });

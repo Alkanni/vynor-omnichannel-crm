@@ -48,6 +48,7 @@ const isLoading = ref(false);
 const errorMessage = ref('');
 const inboxId = ref(null);
 const showAccessToken = ref(false);
+const showAppSecret = ref(false);
 const setupRoot = ref(null);
 const pollAttempts = ref(0);
 
@@ -55,6 +56,7 @@ const form = reactive({
   wabaId: '',
   phoneNumberId: '',
   accessToken: '',
+  appSecret: '',
   inboxName: '',
 });
 
@@ -268,6 +270,7 @@ const connectNumber = async () => {
       phone_number_id: form.phoneNumberId.trim(),
       access_token: form.accessToken.trim(),
       inbox_name: form.inboxName.trim(),
+      app_secret: form.appSecret.trim() || undefined,
     });
     inboxId.value = data.id;
     connection.numberAccess = Boolean(data.number_access);
@@ -601,6 +604,43 @@ const continueToAgents = async () => {
             <Icon icon="i-lucide-triangle-alert" class="mt-0.5 shrink-0" />
             {{ t('INBOX_MGMT.ADD.WHATSAPP.MANUAL_SETUP.TOKEN.WARNING') }}
           </p>
+          <div class="mt-5 grid items-start gap-3 sm:grid-cols-[1fr_auto]">
+            <Input
+              v-model="form.appSecret"
+              :type="showAppSecret ? 'text' : 'password'"
+              autocomplete="off"
+              :label="
+                t(
+                  'INBOX_MGMT.ADD.WHATSAPP.MANUAL_SETUP.DETAILS.APP_SECRET_LABEL'
+                )
+              "
+              :placeholder="
+                t(
+                  'INBOX_MGMT.ADD.WHATSAPP.MANUAL_SETUP.DETAILS.APP_SECRET_PLACEHOLDER'
+                )
+              "
+              :message="
+                t(
+                  'INBOX_MGMT.ADD.WHATSAPP.MANUAL_SETUP.DETAILS.APP_SECRET_HELP'
+                )
+              "
+            />
+            <Button
+              :label="
+                showAppSecret
+                  ? t(
+                      'INBOX_MGMT.ADD.WHATSAPP.MANUAL_SETUP.ACTIONS.HIDE_APP_SECRET'
+                    )
+                  : t(
+                      'INBOX_MGMT.ADD.WHATSAPP.MANUAL_SETUP.ACTIONS.SHOW_APP_SECRET'
+                    )
+              "
+              variant="outline"
+              color="slate"
+              class="sm:mt-7"
+              @click="showAppSecret = !showAppSecret"
+            />
+          </div>
         </div>
 
         <div
