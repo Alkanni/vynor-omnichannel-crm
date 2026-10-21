@@ -29,7 +29,7 @@ class Api::V1::ProfilesController < Api::BaseController
   end
 
   def set_active_account
-    @user.account_users.find_by(account_id: profile_params[:account_id]).update(active_at: Time.now.utc)
+    @user.account_users.find_by!(account_id: active_account_params[:account_id]).update(active_at: Time.now.utc)
     head :ok
   end
 
@@ -57,6 +57,10 @@ class Api::V1::ProfilesController < Api::BaseController
     params.require(:profile).permit(:account_id, :auto_offline)
   end
 
+  def active_account_params
+    params.require(:profile).permit(:account_id)
+  end
+
   def profile_params
     params.require(:profile).permit(
       :email,
@@ -64,7 +68,6 @@ class Api::V1::ProfilesController < Api::BaseController
       :display_name,
       :avatar,
       :message_signature,
-      :account_id,
       ui_settings: {}
     )
   end
