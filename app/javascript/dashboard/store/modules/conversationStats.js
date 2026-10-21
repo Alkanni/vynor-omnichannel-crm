@@ -4,6 +4,7 @@ import { debounce } from '@chatwoot/utils';
 
 const state = {
   mineCount: 0,
+  assignedCount: 0,
   unAssignedCount: 0,
   allCount: 0,
 };
@@ -16,6 +17,8 @@ export const getters = {
 const getViewKey = ({
   inboxId,
   status,
+  assigneeId,
+  unread,
   labels,
   teamId,
   conversationType,
@@ -26,6 +29,8 @@ const getViewKey = ({
     queryData || {
       inboxId,
       status,
+      assigneeId,
+      unread,
       labels,
       teamId,
       conversationType,
@@ -112,11 +117,13 @@ export const mutations = {
     $state,
     {
       mine_count: mineCount,
+      assigned_count: assignedCount,
       unassigned_count: unAssignedCount,
       all_count: allCount,
     } = {}
   ) {
     $state.mineCount = mineCount;
+    $state.assignedCount = assignedCount;
     $state.allCount = allCount;
     $state.unAssignedCount = unAssignedCount;
     $state.updatedOn = new Date();

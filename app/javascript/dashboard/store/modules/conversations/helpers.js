@@ -24,6 +24,9 @@ export const filterByLabel = (shouldFilter, labels, chatLabels) => {
   const isOnLabel = labels.every(label => chatLabels.includes(label));
   return labels.length ? isOnLabel && shouldFilter : shouldFilter;
 };
+export const filterByUnread = (shouldFilter, unread, unreadCount) =>
+  unread ? unreadCount > 0 && shouldFilter : shouldFilter;
+
 export const filterByUnattended = (
   shouldFilter,
   conversationType,
@@ -36,7 +39,14 @@ export const filterByUnattended = (
 };
 
 export const applyPageFilters = (conversation, filters) => {
-  const { inboxId, status, labels = [], teamId, conversationType } = filters;
+  const {
+    inboxId,
+    status,
+    labels = [],
+    teamId,
+    conversationType,
+    unread,
+  } = filters;
   const {
     status: chatStatus,
     inbox_id: chatInboxId,
@@ -44,6 +54,7 @@ export const applyPageFilters = (conversation, filters) => {
     meta = {},
     first_reply_created_at: firstReplyOn,
     waiting_since: waitingSince,
+    unread_count: unreadCount,
   } = conversation;
   const team = meta.team || {};
   const { id: chatTeamId } = team;
@@ -58,6 +69,7 @@ export const applyPageFilters = (conversation, filters) => {
     firstReplyOn,
     waitingSince
   );
+  shouldFilter = filterByUnread(shouldFilter, unread, unreadCount);
 
   return shouldFilter;
 };

@@ -5,6 +5,7 @@ import {
   filterByTeam,
   filterByLabel,
   filterByUnattended,
+  filterByUnread,
 } from '../../conversations/helpers';
 
 const conversationList = [
@@ -158,6 +159,16 @@ describe('#filterByLabel', () => {
     const labels = ['dev', 'cs', 'sales'];
     const chatLabels = ['cs', 'sales'];
     expect(filterByLabel(true, labels, chatLabels)).toEqual(false);
+  });
+});
+
+describe('#filterByUnread', () => {
+  it('keeps only chats with unread messages when the filter is active', () => {
+    expect(filterByUnread(true, true, 2)).toEqual(true);
+    expect(filterByUnread(true, true, 0)).toEqual(false);
+  });
+  it('keeps every chat when the filter is not active', () => {
+    expect(filterByUnread(true, undefined, 0)).toEqual(true);
   });
 });
 

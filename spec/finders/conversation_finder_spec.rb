@@ -184,6 +184,44 @@ describe ConversationFinder do
       end
     end
 
+    context 'with assignee_type assigned and assignee_id' do
+      let(:params) { { assignee_type: 'assigned', assignee_id: user_2.id } }
+
+      it 'returns only conversations assigned to the given agent' do
+        result = conversation_finder.perform
+        expect(result[:conversations].map(&:assignee_id)).to eq([user_2.id])
+      end
+
+      it 'counts assigned conversations for the given agent only' do
+        result = conversation_finder.perform
+        expect(result[:count]).to eq({
+                                       mine_count: 2,
+                                       assigned_count: 1,
+                                       unassigned_count: 1,
+                                       all_count: 4
+                                     })
+        expect(conversation_finder.perform_meta_only[:count]).to eq(result[:count])
+      end
+    end
+
+    context 'with unread' do
+      let(:params) { { unread: 'true' } }
+      let!(:unread_conversation) { create(:conversation, account: account, inbox: inbox, agent_last_seen_at: 1.hour.ago) }
+      let!(:read_conversation) { create(:conversation, account: account, inbox: inbox, agent_last_seen_at: 1.minute.from_now) }
+
+      before do
+        [unread_conversation, read_conversation].each do |conversation|
+          create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :incoming, created_at: 5.minutes.ago)
+        end
+      end
+
+      it 'returns only conversations with unread incoming messages' do
+        result = conversation_finder.perform
+        expect(result[:conversations]).to contain_exactly(unread_conversation)
+        expect(result[:count]).to eq({ mine_count: 0, assigned_count: 0, unassigned_count: 1, all_count: 1 })
+      end
+    end
+
     context 'with team' do
       let(:team) { create(:team, account: account) }
       let(:params) { { team_id: team.id } }

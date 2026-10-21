@@ -208,6 +208,57 @@ describe('#getters', () => {
       ]);
     });
   });
+  describe('#getAssignedChats', () => {
+    const conversationList = [
+      {
+        id: 1,
+        status: 'open',
+        meta: { assignee: { id: 1 }, assignee_type: 'User' },
+      },
+      { id: 2, status: 'open', meta: {} },
+      {
+        id: 3,
+        status: 'open',
+        meta: { assignee: { id: 2 }, assignee_type: 'User' },
+      },
+      {
+        id: 4,
+        status: 'open',
+        meta: { assignee: { id: 2 }, assignee_type: 'AgentBot' },
+      },
+      {
+        id: 5,
+        status: 'resolved',
+        meta: { assignee: { id: 2 }, assignee_type: 'User' },
+      },
+    ];
+    const rootGetters = {
+      getCurrentUser: {
+        id: 1,
+        accounts: [{ id: 1, role: 'administrator', permissions: [] }],
+      },
+      getCurrentAccountId: 1,
+    };
+    const getAssignedChats = getters.getAssignedChats(
+      { allConversations: conversationList },
+      {},
+      {},
+      rootGetters
+    );
+
+    it('returns chats assigned to anyone when no agent is selected', () => {
+      expect(getAssignedChats({ status: 'open' }).map(c => c.id)).toEqual([
+        1, 3, 4,
+      ]);
+    });
+
+    it('returns only chats assigned to the selected human agent', () => {
+      expect(
+        getAssignedChats({ status: 'open', assigneeId: 2 }).map(c => c.id)
+      ).toEqual([3]);
+    });
+  });
+
   describe('#getParticipatingChats', () => {
     const conversationList = [
       { id: 1, inbox_id: 2, status: 1, meta: { assignee: { id: 1 } } },

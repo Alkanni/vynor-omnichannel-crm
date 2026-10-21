@@ -1,5 +1,6 @@
 <script>
 import { mapGetters } from 'vuex';
+import { useWindowSize } from '@vueuse/core';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAccount } from 'dashboard/composables/useAccount';
 import ChatList from '../../../components/ChatList.vue';
@@ -10,6 +11,9 @@ import CmdBarConversationSnooze from 'dashboard/routes/dashboard/commands/CmdBar
 import { emitter } from 'shared/helpers/mitt';
 import SidepanelSwitch from 'dashboard/components-next/Conversation/SidepanelSwitch.vue';
 import ConversationSidebar from 'dashboard/components/widgets/conversation/ConversationSidebar.vue';
+
+// Below this width the contact panel leaves too little room for the messages.
+const CONTACT_PANEL_AUTO_OPEN_MIN_WIDTH = 1280;
 
 export default {
   components: {
@@ -57,12 +61,14 @@ export default {
     const { uiSettings, updateUISettings, isOnExpandedLayout } =
       useUISettings();
     const { accountId } = useAccount();
+    const { width: windowWidth } = useWindowSize();
 
     return {
       uiSettings,
       updateUISettings,
       isOnExpandedLayout,
       accountId,
+      windowWidth,
     };
   },
   data() {
@@ -91,8 +97,9 @@ export default {
     },
   },
   watch: {
-    conversationId() {
+    conversationId(conversationId) {
       this.fetchConversationIfUnavailable();
+      if (conversationId) this.openContactPanel();
     },
   },
 
@@ -114,9 +121,25 @@ export default {
     this.$watch('chatList.length', () => {
       this.setActiveChat();
     });
+    if (this.conversationId) this.openContactPanel();
   },
 
   methods: {
+    // Opening a chat shows its contact details, unless Copilot holds the panel.
+    openContactPanel() {
+      const {
+        is_contact_sidebar_open: isContactSidebarOpen,
+        is_copilot_panel_open: isCopilotPanelOpen,
+      } = this.uiSettings;
+      if (
+        isContactSidebarOpen ||
+        isCopilotPanelOpen ||
+        this.windowWidth < CONTACT_PANEL_AUTO_OPEN_MIN_WIDTH
+      ) {
+        return;
+      }
+      this.updateUISettings({ is_contact_sidebar_open: true });
+    },
     onConversationLoad() {
       this.fetchConversationIfUnavailable();
     },
