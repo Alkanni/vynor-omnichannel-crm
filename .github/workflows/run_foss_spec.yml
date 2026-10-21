@@ -13,6 +13,8 @@ jobs:
   # Separate linting jobs for faster feedback
   lint-backend:
     runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # Keep the Ruby version in sync with .ruby-version
     container: ruby:3.4.4-bookworm
     steps:
@@ -23,6 +25,8 @@ jobs:
 
   security-scan:
     runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # Keep the Ruby version in sync with .ruby-version
     container: ruby:3.4.4-bookworm
     steps:
@@ -41,6 +45,8 @@ jobs:
 
   lint-frontend:
     runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     container: node:24-bookworm
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +63,8 @@ jobs:
   # Frontend tests run in parallel with backend
   frontend-tests:
     runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     container: node:24-bookworm
     steps:
       - uses: actions/checkout@v4
@@ -73,6 +81,8 @@ jobs:
   # Backend tests with parallelization
   backend-tests:
     runs-on: self-hosted
+    # Self-hosted runner: never run code from fork PRs on the owner's machine
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # Keep the Ruby version in sync with .ruby-version
     container: ruby:3.4.4-bookworm
     strategy:
