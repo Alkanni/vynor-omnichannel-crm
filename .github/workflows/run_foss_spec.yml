@@ -147,7 +147,8 @@ jobs:
             bundle exec rspec --profile=10 --format progress --format json --out tmp/rspec_results.json $TESTS
           fi
         env:
-          NODE_OPTIONS: --openssl-legacy-provider
+          # vite_ruby builds test assets on demand; the default heap OOMs on smaller runners
+          NODE_OPTIONS: --openssl-legacy-provider --max-old-space-size=4096
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
