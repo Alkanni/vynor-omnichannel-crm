@@ -9,6 +9,7 @@ import {
   useStore,
   useMapGetter,
 } from 'dashboard/composables/store';
+import { useConfig } from 'dashboard/composables/useConfig';
 
 import AddAgent from './AddAgent.vue';
 import EditAgent from './EditAgent.vue';
@@ -49,10 +50,11 @@ const filteredAgentList = computed(() => {
 const uiFlags = computed(() => getters['agents/getUIFlags'].value);
 const currentUserId = computed(() => getters.getCurrentUserID.value);
 const customRoles = useMapGetter('customRole/getCustomRoles');
+const { isEnterprise } = useConfig();
 
 onMounted(() => {
   store.dispatch('agents/get');
-  store.dispatch('customRole/getCustomRole');
+  if (isEnterprise) store.dispatch('customRole/getCustomRole');
 });
 
 const findCustomRole = agent =>

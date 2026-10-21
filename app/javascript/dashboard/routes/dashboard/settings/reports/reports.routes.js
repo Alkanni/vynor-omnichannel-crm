@@ -1,5 +1,6 @@
 import { frontendURL } from '../../../../helper/URLHelper';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
+import { INSTALLATION_TYPES } from 'dashboard/constants/installationTypes';
 
 import ReportsWrapper from './components/ReportsWrapper.vue';
 import Index from './Index.vue';
@@ -137,7 +138,13 @@ export default {
         {
           path: 'sla',
           name: 'sla_reports',
-          meta,
+          meta: {
+            ...meta,
+            installationTypes: [
+              INSTALLATION_TYPES.CLOUD,
+              INSTALLATION_TYPES.ENTERPRISE,
+            ],
+          },
           component: SLAReports,
         },
         {
