@@ -94,8 +94,11 @@ RSpec.describe AiAgent do
       create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent, title: 'q' * 3, content: 'a' * 4)
       create(:ai_agent_product, ai_agent: ai_agent, name: 'n' * 5, description: 'd' * 6)
 
+      create(:ai_agent_knowledge_source, ai_agent: ai_agent, source_type: :website, external_url: 'https://grandsehat.example.com',
+                                         content: 'w' * 8)
+
       expect(ai_agent.knowledge_stats).to eq(
-        text_characters: 10, qa_count: 1, qa_characters: 7, products: 1, total_characters: 28
+        files: 0, links: 1, text_characters: 10, qa_count: 1, qa_characters: 7, products: 1, total_characters: 36
       )
     end
   end

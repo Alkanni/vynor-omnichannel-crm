@@ -165,13 +165,17 @@
     "KNOWLEDGE": {
       "TABS": {
         "TEXT": "Text",
+        "WEBSITE": "Website",
+        "FILE": "File",
         "QA": "Q&A",
         "PRODUCT": "Product"
       },
       "LOAD_ERROR": "Could not load the knowledge. Please refresh the page.",
       "STATS": {
         "TITLE": "Knowledge summary",
+        "FILES": "Files",
         "TEXT_CHARACTERS": "Text Input Characters",
+        "LINKS": "Links",
         "QA": "Q&A",
         "QA_VALUE": "{count} pair · {characters} characters | {count} pairs · {characters} characters",
         "PRODUCTS": "Products",
@@ -266,6 +270,70 @@
           "SAVE_SUCCESS": "Product saved",
           "SAVE_ERROR": "Could not save the product. Please try again."
         }
+      },
+      "STATUS": {
+        "PENDING": "Queued",
+        "PROCESSING": "Processing",
+        "READY": "Trained",
+        "FAILED": "Failed"
+      },
+      "CHARACTERS": "{count} characters",
+      "WEBSITE": {
+        "TITLE": "Provide Link",
+        "DESCRIPTION": "Provide a link to the page you want the AI to learn from.",
+        "MODES": {
+          "BATCH": "Batch Link",
+          "SINGLE": "Single Link"
+        },
+        "COLLECTOR_LABEL": "Web Link Collector",
+        "SINGLE_LABEL": "Link",
+        "URL_PLACEHOLDER": "Link URL",
+        "COLLECT": "Collect Link",
+        "COLLECT_HINT": "Start with URL and this tool will gather up to 300 unique links from the site, excluding any files",
+        "COLLECT_ERROR": "Could not collect links from this site. Check the address and try again.",
+        "COLLECTED": "{count} links found",
+        "SELECT_ALL": "Select all",
+        "TRAIN_SELECTED": "Train {count} links",
+        "ADD_LINK": "Add link",
+        "ADD_SUCCESS": "Links added. The AI agent will learn from them in a moment.",
+        "ADD_ERROR": "Could not add the links. Please try again.",
+        "TRAINED_TITLE": "Trained Link",
+        "SELECT": "Select",
+        "SEARCH_PLACEHOLDER": "Search Links",
+        "DELETE_SELECTED": "Delete selected ({count})",
+        "EMPTY": "No links yet. Collect links from a site or add a single link above.",
+        "NO_RESULTS": "No links match your search.",
+        "RESYNC": "Sync {title} again",
+        "RESYNC_SUCCESS": "Sync started",
+        "RESYNC_ERROR": "Could not start the sync. Please try again.",
+        "DELETE": "Delete {title}",
+        "DELETE_TITLE": "Delete this link? | Delete {count} links?",
+        "DELETE_DESCRIPTION": "The AI agent will no longer use these pages. This cannot be undone.",
+        "DELETE_SUCCESS": "Links deleted",
+        "DELETE_ERROR": "Could not delete the links. Please try again."
+      },
+      "FILE": {
+        "TITLE": "Files",
+        "DROPZONE": "Drag & drop your files here or click to select files",
+        "SUPPORTED": "Supported file types: PDF, DOC, DOCX, TXT, MD (up to 100 MB each)",
+        "PDF_NOTE": "If you are uploading a PDF, make sure you can highlight the text",
+        "INCLUDED_TITLE": "Already Included Files:",
+        "INCLUDED_EMPTY": "No files yet.",
+        "QUEUE_TITLE": "To be added:",
+        "QUEUE_EMPTY": "-",
+        "REMOVE_FROM_QUEUE": "Remove {name} from the list",
+        "UNSUPPORTED": "{name} is not a supported file type.",
+        "TOO_LARGE": "{name} is larger than 100 MB.",
+        "SAVE": "Save",
+        "UPLOADING": "Uploading {name} ({progress}%)",
+        "UPLOAD_SUCCESS": "Files uploaded. The AI agent will learn from them in a moment.",
+        "UPLOAD_ERROR": "Could not upload {name}: {reason}",
+        "RETRY": "Process {title} again",
+        "DELETE": "Delete {title}",
+        "DELETE_TITLE": "Delete {title}?",
+        "DELETE_DESCRIPTION": "The AI agent will no longer use this file. This cannot be undone.",
+        "DELETE_SUCCESS": "File deleted",
+        "DELETE_ERROR": "Could not delete the file. Please try again."
       }
     }
   }

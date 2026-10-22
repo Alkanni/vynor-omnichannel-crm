@@ -16,9 +16,19 @@ const formatNumber = value =>
 
 const rows = computed(() => [
   {
+    key: 'files',
+    label: t('AI_AGENTS.KNOWLEDGE.STATS.FILES'),
+    value: formatNumber(props.stats.files),
+  },
+  {
     key: 'text',
     label: t('AI_AGENTS.KNOWLEDGE.STATS.TEXT_CHARACTERS'),
     value: formatNumber(props.stats.text_characters),
+  },
+  {
+    key: 'links',
+    label: t('AI_AGENTS.KNOWLEDGE.STATS.LINKS'),
+    value: formatNumber(props.stats.links),
   },
   {
     key: 'qa',

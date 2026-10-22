@@ -62,27 +62,35 @@ class AiAgent < ApplicationRecord
       copy = dup
       copy.name = I18n.t('ai_agents.duplicate_name', name: name).truncate(255)
       copy.save!
-      knowledge_sources.each { |source| copy.knowledge_sources.create!(source.attributes.slice('source_type', 'title', 'content')) }
+      knowledge_sources.each { |source| source.copy_to!(copy) }
       products.each { |product| product.copy_to!(copy) }
       copy
     end
   end
 
   def knowledge_stats
-    text_characters = knowledge_sources.text.sum(Arel.sql("char_length(coalesce(content, ''))"))
-    qa_characters = knowledge_sources.qa.sum(Arel.sql("char_length(title) + char_length(coalesce(content, ''))"))
-    product_characters = products.sum(Arel.sql("char_length(name) + char_length(coalesce(description, ''))"))
+    counts = knowledge_sources.group(:source_type).count
+    characters = knowledge_characters
 
     {
-      text_characters: text_characters,
-      qa_count: knowledge_sources.qa.count,
-      qa_characters: qa_characters,
+      files: counts.fetch('file', 0),
+      links: counts.fetch('website', 0),
+      text_characters: characters.fetch('text', 0),
+      qa_count: counts.fetch('qa', 0),
+      qa_characters: characters.fetch('qa', 0),
       products: products.count,
-      total_characters: text_characters + qa_characters + product_characters
+      total_characters: characters.values.sum
     }
   end
 
   private
+
+  # Characters per knowledge type; a Q&A also counts its question and products count name and description.
+  def knowledge_characters
+    characters = knowledge_sources.group(:source_type).sum(Arel.sql("char_length(coalesce(content, ''))"))
+    characters['qa'] = characters.fetch('qa', 0) + knowledge_sources.qa.sum(Arel.sql('char_length(title)'))
+    characters.merge('product' => products.sum(Arel.sql("char_length(name) + char_length(coalesce(description, ''))")))
+  end
 
   def model_supported
     config = Llm::Models.model_config(model)
