@@ -3,6 +3,7 @@ import {
   isAConversationRoute,
   defaultRedirectPage,
   routeIsAccessibleFor,
+  routeIsAvailableOnInstallation,
   validateLoggedInRoutes,
   isAInboxViewRoute,
 } from '../routeHelpers';
@@ -12,6 +13,39 @@ describe('#routeIsAccessibleFor', () => {
     let route = { meta: { permissions: ['administrator'] } };
     expect(routeIsAccessibleFor(route, ['agent'])).toEqual(false);
     expect(routeIsAccessibleFor(route, ['administrator'])).toEqual(true);
+  });
+});
+
+describe('#routeIsAvailableOnInstallation', () => {
+  const community = { isEnterprise: false, isOnChatwootCloud: false };
+  const premiumRoute = { meta: { installationTypes: ['cloud', 'enterprise'] } };
+
+  it('allows routes without installation types', () => {
+    expect(routeIsAvailableOnInstallation({ meta: {} }, community)).toBe(true);
+  });
+
+  it('allows routes that include the community installation type', () => {
+    const route = { meta: { installationTypes: ['community'] } };
+    expect(routeIsAvailableOnInstallation(route, community)).toBe(true);
+  });
+
+  it('blocks cloud and enterprise routes on a community installation', () => {
+    expect(routeIsAvailableOnInstallation(premiumRoute, community)).toBe(false);
+  });
+
+  it('allows cloud and enterprise routes on a matching installation', () => {
+    expect(
+      routeIsAvailableOnInstallation(premiumRoute, {
+        isEnterprise: true,
+        isOnChatwootCloud: false,
+      })
+    ).toBe(true);
+    expect(
+      routeIsAvailableOnInstallation(premiumRoute, {
+        isEnterprise: false,
+        isOnChatwootCloud: true,
+      })
+    ).toBe(true);
   });
 });
 
@@ -124,6 +158,33 @@ describe('#validateLoggedInRoutes', () => {
                 meta: { permissions: ['administrator'] },
               },
               { accounts: [{ id: 1, role: 'agent', status: 'active' }] }
+            )
+          ).toEqual(`accounts/1/dashboard`);
+        });
+      });
+      describe('when route is not available on the installation', () => {
+        it('returns dashboard url', () => {
+          expect(
+            validateLoggedInRoutes(
+              {
+                name: 'captain_assistants_index',
+                params: { accountId: 1 },
+                meta: {
+                  permissions: ['agent'],
+                  installationTypes: ['cloud', 'enterprise'],
+                },
+              },
+              {
+                accounts: [
+                  {
+                    id: 1,
+                    role: 'agent',
+                    permissions: ['agent'],
+                    status: 'active',
+                  },
+                ],
+              },
+              { isEnterprise: false, isOnChatwootCloud: false }
             )
           ).toEqual(`accounts/1/dashboard`);
         });

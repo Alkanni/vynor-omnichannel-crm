@@ -59,7 +59,10 @@ export const validateAuthenticateRoutePermission = async (to, next) => {
     return next(frontendURL(`accounts/${routeAccountId}/dashboard`));
   }
 
-  const nextRoute = validateLoggedInRoutes(to, store.getters.getCurrentUser);
+  const nextRoute = validateLoggedInRoutes(to, store.getters.getCurrentUser, {
+    isEnterprise: store.getters['globalConfig/get'].isEnterprise,
+    isOnChatwootCloud: store.getters['globalConfig/isOnChatwootCloud'],
+  });
   return nextRoute ? next(frontendURL(nextRoute)) : next();
 };
 

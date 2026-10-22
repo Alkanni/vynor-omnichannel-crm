@@ -13,6 +13,8 @@ vi.mock('../store', () => ({
         accounts: [],
       },
       'accounts/getAccount': () => ({}),
+      'globalConfig/get': { isEnterprise: false },
+      'globalConfig/isOnChatwootCloud': false,
     },
     dispatch: vi.fn(() => Promise.resolve()),
   },
