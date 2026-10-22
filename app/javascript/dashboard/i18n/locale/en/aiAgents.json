@@ -1,0 +1,165 @@
+{
+  "AI_AGENTS": {
+    "HEADER": "AI Agents",
+    "DESCRIPTION": "This is the page where you can revisit the AI agents you created earlier. Feel free to make changes and create as many AI agents as you want anytime!",
+    "SEARCH_PLACEHOLDER": "Search AI agents...",
+    "NO_RESULTS": "No AI agents match your search.",
+    "LOADING": "Loading AI agents",
+    "CARD": {
+      "SETTINGS": "Settings",
+      "DUPLICATE": "Duplicate",
+      "DELETE": "Delete",
+      "NO_BEHAVIOR": "No behavior set yet"
+    },
+    "CREATE": {
+      "CARD": "Create New",
+      "TITLE": "Create AI agent",
+      "DESCRIPTION": "Give your AI agent a name. You can set up its behavior and settings next.",
+      "NAME_LABEL": "Name",
+      "NAME_PLACEHOLDER": "e.g. Customer Service AI",
+      "CONFIRM": "Create",
+      "SUCCESS": "AI agent created",
+      "ERROR": "Could not create the AI agent. Please try again."
+    },
+    "DUPLICATE": {
+      "SUCCESS": "AI agent duplicated",
+      "ERROR": "Could not duplicate the AI agent. Please try again."
+    },
+    "DELETE": {
+      "TITLE": "Delete {name}?",
+      "DESCRIPTION": "This permanently removes the AI agent and its settings. This cannot be undone.",
+      "CONFIRM": "Delete",
+      "SUCCESS": "AI agent deleted",
+      "ERROR": "Could not delete the AI agent. Please try again."
+    },
+    "DETAIL": {
+      "BACK": "Back",
+      "NOT_FOUND": "This AI agent does not exist or was deleted.",
+      "TABS": {
+        "GENERAL": "General"
+      }
+    },
+    "GENERAL": {
+      "NAME": {
+        "TITLE": "Name",
+        "PLACEHOLDER": "Name of this AI agent"
+      },
+      "BEHAVIOR": {
+        "TITLE": "AI Agent Behavior",
+        "DESCRIPTION": "This is the AI Prompt that defines the AI's speaking style and identity.",
+        "PLACEHOLDER": "e.g. You are the customer service of our store. Answer briefly and kindly."
+      },
+      "WELCOME_MESSAGE": {
+        "TITLE": "Welcome Message",
+        "DESCRIPTION": "The first message the AI will send to the user.",
+        "PLACEHOLDER": "e.g. Hi! I am the virtual assistant. How can I help you today?"
+      },
+      "TRANSFER_CONDITIONS": {
+        "TITLE": "Agent Transfer Conditions",
+        "DESCRIPTION": "Define conditions that trigger the AI to transfer the chat to a human agent. Chat status will become Pending and appear in the Assigned",
+        "PLACEHOLDER": "e.g. Transfer when the customer asks to talk to a person or wants to complain."
+      },
+      "STOP_AI_AFTER_HANDOFF": {
+        "TITLE": "Stop AI after Handoff",
+        "DESCRIPTION": "Stop the AI from sending messages after the chat status changes to Pending."
+      },
+      "SILENT_HANDOFF": {
+        "TITLE": "Silent Agent Handoff",
+        "DESCRIPTION": "AI silently transfers the conversation to an agent with no further AI replies."
+      },
+      "PENDING_MESSAGES": {
+        "TITLE": "Pending status messages",
+        "DESCRIPTION": "Set messages customers receive while waiting for handoff",
+        "ASSIGNED": {
+          "TITLE": "Pending - assigned message",
+          "BADGE": "Assigned tab",
+          "DESCRIPTION": "Sent when Stop AI after Handoff is on and a pending chat already has an assigned agent.",
+          "PLACEHOLDER": "Enter message for pending assigned conversations"
+        },
+        "UNASSIGNED": {
+          "TITLE": "Pending - unassigned message",
+          "BADGE": "Unassigned tab",
+          "DESCRIPTION": "Sent when Stop AI after Handoff is on and no agent is assigned yet.",
+          "PLACEHOLDER": "Enter message for pending unassigned conversations"
+        }
+      },
+      "AI_ACTIONS": {
+        "TITLE": "AI Actions",
+        "DESCRIPTION": "Configure labels that AI can use automatically",
+        "LABELS": {
+          "TITLE": "Change Conversation Label",
+          "DESCRIPTION": "Select labels that AI is allowed to use for tagging conversations automatically.",
+          "PLACEHOLDER": "Add label...",
+          "SEARCH_PLACEHOLDER": "Search labels",
+          "EMPTY": "No labels found"
+        },
+        "LABEL_CONDITIONS": {
+          "TITLE": "Label Conditions",
+          "DESCRIPTION": "Instructions for when AI should apply specific labels. Example: \"Apply label Purchased when customer confirms a purchase\"",
+          "PLACEHOLDER": "e.g. Apply label booking when the customer has filled in the order format."
+        }
+      },
+      "AI_MODEL": {
+        "TITLE": "AI Model",
+        "DESCRIPTION": "Select your AI model",
+        "SEARCH_PLACEHOLDER": "Search models"
+      },
+      "ADDITIONAL_SETTINGS": {
+        "TITLE": "Additional Settings",
+        "DESCRIPTION": "Fine-tune memory, timing, and limits of the AI",
+        "HISTORY_LIMIT": {
+          "TITLE": "AI History Limit",
+          "DESCRIPTION": "The number of messages the AI will remember."
+        },
+        "READ_FILE_LIMIT": {
+          "TITLE": "AI Read File Limit",
+          "DESCRIPTION": "The number of recent messages whose file attachments the AI will read."
+        },
+        "CONTEXT_LIMIT": {
+          "TITLE": "AI Context Limit",
+          "DESCRIPTION": "AI depth level for reading knowledge sources. Increase this if you have more knowledge entries."
+        },
+        "TEMPERATURE": {
+          "TITLE": "AI Temperature",
+          "DESCRIPTION": "The creativity level of the AI when responding to user messages.",
+          "OPTIONS": {
+            "PRECISE": "Precise",
+            "BALANCED": "Balanced",
+            "CREATIVE": "Creative"
+          }
+        },
+        "MESSAGE_AWAIT": {
+          "TITLE": "Message Await",
+          "DESCRIPTION": "Delay time before the AI responds to a user message, in seconds."
+        },
+        "MESSAGE_LIMIT": {
+          "TITLE": "AI Message Limit",
+          "DESCRIPTION": "Limit on the number of AI messages per conversation session. Resets when the chat is resolved."
+        },
+        "WATCHER": {
+          "TITLE": "Watcher",
+          "DESCRIPTION": "Monitors AI responses to ensure important functions are executed."
+        },
+        "TIMEZONE": {
+          "TITLE": "Timezone",
+          "DESCRIPTION": "Select the timezone for the AI.",
+          "SEARCH_PLACEHOLDER": "Search timezones"
+        },
+        "SESSION_ONLY_MEMORY": {
+          "TITLE": "Session-Only Memory",
+          "DESCRIPTION": "When enabled, AI will start conversation without remembering previous session(s)"
+        },
+        "RANGE": "Allowed range: {min} to {max}",
+        "OFF": "Off",
+        "ON": "On"
+      },
+      "IGNORE_TEAM_HANDOFF": {
+        "TITLE": "Ignore Team Handoff",
+        "DESCRIPTION": "The AI will not consider team assignment when handing off to a human agent."
+      },
+      "SAVE": "Save AI Settings",
+      "SAVE_SUCCESS": "AI settings saved",
+      "SAVE_ERROR": "Could not save the AI settings. Please try again."
+    }
+  }
+}

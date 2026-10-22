@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_31_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_22_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -174,6 +174,34 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_31_000000) do
     t.index ["document_ids"], name: "index_agent_sessions_on_document_ids", using: :gin
     t.index ["used_faq_ids"], name: "index_agent_sessions_on_used_faq_ids", using: :gin
     t.index ["user_id"], name: "index_agent_sessions_on_user_id"
+  end
+
+  create_table "ai_agents", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.text "behavior"
+    t.text "welcome_message"
+    t.text "transfer_conditions"
+    t.text "label_conditions"
+    t.string "pending_assigned_message"
+    t.string "pending_unassigned_message"
+    t.boolean "stop_ai_after_handoff", default: true, null: false
+    t.boolean "silent_handoff", default: false, null: false
+    t.boolean "watcher_enabled", default: false, null: false
+    t.boolean "session_only_memory", default: false, null: false
+    t.boolean "ignore_team_handoff", default: false, null: false
+    t.jsonb "allowed_label_ids", default: [], null: false
+    t.string "model", null: false
+    t.string "temperature", default: "balanced", null: false
+    t.string "timezone", default: "Asia/Jakarta", null: false
+    t.integer "history_limit", default: 30, null: false
+    t.integer "read_file_limit", default: 3, null: false
+    t.integer "context_limit", default: 40, null: false
+    t.integer "message_await", default: 10, null: false
+    t.integer "message_limit", default: 10, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 
   create_table "applied_slas", force: :cascade do |t|
