@@ -16,6 +16,16 @@ RSpec.describe AiAgents::FileTextExtractor do
     expect(described_class.new(source.file).perform).to include('A Simple PDF File')
   end
 
+  it 'stops reading PDF pages once the character limit is reached' do
+    source = source_with('spec/assets/sample.pdf', 'application/pdf')
+    stub_const('AiAgent::KnowledgeSource::MAX_EXTRACTED_CHARACTERS', 10)
+
+    text = described_class.new(source.file).perform
+
+    expect(text).to include('A Simple PDF File')
+    expect(text).not_to include('Simple PDF File 2')
+  end
+
   it 'returns no text for a PDF without a text layer' do
     source = source_with('spec/assets/ai_agents/blank.pdf', 'application/pdf')
 

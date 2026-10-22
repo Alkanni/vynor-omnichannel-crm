@@ -2,6 +2,9 @@ class AiAgents::FileTextExtractor
   DOCX_DOCUMENT_ENTRY = 'word/document.xml'.freeze
   DOCX_NAMESPACE = { 'w' => 'http://schemas.openxmlformats.org/wordprocessingml/2006/main' }.freeze
   MAX_DOCX_XML_SIZE = 50.megabytes
+  MAX_PDF_PAGES = 2_000
+  # UTF-8 uses at most 4 bytes per character, so this is enough bytes for the character limit.
+  MAX_PLAIN_TEXT_BYTES = AiAgent::KnowledgeSource::MAX_EXTRACTED_CHARACTERS * 4
 
   def initialize(attachment)
     @attachment = attachment
@@ -22,8 +25,17 @@ class AiAgents::FileTextExtractor
     end
   end
 
+  # Pages are read one at a time and reading stops once enough text is collected, so huge PDFs
+  # do not load every page into memory.
   def pdf_text(path)
-    PDF::Reader.new(path).pages.map(&:text).join("\n\n")
+    reader = PDF::Reader.new(path)
+    text = +''
+    1.upto([reader.page_count, MAX_PDF_PAGES].min) do |number|
+      break if text.length > AiAgent::KnowledgeSource::MAX_EXTRACTED_CHARACTERS
+
+      text << reader.page(number).text << "\n\n"
+    end
+    text
   rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError, PDF::Reader::EncryptedPDFError
     raise AiAgents::ExtractionError, I18n.t('ai_agents.knowledge.errors.unreadable_file')
   end
@@ -48,6 +60,6 @@ class AiAgents::FileTextExtractor
   end
 
   def plain_text(file)
-    file.read.force_encoding(Encoding::UTF_8).scrub('').delete_prefix("\uFEFF")
+    file.read(MAX_PLAIN_TEXT_BYTES).to_s.force_encoding(Encoding::UTF_8).scrub('').delete_prefix("\uFEFF")
   end
 end
