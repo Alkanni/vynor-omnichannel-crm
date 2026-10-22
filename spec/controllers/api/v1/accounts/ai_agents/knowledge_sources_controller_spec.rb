@@ -122,7 +122,7 @@ RSpec.describe 'AI Agent knowledge sources API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
-        'text_characters' => 5, 'qa_count' => 0, 'qa_characters' => 0, 'products' => 1, 'total_characters' => 7
+        'files' => 0, 'links' => 0, 'text_characters' => 5, 'qa_count' => 0, 'qa_characters' => 0, 'products' => 1, 'total_characters' => 7
       )
     end
   end
@@ -135,5 +135,106 @@ RSpec.describe 'AI Agent knowledge sources API', type: :request do
 
     expect(AiAgent::KnowledgeSource.exists?(source.id)).to be(false)
     expect(AiAgent::Product.exists?(product.id)).to be(false)
+  end
+
+  describe 'website sources' do
+    before do
+      allow(Resolv).to receive(:getaddresses).and_call_original
+      allow(Resolv).to receive(:getaddresses).with('grandsehat.example.com').and_return(['93.184.216.34'])
+    end
+
+    it 'collects links from a site' do
+      stub_request(:get, 'https://grandsehat.example.com/')
+        .to_return(status: 200, body: '<a href="/promo">Promo</a>', headers: { 'content-type' => 'text/html' })
+      stub_request(:get, 'https://grandsehat.example.com/sitemap.xml').to_return(status: 404)
+
+      post "#{base_url}/collect_links", params: { url: 'https://grandsehat.example.com/' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['links']).to eq(%w[https://grandsehat.example.com https://grandsehat.example.com/promo])
+    end
+
+    it 'rejects private addresses without fetching them' do
+      post "#{base_url}/collect_links", params: { url: 'http://127.0.0.1:3000/' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(a_request(:get, 'http://127.0.0.1:3000/')).not_to have_been_made
+    end
+
+    it 'adds links, skips links that already exist, and queues them for processing' do
+      create(:ai_agent_knowledge_source, ai_agent: ai_agent, source_type: :website, external_url: 'https://grandsehat.example.com/promo')
+
+      expect do
+        post "#{base_url}/websites", params: { urls: %w[https://grandsehat.example.com/promo https://grandsehat.example.com/layanan] },
+                                     headers: admin.create_new_auth_token, as: :json
+      end.to have_enqueued_job(AiAgents::ProcessKnowledgeSourceJob).once
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['payload'].pluck('external_url', 'status')).to eq([['https://grandsehat.example.com/layanan', 'pending']])
+    end
+
+    it 'rejects invalid addresses and more than 300 links' do
+      post "#{base_url}/websites", params: { urls: ['not a url'] }, headers: admin.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+
+      urls = (1..301).map { |n| "https://grandsehat.example.com/#{n}" }
+      post "#{base_url}/websites", params: { urls: urls }, headers: admin.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(ai_agent.knowledge_sources.count).to eq(0)
+    end
+
+    it 'syncs a link again' do
+      source = create(:ai_agent_knowledge_source, ai_agent: ai_agent, source_type: :website, external_url: 'https://grandsehat.example.com',
+                                                  content: 'Old', status: :failed)
+
+      expect do
+        post "#{base_url}/#{source.id}/resync", headers: admin.create_new_auth_token, as: :json
+      end.to have_enqueued_job(AiAgents::ProcessKnowledgeSourceJob).with(source)
+
+      expect(response.parsed_body['status']).to eq('pending')
+    end
+
+    it 'does not return page content in the list' do
+      create(:ai_agent_knowledge_source, ai_agent: ai_agent, source_type: :website, external_url: 'https://grandsehat.example.com',
+                                         content: 'Isi panjang', status: :ready)
+
+      get base_url, params: { source_type: 'website' }, headers: admin.create_new_auth_token, as: :json
+
+      source = response.parsed_body['payload'].first
+      expect(source).not_to have_key('content')
+      expect(source).to include('characters' => 11, 'external_url' => 'https://grandsehat.example.com', 'status' => 'ready')
+    end
+  end
+
+  describe 'file sources' do
+    it 'uploads a document and queues it for extraction' do
+      file = fixture_file_upload(Rails.root.join('spec/assets/sample.pdf'), 'application/pdf')
+
+      expect do
+        post base_url, params: { source_type: 'file', file: file }, headers: admin.create_new_auth_token
+      end.to have_enqueued_job(AiAgents::ProcessKnowledgeSourceJob)
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include('title' => 'sample.pdf', 'status' => 'pending', 'source_type' => 'file')
+    end
+
+    it 'rejects unsupported files' do
+      file = fixture_file_upload(Rails.root.join('spec/assets/avatar.png'), 'image/png')
+
+      post base_url, params: { source_type: 'file', file: file }, headers: admin.create_new_auth_token
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['attributes']).to eq(['file'])
+    end
+
+    it 'deletes several sources at once' do
+      sources = create_list(:ai_agent_knowledge_source, 2, ai_agent: ai_agent)
+      kept = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
+
+      post "#{base_url}/bulk_destroy", params: { ids: sources.map(&:id) }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(ai_agent.knowledge_sources.pluck(:id)).to eq([kept.id])
+    end
   end
 end

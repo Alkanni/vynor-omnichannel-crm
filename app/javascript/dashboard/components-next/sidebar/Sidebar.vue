@@ -357,6 +357,8 @@ const menuItems = computed(() => {
         'ai_agents_index',
         'ai_agents_general',
         'ai_agents_knowledge_text',
+        'ai_agents_knowledge_website',
+        'ai_agents_knowledge_file',
         'ai_agents_knowledge_qa',
         'ai_agents_knowledge_products',
       ],

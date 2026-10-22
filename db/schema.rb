@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_22_010001) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_22_020000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -184,6 +184,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_010001) do
     t.text "content"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "external_url"
+    t.integer "status", default: 0, null: false
+    t.string "error_message"
+    t.jsonb "metadata", default: {}, null: false
     t.index ["account_id"], name: "index_ai_agent_knowledge_sources_on_account_id"
     t.index ["ai_agent_id", "source_type"], name: "index_ai_agent_knowledge_sources_on_agent_and_type"
   end

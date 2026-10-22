@@ -76,7 +76,13 @@ Rails.application.routes.draw do
             post :duplicate, on: :member
             scope module: :ai_agents do
               resources :knowledge_sources, only: [:index, :create, :update, :destroy] do
-                get :stats, on: :collection
+                collection do
+                  get :stats
+                  post :collect_links
+                  post :websites
+                  post :bulk_destroy
+                end
+                post :resync, on: :member
               end
               resources :products, only: [:index, :create, :update, :destroy] do
                 post :bulk_destroy, on: :collection

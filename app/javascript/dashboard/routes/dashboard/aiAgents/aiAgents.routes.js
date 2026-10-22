@@ -4,6 +4,8 @@ import AiAgentDetailPage from './pages/AiAgentDetailPage.vue';
 import AiAgentGeneralPage from './pages/AiAgentGeneralPage.vue';
 import KnowledgeSourcesPage from './pages/KnowledgeSourcesPage.vue';
 import KnowledgeTextPage from './pages/knowledge/KnowledgeTextPage.vue';
+import KnowledgeWebsitePage from './pages/knowledge/KnowledgeWebsitePage.vue';
+import KnowledgeFilePage from './pages/knowledge/KnowledgeFilePage.vue';
 import KnowledgeQaPage from './pages/knowledge/KnowledgeQaPage.vue';
 import KnowledgeProductsPage from './pages/knowledge/KnowledgeProductsPage.vue';
 
@@ -49,6 +51,18 @@ export const routes = [
             path: 'text',
             name: 'ai_agents_knowledge_text',
             component: KnowledgeTextPage,
+            meta,
+          },
+          {
+            path: 'website',
+            name: 'ai_agents_knowledge_website',
+            component: KnowledgeWebsitePage,
+            meta,
+          },
+          {
+            path: 'file',
+            name: 'ai_agents_knowledge_file',
+            component: KnowledgeFilePage,
             meta,
           },
           {

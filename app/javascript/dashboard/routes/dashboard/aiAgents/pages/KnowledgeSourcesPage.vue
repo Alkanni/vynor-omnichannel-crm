@@ -25,6 +25,14 @@ const tabs = computed(() => [
     label: t('AI_AGENTS.KNOWLEDGE.TABS.TEXT'),
     value: 'ai_agents_knowledge_text',
   },
+  {
+    label: t('AI_AGENTS.KNOWLEDGE.TABS.WEBSITE'),
+    value: 'ai_agents_knowledge_website',
+  },
+  {
+    label: t('AI_AGENTS.KNOWLEDGE.TABS.FILE'),
+    value: 'ai_agents_knowledge_file',
+  },
   { label: t('AI_AGENTS.KNOWLEDGE.TABS.QA'), value: 'ai_agents_knowledge_qa' },
   {
     label: t('AI_AGENTS.KNOWLEDGE.TABS.PRODUCT'),

@@ -195,6 +195,9 @@ gem 'neighbor'
 gem 'pgvector'
 # Convert Website HTML to Markdown
 gem 'reverse_markdown'
+# Extract text from AI agent knowledge files (PDF, DOCX)
+gem 'pdf-reader'
+gem 'rubyzip', require: 'zip'
 
 gem 'iso-639'
 gem 'ruby-openai'

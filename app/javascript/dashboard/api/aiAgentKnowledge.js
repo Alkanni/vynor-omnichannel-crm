@@ -36,6 +36,29 @@ class AiAgentKnowledgeAPI extends ApiClient {
     return axios.get(`${this.sourcesUrl(agentId)}/stats`);
   }
 
+  collectLinks(agentId, url) {
+    return axios.post(`${this.sourcesUrl(agentId)}/collect_links`, { url });
+  }
+
+  addWebsites(agentId, urls) {
+    return axios.post(`${this.sourcesUrl(agentId)}/websites`, { urls });
+  }
+
+  resyncSource(agentId, id) {
+    return axios.post(`${this.sourcesUrl(agentId)}/${id}/resync`);
+  }
+
+  bulkDeleteSources(agentId, ids) {
+    return axios.post(`${this.sourcesUrl(agentId)}/bulk_destroy`, { ids });
+  }
+
+  uploadFile(agentId, file, onUploadProgress) {
+    const formData = new FormData();
+    formData.append('source_type', 'file');
+    formData.append('file', file);
+    return axios.post(this.sourcesUrl(agentId), formData, { onUploadProgress });
+  }
+
   getProducts(agentId, query) {
     return axios.get(this.productsUrl(agentId), { params: { q: query } });
   }

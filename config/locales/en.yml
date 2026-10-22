@@ -450,6 +450,16 @@ en:
       description: 'Sync your contacts and conversations with LeadSquared CRM. This integration automatically creates leads in LeadSquared when new contacts are added, and logs conversation activity to provide your sales team with complete context.'
   ai_agents:
     duplicate_name: '%{name} (Copy)'
+    knowledge:
+      errors:
+        invalid_url: 'Enter a full web address that starts with http:// or https://'
+        unsafe_url: 'This address points to a private or local network and cannot be used'
+        not_a_web_page: 'This address does not return a web page'
+        page_too_large: 'This page is larger than 5 MB'
+        fetch_failed: 'The page could not be loaded (%{reason})'
+        unreadable_file: 'The file could not be read. It may be damaged or password protected'
+        no_text: 'No text was found. If this is a scanned PDF, upload a version where you can highlight the text'
+        processing_failed: 'Processing failed. Try syncing again'
   captain:
     copilot_message_required: Message is required
     copilot_error: 'Please connect an assistant to this inbox to use Copilot'
