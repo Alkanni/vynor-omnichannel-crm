@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_22_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_22_010001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -174,6 +174,32 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_000000) do
     t.index ["document_ids"], name: "index_agent_sessions_on_document_ids", using: :gin
     t.index ["used_faq_ids"], name: "index_agent_sessions_on_used_faq_ids", using: :gin
     t.index ["user_id"], name: "index_agent_sessions_on_user_id"
+  end
+
+  create_table "ai_agent_knowledge_sources", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "ai_agent_id", null: false
+    t.integer "source_type", null: false
+    t.string "title", null: false
+    t.text "content"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_ai_agent_knowledge_sources_on_account_id"
+    t.index ["ai_agent_id", "source_type"], name: "index_ai_agent_knowledge_sources_on_agent_and_type"
+  end
+
+  create_table "ai_agent_products", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "ai_agent_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.decimal "price", precision: 15, scale: 2, default: "0.0", null: false
+    t.integer "weight", default: 0, null: false
+    t.integer "stock", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_ai_agent_products_on_account_id"
+    t.index ["ai_agent_id"], name: "index_ai_agent_products_on_ai_agent_id"
   end
 
   create_table "ai_agents", force: :cascade do |t|

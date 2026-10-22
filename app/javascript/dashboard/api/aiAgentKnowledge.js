@@ -1,0 +1,60 @@
+/* global axios */
+import ApiClient from './ApiClient';
+
+class AiAgentKnowledgeAPI extends ApiClient {
+  constructor() {
+    super('ai_agents', { accountScoped: true });
+  }
+
+  sourcesUrl(agentId) {
+    return `${this.url}/${agentId}/knowledge_sources`;
+  }
+
+  productsUrl(agentId) {
+    return `${this.url}/${agentId}/products`;
+  }
+
+  getSources(agentId, sourceType) {
+    return axios.get(this.sourcesUrl(agentId), {
+      params: { source_type: sourceType },
+    });
+  }
+
+  createSource(agentId, data) {
+    return axios.post(this.sourcesUrl(agentId), data);
+  }
+
+  updateSource(agentId, id, data) {
+    return axios.patch(`${this.sourcesUrl(agentId)}/${id}`, data);
+  }
+
+  deleteSource(agentId, id) {
+    return axios.delete(`${this.sourcesUrl(agentId)}/${id}`);
+  }
+
+  getStats(agentId) {
+    return axios.get(`${this.sourcesUrl(agentId)}/stats`);
+  }
+
+  getProducts(agentId, query) {
+    return axios.get(this.productsUrl(agentId), { params: { q: query } });
+  }
+
+  createProduct(agentId, formData) {
+    return axios.post(this.productsUrl(agentId), formData);
+  }
+
+  updateProduct(agentId, id, formData) {
+    return axios.patch(`${this.productsUrl(agentId)}/${id}`, formData);
+  }
+
+  deleteProduct(agentId, id) {
+    return axios.delete(`${this.productsUrl(agentId)}/${id}`);
+  }
+
+  bulkDeleteProducts(agentId, ids) {
+    return axios.post(`${this.productsUrl(agentId)}/bulk_destroy`, { ids });
+  }
+}
+
+export default new AiAgentKnowledgeAPI();

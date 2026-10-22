@@ -86,7 +86,38 @@ RSpec.describe AiAgent do
     end
   end
 
+  describe '#knowledge_stats' do
+    it 'counts characters of every manual knowledge source' do
+      ai_agent.save!
+      create(:ai_agent_knowledge_source, ai_agent: ai_agent, content: 'a' * 10)
+      create(:ai_agent_knowledge_source, ai_agent: ai_agent, content: nil)
+      create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent, title: 'q' * 3, content: 'a' * 4)
+      create(:ai_agent_product, ai_agent: ai_agent, name: 'n' * 5, description: 'd' * 6)
+
+      expect(ai_agent.knowledge_stats).to eq(
+        text_characters: 10, qa_count: 1, qa_characters: 7, products: 1, total_characters: 28
+      )
+    end
+  end
+
   describe '#duplicate!' do
+    it 'copies knowledge sources and products including images' do
+      ai_agent.save!
+      create(:ai_agent_knowledge_source, ai_agent: ai_agent, title: 'Default', content: 'Sejarah Grand Sehat')
+      create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+      product = build(:ai_agent_product, ai_agent: ai_agent, name: 'Balance arm')
+      product.image.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'avatar.png', content_type: 'image/png')
+      product.save!
+
+      copy = ai_agent.duplicate!
+
+      expect(copy.knowledge_sources.pluck(:source_type, :title)).to match_array(ai_agent.knowledge_sources.pluck(:source_type, :title))
+      expect(copy.products.pluck(:name, :price, :weight, :stock)).to eq(ai_agent.products.pluck(:name, :price, :weight, :stock))
+      copied_image = copy.products.first.image
+      expect(copied_image).to be_attached
+      expect(copied_image.blob_id).not_to eq(product.image.blob_id)
+    end
+
     it 'copies the settings under a new name' do
       label = create(:label, account: account)
       ai_agent.update!(welcome_message: 'Halo', allowed_label_ids: [label.id], history_limit: 12, temperature: 'creative')

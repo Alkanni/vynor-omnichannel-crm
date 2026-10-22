@@ -37,6 +37,8 @@ class AiAgent < ApplicationRecord
   TEMPERATURES = %w[precise balanced creative].freeze
 
   belongs_to :account
+  has_many :knowledge_sources, class_name: 'AiAgent::KnowledgeSource', dependent: :destroy
+  has_many :products, class_name: 'AiAgent::Product', dependent: :destroy
 
   attribute :model, :string, default: -> { Llm::Models.default_model_for(LLM_FEATURE) }
 
@@ -56,10 +58,28 @@ class AiAgent < ApplicationRecord
   validate :allowed_labels_belong_to_account
 
   def duplicate!
-    copy = dup
-    copy.name = I18n.t('ai_agents.duplicate_name', name: name).truncate(255)
-    copy.save!
-    copy
+    transaction do
+      copy = dup
+      copy.name = I18n.t('ai_agents.duplicate_name', name: name).truncate(255)
+      copy.save!
+      knowledge_sources.each { |source| copy.knowledge_sources.create!(source.attributes.slice('source_type', 'title', 'content')) }
+      products.each { |product| product.copy_to!(copy) }
+      copy
+    end
+  end
+
+  def knowledge_stats
+    text_characters = knowledge_sources.text.sum(Arel.sql("char_length(coalesce(content, ''))"))
+    qa_characters = knowledge_sources.qa.sum(Arel.sql("char_length(title) + char_length(coalesce(content, ''))"))
+    product_characters = products.sum(Arel.sql("char_length(name) + char_length(coalesce(description, ''))"))
+
+    {
+      text_characters: text_characters,
+      qa_count: knowledge_sources.qa.count,
+      qa_characters: qa_characters,
+      products: products.count,
+      total_characters: text_characters + qa_characters + product_characters
+    }
   end
 
   private
