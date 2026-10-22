@@ -23,9 +23,13 @@ const agent = computed(() => getRecord.value(agentId.value));
 
 const tabs = computed(() => [
   { label: t('AI_AGENTS.DETAIL.TABS.GENERAL'), value: 'ai_agents_general' },
+  {
+    label: t('AI_AGENTS.DETAIL.TABS.KNOWLEDGE_SOURCES'),
+    value: 'ai_agents_knowledge',
+  },
 ]);
 const activeTabIndex = computed(() =>
-  tabs.value.findIndex(tab => tab.value === route.name)
+  tabs.value.findIndex(tab => route.matched.some(r => r.name === tab.value))
 );
 
 const changeTab = tab => {

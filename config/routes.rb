@@ -74,6 +74,14 @@ Rails.application.routes.draw do
           end
           resources :ai_agents, only: [:index, :create, :show, :update, :destroy] do
             post :duplicate, on: :member
+            scope module: :ai_agents do
+              resources :knowledge_sources, only: [:index, :create, :update, :destroy] do
+                get :stats, on: :collection
+              end
+              resources :products, only: [:index, :create, :update, :destroy] do
+                post :bulk_destroy, on: :collection
+              end
+            end
           end
           resources :agent_bots, only: [:index, :create, :show, :update, :destroy] do
             delete :avatar, on: :member

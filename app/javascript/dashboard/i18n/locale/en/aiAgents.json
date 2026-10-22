@@ -36,7 +36,8 @@
       "BACK": "Back",
       "NOT_FOUND": "This AI agent does not exist or was deleted.",
       "TABS": {
-        "GENERAL": "General"
+        "GENERAL": "General",
+        "KNOWLEDGE_SOURCES": "Knowledge Sources"
       }
     },
     "GENERAL": {
@@ -160,6 +161,112 @@
       "SAVE": "Save AI Settings",
       "SAVE_SUCCESS": "AI settings saved",
       "SAVE_ERROR": "Could not save the AI settings. Please try again."
+    },
+    "KNOWLEDGE": {
+      "TABS": {
+        "TEXT": "Text",
+        "QA": "Q&A",
+        "PRODUCT": "Product"
+      },
+      "LOAD_ERROR": "Could not load the knowledge. Please refresh the page.",
+      "STATS": {
+        "TITLE": "Knowledge summary",
+        "TEXT_CHARACTERS": "Text Input Characters",
+        "QA": "Q&A",
+        "QA_VALUE": "{count} pair · {characters} characters | {count} pairs · {characters} characters",
+        "PRODUCTS": "Products",
+        "TOTAL_CHARACTERS": "Total Detected Characters"
+      },
+      "CONFIRM_DELETE": {
+        "CONFIRM": "Delete"
+      },
+      "TEXT": {
+        "ADD": "Add text",
+        "RENAME": "Rename {title}",
+        "DELETE": "Delete {title}",
+        "EMPTY_TITLE": "No text knowledge yet",
+        "EMPTY_DESCRIPTION": "Add a text with information your AI agent should know, such as your business profile, address, or opening hours.",
+        "PLACEHOLDER": "Write what your AI agent should know...",
+        "UNSAVED": "Unsaved changes",
+        "SAVE": "Save",
+        "SAVE_SUCCESS": "Text knowledge saved",
+        "SAVE_ERROR": "Could not save the text knowledge. Please try again.",
+        "TITLE_DIALOG": {
+          "CREATE_TITLE": "Add text",
+          "RENAME_TITLE": "Rename text",
+          "LABEL": "Title",
+          "PLACEHOLDER": "e.g. Business profile",
+          "CREATE_CONFIRM": "Add",
+          "RENAME_CONFIRM": "Rename"
+        },
+        "CREATE_ERROR": "Could not add the text. Please try again.",
+        "RENAME_ERROR": "Could not rename the text. Please try again.",
+        "DELETE_TITLE": "Delete {title}?",
+        "DELETE_DESCRIPTION": "The AI agent will no longer use this text. This cannot be undone.",
+        "DELETE_SUCCESS": "Text deleted",
+        "DELETE_ERROR": "Could not delete the text. Please try again."
+      },
+      "QA": {
+        "TITLE": "Q&A",
+        "DESCRIPTION": "Add questions your customers often ask, together with the answer the AI agent should give.",
+        "ADD": "Add Q&A",
+        "SAVE": "Save",
+        "QUESTION": "Question",
+        "QUESTION_PLACEHOLDER": "e.g. How long does exterior detailing take?",
+        "ANSWER": "Answer",
+        "ANSWER_PLACEHOLDER": "e.g. Exterior detailing takes about 4-5 hours.",
+        "DELETE": "Delete this Q&A",
+        "EMPTY": "No Q&A yet. Add the first question your customers often ask.",
+        "INCOMPLETE": "Fill in both the question and the answer of every new or changed Q&A before saving.",
+        "SAVE_SUCCESS": "Q&A saved",
+        "SAVE_ERROR": "Could not save the Q&A. Please try again.",
+        "DELETE_TITLE": "Delete this Q&A?",
+        "DELETE_DESCRIPTION": "The AI agent will no longer use this question and answer. This cannot be undone.",
+        "DELETE_SUCCESS": "Q&A deleted",
+        "DELETE_ERROR": "Could not delete the Q&A. Please try again."
+      },
+      "PRODUCT": {
+        "TITLE": "AI Product Knowledge",
+        "DESCRIPTION": "These products are part of your AI agent's knowledge base. The AI can provide information about them to your customers. Use the controls below to manage which products your AI knows about.",
+        "SELECT": "Select",
+        "SEARCH_PLACEHOLDER": "Search",
+        "ADD": "Add Products to AI Agent",
+        "DELETE_SELECTED": "Delete selected ({count})",
+        "EMPTY": "No products yet. Add the products your AI agent should know about.",
+        "NO_RESULTS": "No products match your search.",
+        "WEIGHT": "Weight:",
+        "WEIGHT_VALUE": "{weight} Grams",
+        "STOCK": "Stock:",
+        "PRICE": "Price:",
+        "EDIT": "Edit {name}",
+        "DELETE": "Delete {name}",
+        "DELETE_TITLE": "Delete {name}?",
+        "DELETE_DESCRIPTION": "The AI agent will no longer know about this product. This cannot be undone.",
+        "BULK_DELETE_TITLE": "Delete {count} products?",
+        "BULK_DELETE_DESCRIPTION": "The AI agent will no longer know about these products. This cannot be undone.",
+        "DELETE_SUCCESS": "Products deleted",
+        "DELETE_ERROR": "Could not delete the products. Please try again.",
+        "FORM": {
+          "CREATE_TITLE": "Add product",
+          "EDIT_TITLE": "Edit product",
+          "NAME": "Name",
+          "NAME_PLACEHOLDER": "e.g. Tune Up Throttle Body",
+          "DESCRIPTION": "Description",
+          "DESCRIPTION_PLACEHOLDER": "What the product is and who it is for",
+          "PRICE": "Price",
+          "WEIGHT": "Weight (grams)",
+          "STOCK": "Stock",
+          "IMAGE": "Image",
+          "IMAGE_HINT": "JPG, PNG, GIF, or WebP up to 5 MB",
+          "UPLOAD_IMAGE": "Upload image",
+          "CHANGE_IMAGE": "Change image",
+          "IMAGE_TOO_LARGE": "The image is larger than 5 MB. Choose a smaller image.",
+          "CREATE_CONFIRM": "Add product",
+          "EDIT_CONFIRM": "Save",
+          "SAVE_SUCCESS": "Product saved",
+          "SAVE_ERROR": "Could not save the product. Please try again."
+        }
+      }
     }
   }
 }
