@@ -11,10 +11,23 @@ import {
   REPORTS_PERMISSIONS,
   PORTAL_PERMISSIONS,
 } from 'dashboard/constants/permissions.js';
+import { INSTALLATION_TYPES } from 'dashboard/constants/installationTypes';
 
 export const routeIsAccessibleFor = (route, userPermissions = []) => {
   const { meta: { permissions: routePermissions = [] } = {} } = route;
   return hasPermissions(routePermissions, userPermissions);
+};
+
+export const routeIsAvailableOnInstallation = (route, installation) => {
+  const { meta: { installationTypes = [] } = {} } = route;
+  if (!installationTypes.length) return true;
+
+  const availableTypes = {
+    [INSTALLATION_TYPES.COMMUNITY]: true,
+    [INSTALLATION_TYPES.ENTERPRISE]: installation.isEnterprise,
+    [INSTALLATION_TYPES.CLOUD]: installation.isOnChatwootCloud,
+  };
+  return installationTypes.some(type => availableTypes[type]);
 };
 
 export const defaultRedirectPage = (to, permissions) => {
@@ -37,7 +50,7 @@ export const defaultRedirectPage = (to, permissions) => {
   return `accounts/${accountId}/${route ? route.path : 'dashboard'}`;
 };
 
-const validateActiveAccountRoutes = (to, user) => {
+const validateActiveAccountRoutes = (to, user, installation) => {
   // If the current account is active, then check for the route permissions
   const accountDashboardURL = `accounts/${to.params.accountId}/dashboard`;
 
@@ -48,12 +61,15 @@ const validateActiveAccountRoutes = (to, user) => {
 
   const userPermissions = getUserPermissions(user, to.params.accountId);
 
-  const isAccessible = routeIsAccessibleFor(to, userPermissions);
-  // If the route is not accessible for the user, return to dashboard screen
+  const isAccessible =
+    routeIsAccessibleFor(to, userPermissions) &&
+    routeIsAvailableOnInstallation(to, installation);
+  // If the route is not accessible for the user or not available on this
+  // installation, return to dashboard screen
   return isAccessible ? null : defaultRedirectPage(to, userPermissions);
 };
 
-export const validateLoggedInRoutes = (to, user) => {
+export const validateLoggedInRoutes = (to, user, installation) => {
   const currentAccount = getCurrentAccount(user, Number(to.params.accountId));
   // If current account is missing, either user does not have
   // access to the account or the account is deleted, return to login screen
@@ -64,7 +80,7 @@ export const validateLoggedInRoutes = (to, user) => {
   const isCurrentAccountActive = currentAccount.status === 'active';
 
   if (isCurrentAccountActive) {
-    return validateActiveAccountRoutes(to, user);
+    return validateActiveAccountRoutes(to, user, installation);
   }
 
   // If the current account is not active, only the suspended screen is
