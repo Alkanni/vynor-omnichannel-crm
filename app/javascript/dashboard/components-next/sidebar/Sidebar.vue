@@ -348,6 +348,13 @@ const menuItems = computed(() => {
         },
       ],
     },
+    {
+      name: 'AI Agent',
+      label: t('SIDEBAR.AI_AGENT'),
+      icon: 'i-lucide-bot',
+      to: accountScopedRoute('ai_agents_index'),
+      activeOn: ['ai_agents_index', 'ai_agents_general'],
+    },
     ...(isCallsAvailable.value
       ? [
           {

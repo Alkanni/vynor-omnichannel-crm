@@ -72,6 +72,9 @@ Rails.application.routes.draw do
               post :follow_up
             end
           end
+          resources :ai_agents, only: [:index, :create, :show, :update, :destroy] do
+            post :duplicate, on: :member
+          end
           resources :agent_bots, only: [:index, :create, :show, :update, :destroy] do
             delete :avatar, on: :member
             post :reset_access_token, on: :member

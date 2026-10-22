@@ -1,0 +1,528 @@
+<script setup>
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useStore } from 'vuex';
+import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
+import { useCaptainConfigStore } from 'dashboard/store/captain/preferences';
+import { timeZoneOptions } from 'dashboard/routes/dashboard/settings/inbox/helpers/businessHour';
+
+import Button from 'dashboard/components-next/button/Button.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import Input from 'dashboard/components-next/input/Input.vue';
+import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
+import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+import CollapsiblePanel from '../components/CollapsiblePanel.vue';
+import SettingsField from '../components/SettingsField.vue';
+import ToggleField from '../components/ToggleField.vue';
+
+const props = defineProps({
+  agent: {
+    type: Object,
+    required: true,
+  },
+});
+
+const LLM_FEATURE = 'assistant';
+const TEXT_LIMITS = {
+  behavior: 15000,
+  welcomeMessage: 5000,
+  transferConditions: 3000,
+  pendingMessage: 200,
+  labelConditions: 3000,
+};
+
+const { t } = useI18n();
+const store = useStore();
+const captainConfigStore = useCaptainConfigStore();
+
+const labels = useMapGetter('labels/getLabels');
+
+const toForm = agent => ({
+  name: agent.name,
+  behavior: agent.behavior || '',
+  welcome_message: agent.welcome_message || '',
+  transfer_conditions: agent.transfer_conditions || '',
+  stop_ai_after_handoff: agent.stop_ai_after_handoff,
+  silent_handoff: agent.silent_handoff,
+  pending_assigned_message: agent.pending_assigned_message || '',
+  pending_unassigned_message: agent.pending_unassigned_message || '',
+  allowed_label_ids: [...agent.allowed_label_ids],
+  label_conditions: agent.label_conditions || '',
+  model: agent.model,
+  history_limit: agent.history_limit,
+  read_file_limit: agent.read_file_limit,
+  context_limit: agent.context_limit,
+  temperature: agent.temperature,
+  message_await: agent.message_await,
+  message_limit: agent.message_limit,
+  watcher_enabled: agent.watcher_enabled,
+  timezone: agent.timezone,
+  session_only_memory: agent.session_only_memory,
+  ignore_team_handoff: agent.ignore_team_handoff,
+});
+
+const form = reactive(toForm(props.agent));
+const savedForm = ref(toForm(props.agent));
+const isSaving = ref(false);
+
+const labelOptions = computed(() =>
+  labels.value.map(label => ({ value: label.id, label: label.title }))
+);
+const existingLabelIds = computed(
+  () => new Set(labels.value.map(label => label.id))
+);
+// Labels deleted from the account are dropped instead of failing validation.
+const existingLabelsOnly = ids =>
+  ids.filter(id => existingLabelIds.value.has(id));
+const selectedLabelIds = computed({
+  get: () => existingLabelsOnly(form.allowed_label_ids),
+  set: ids => {
+    form.allowed_label_ids = ids;
+  },
+});
+
+const modelOptions = computed(() => {
+  const options = captainConfigStore
+    .getModelsForFeature(LLM_FEATURE)
+    .filter(model => !model.coming_soon)
+    .map(model => ({ value: model.id, label: model.display_name }));
+  if (options.some(option => option.value === form.model)) return options;
+
+  return [{ value: form.model, label: form.model }, ...options];
+});
+const temperatureOptions = computed(() => [
+  {
+    value: 'precise',
+    label: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TEMPERATURE.OPTIONS.PRECISE'
+    ),
+  },
+  {
+    value: 'balanced',
+    label: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TEMPERATURE.OPTIONS.BALANCED'
+    ),
+  },
+  {
+    value: 'creative',
+    label: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TEMPERATURE.OPTIONS.CREATIVE'
+    ),
+  },
+]);
+const memoryFields = computed(() => [
+  {
+    key: 'history_limit',
+    min: 1,
+    max: 100,
+    title: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.HISTORY_LIMIT.TITLE'),
+    description: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.HISTORY_LIMIT.DESCRIPTION'
+    ),
+  },
+  {
+    key: 'read_file_limit',
+    min: 0,
+    max: 10,
+    title: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.READ_FILE_LIMIT.TITLE'),
+    description: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.READ_FILE_LIMIT.DESCRIPTION'
+    ),
+  },
+  {
+    key: 'context_limit',
+    min: 1,
+    max: 100,
+    title: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.CONTEXT_LIMIT.TITLE'),
+    description: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.CONTEXT_LIMIT.DESCRIPTION'
+    ),
+  },
+]);
+const timingFields = computed(() => [
+  {
+    key: 'message_await',
+    min: 0,
+    max: 300,
+    title: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.MESSAGE_AWAIT.TITLE'),
+    description: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.MESSAGE_AWAIT.DESCRIPTION'
+    ),
+  },
+  {
+    key: 'message_limit',
+    min: 1,
+    max: 1000,
+    title: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.MESSAGE_LIMIT.TITLE'),
+    description: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.MESSAGE_LIMIT.DESCRIPTION'
+    ),
+  },
+]);
+const switchOptions = computed(() => [
+  { value: 'off', label: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.OFF') },
+  { value: 'on', label: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.ON') },
+]);
+const timezoneOptions = timeZoneOptions();
+
+const booleanSelect = key =>
+  computed({
+    get: () => (form[key] ? 'on' : 'off'),
+    set: value => {
+      if (value) form[key] = value === 'on';
+    },
+  });
+const watcherSelect = booleanSelect('watcher_enabled');
+const sessionOnlyMemorySelect = booleanSelect('session_only_memory');
+
+// ComboBox emits an empty value when the selected option is clicked again;
+// these fields always need a value, so that click is ignored.
+const setRequired = (key, value) => {
+  if (value) form[key] = value;
+};
+
+const toPayload = values => ({
+  ...values,
+  name: values.name.trim(),
+  allowed_label_ids: existingLabelsOnly(values.allowed_label_ids),
+});
+const payload = computed(() => toPayload(form));
+const isDirty = computed(
+  () =>
+    JSON.stringify(payload.value) !== JSON.stringify(toPayload(savedForm.value))
+);
+
+const resetForm = agent => {
+  Object.assign(form, toForm(agent));
+  savedForm.value = toForm(agent);
+};
+
+const rangeHint = ({ min, max }) =>
+  t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.RANGE', { min, max });
+
+const saveSettings = async () => {
+  isSaving.value = true;
+  try {
+    const agent = await store.dispatch('aiAgents/update', {
+      id: props.agent.id,
+      ...payload.value,
+    });
+    resetForm(agent);
+    useAlert(t('AI_AGENTS.GENERAL.SAVE_SUCCESS'));
+  } catch (error) {
+    useAlert(error.message || t('AI_AGENTS.GENERAL.SAVE_ERROR'));
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+watch(
+  () => props.agent.id,
+  () => resetForm(props.agent)
+);
+
+onMounted(() => {
+  captainConfigStore.fetch();
+});
+</script>
+
+<template>
+  <div class="flex flex-col h-full">
+    <div class="flex-1 min-h-0 overflow-y-auto">
+      <form
+        id="ai-agent-general-form"
+        class="flex flex-col w-full max-w-3xl gap-8 px-6 pt-4 pb-10 mx-auto"
+        @submit.prevent="saveSettings"
+      >
+        <SettingsField :title="t('AI_AGENTS.GENERAL.NAME.TITLE')">
+          <Input
+            id="ai-agent-name"
+            v-model="form.name"
+            :placeholder="t('AI_AGENTS.GENERAL.NAME.PLACEHOLDER')"
+          />
+        </SettingsField>
+
+        <SettingsField
+          :title="t('AI_AGENTS.GENERAL.BEHAVIOR.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.BEHAVIOR.DESCRIPTION')"
+        >
+          <TextArea
+            id="ai-agent-behavior"
+            v-model="form.behavior"
+            :placeholder="t('AI_AGENTS.GENERAL.BEHAVIOR.PLACEHOLDER')"
+            :max-length="TEXT_LIMITS.behavior"
+            show-character-count
+            auto-height
+            resize
+            min-height="10rem"
+            max-height="28rem"
+          />
+        </SettingsField>
+
+        <SettingsField
+          :title="t('AI_AGENTS.GENERAL.WELCOME_MESSAGE.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.WELCOME_MESSAGE.DESCRIPTION')"
+        >
+          <TextArea
+            id="ai-agent-welcome-message"
+            v-model="form.welcome_message"
+            :placeholder="t('AI_AGENTS.GENERAL.WELCOME_MESSAGE.PLACEHOLDER')"
+            :max-length="TEXT_LIMITS.welcomeMessage"
+            show-character-count
+            auto-height
+            resize
+            min-height="5rem"
+          />
+        </SettingsField>
+
+        <SettingsField
+          :title="t('AI_AGENTS.GENERAL.TRANSFER_CONDITIONS.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.TRANSFER_CONDITIONS.DESCRIPTION')"
+        >
+          <TextArea
+            id="ai-agent-transfer-conditions"
+            v-model="form.transfer_conditions"
+            :placeholder="
+              t('AI_AGENTS.GENERAL.TRANSFER_CONDITIONS.PLACEHOLDER')
+            "
+            :max-length="TEXT_LIMITS.transferConditions"
+            show-character-count
+            auto-height
+            resize
+            min-height="5rem"
+          />
+        </SettingsField>
+
+        <div class="flex flex-col gap-5">
+          <ToggleField
+            v-model="form.stop_ai_after_handoff"
+            :title="t('AI_AGENTS.GENERAL.STOP_AI_AFTER_HANDOFF.TITLE')"
+            :description="
+              t('AI_AGENTS.GENERAL.STOP_AI_AFTER_HANDOFF.DESCRIPTION')
+            "
+          />
+          <ToggleField
+            v-model="form.silent_handoff"
+            :title="t('AI_AGENTS.GENERAL.SILENT_HANDOFF.TITLE')"
+            :description="t('AI_AGENTS.GENERAL.SILENT_HANDOFF.DESCRIPTION')"
+          />
+        </div>
+
+        <CollapsiblePanel
+          icon="i-lucide-clock"
+          :title="t('AI_AGENTS.GENERAL.PENDING_MESSAGES.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.PENDING_MESSAGES.DESCRIPTION')"
+        >
+          <SettingsField
+            :title="t('AI_AGENTS.GENERAL.PENDING_MESSAGES.ASSIGNED.TITLE')"
+            :description="
+              t('AI_AGENTS.GENERAL.PENDING_MESSAGES.ASSIGNED.DESCRIPTION')
+            "
+            :badge="t('AI_AGENTS.GENERAL.PENDING_MESSAGES.ASSIGNED.BADGE')"
+          >
+            <TextArea
+              id="ai-agent-pending-assigned-message"
+              v-model="form.pending_assigned_message"
+              :placeholder="
+                t('AI_AGENTS.GENERAL.PENDING_MESSAGES.ASSIGNED.PLACEHOLDER')
+              "
+              :max-length="TEXT_LIMITS.pendingMessage"
+              show-character-count
+            />
+          </SettingsField>
+          <SettingsField
+            :title="t('AI_AGENTS.GENERAL.PENDING_MESSAGES.UNASSIGNED.TITLE')"
+            :description="
+              t('AI_AGENTS.GENERAL.PENDING_MESSAGES.UNASSIGNED.DESCRIPTION')
+            "
+            :badge="t('AI_AGENTS.GENERAL.PENDING_MESSAGES.UNASSIGNED.BADGE')"
+          >
+            <TextArea
+              id="ai-agent-pending-unassigned-message"
+              v-model="form.pending_unassigned_message"
+              :placeholder="
+                t('AI_AGENTS.GENERAL.PENDING_MESSAGES.UNASSIGNED.PLACEHOLDER')
+              "
+              :max-length="TEXT_LIMITS.pendingMessage"
+              show-character-count
+            />
+          </SettingsField>
+        </CollapsiblePanel>
+
+        <CollapsiblePanel
+          icon="i-lucide-zap"
+          :title="t('AI_AGENTS.GENERAL.AI_ACTIONS.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.AI_ACTIONS.DESCRIPTION')"
+        >
+          <SettingsField
+            :title="t('AI_AGENTS.GENERAL.AI_ACTIONS.LABELS.TITLE')"
+            :description="t('AI_AGENTS.GENERAL.AI_ACTIONS.LABELS.DESCRIPTION')"
+          >
+            <TagMultiSelectComboBox
+              v-model="selectedLabelIds"
+              :options="labelOptions"
+              :placeholder="
+                t('AI_AGENTS.GENERAL.AI_ACTIONS.LABELS.PLACEHOLDER')
+              "
+              :search-placeholder="
+                t('AI_AGENTS.GENERAL.AI_ACTIONS.LABELS.SEARCH_PLACEHOLDER')
+              "
+              :empty-state="t('AI_AGENTS.GENERAL.AI_ACTIONS.LABELS.EMPTY')"
+            />
+          </SettingsField>
+          <SettingsField
+            :title="t('AI_AGENTS.GENERAL.AI_ACTIONS.LABEL_CONDITIONS.TITLE')"
+            :description="
+              t('AI_AGENTS.GENERAL.AI_ACTIONS.LABEL_CONDITIONS.DESCRIPTION')
+            "
+          >
+            <TextArea
+              id="ai-agent-label-conditions"
+              v-model="form.label_conditions"
+              :placeholder="
+                t('AI_AGENTS.GENERAL.AI_ACTIONS.LABEL_CONDITIONS.PLACEHOLDER')
+              "
+              :max-length="TEXT_LIMITS.labelConditions"
+              show-character-count
+              auto-height
+              resize
+              min-height="5rem"
+            />
+          </SettingsField>
+        </CollapsiblePanel>
+
+        <SettingsField
+          :title="t('AI_AGENTS.GENERAL.AI_MODEL.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.AI_MODEL.DESCRIPTION')"
+        >
+          <ComboBox
+            :model-value="form.model"
+            :options="modelOptions"
+            :search-placeholder="
+              t('AI_AGENTS.GENERAL.AI_MODEL.SEARCH_PLACEHOLDER')
+            "
+            @update:model-value="setRequired('model', $event)"
+          />
+        </SettingsField>
+
+        <CollapsiblePanel
+          icon="i-lucide-sliders-horizontal"
+          :title="t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.DESCRIPTION')"
+        >
+          <SettingsField
+            v-for="field in memoryFields"
+            :key="field.key"
+            :title="field.title"
+            :description="field.description"
+          >
+            <Input
+              :id="`ai-agent-${field.key}`"
+              v-model="form[field.key]"
+              type="number"
+              :min="String(field.min)"
+              :max="String(field.max)"
+              :message="rangeHint(field)"
+            />
+          </SettingsField>
+
+          <SettingsField
+            :title="
+              t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TEMPERATURE.TITLE')
+            "
+            :description="
+              t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TEMPERATURE.DESCRIPTION')
+            "
+          >
+            <ComboBox
+              :model-value="form.temperature"
+              :options="temperatureOptions"
+              @update:model-value="setRequired('temperature', $event)"
+            />
+          </SettingsField>
+
+          <SettingsField
+            v-for="field in timingFields"
+            :key="field.key"
+            :title="field.title"
+            :description="field.description"
+          >
+            <Input
+              :id="`ai-agent-${field.key}`"
+              v-model="form[field.key]"
+              type="number"
+              :min="String(field.min)"
+              :max="String(field.max)"
+              :message="rangeHint(field)"
+            />
+          </SettingsField>
+
+          <SettingsField
+            :title="t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.WATCHER.TITLE')"
+            :description="
+              t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.WATCHER.DESCRIPTION')
+            "
+          >
+            <ComboBox v-model="watcherSelect" :options="switchOptions" />
+          </SettingsField>
+
+          <SettingsField
+            :title="t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TIMEZONE.TITLE')"
+            :description="
+              t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TIMEZONE.DESCRIPTION')
+            "
+          >
+            <ComboBox
+              :model-value="form.timezone"
+              :options="timezoneOptions"
+              :search-placeholder="
+                t(
+                  'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TIMEZONE.SEARCH_PLACEHOLDER'
+                )
+              "
+              :display-label="form.timezone"
+              @update:model-value="setRequired('timezone', $event)"
+            />
+          </SettingsField>
+
+          <SettingsField
+            :title="
+              t(
+                'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.SESSION_ONLY_MEMORY.TITLE'
+              )
+            "
+            :description="
+              t(
+                'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.SESSION_ONLY_MEMORY.DESCRIPTION'
+              )
+            "
+          >
+            <ComboBox
+              v-model="sessionOnlyMemorySelect"
+              :options="switchOptions"
+            />
+          </SettingsField>
+        </CollapsiblePanel>
+
+        <ToggleField
+          v-model="form.ignore_team_handoff"
+          :title="t('AI_AGENTS.GENERAL.IGNORE_TEAM_HANDOFF.TITLE')"
+          :description="t('AI_AGENTS.GENERAL.IGNORE_TEAM_HANDOFF.DESCRIPTION')"
+        />
+      </form>
+    </div>
+
+    <footer
+      class="flex justify-center px-6 py-3 border-t border-n-weak bg-n-surface-1"
+    >
+      <Button
+        type="submit"
+        form="ai-agent-general-form"
+        :label="t('AI_AGENTS.GENERAL.SAVE')"
+        :disabled="!isDirty || isSaving"
+        :is-loading="isSaving"
+      />
+    </footer>
+  </div>
+</template>
