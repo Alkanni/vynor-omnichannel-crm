@@ -452,6 +452,7 @@ en:
     duplicate_name: '%{name} (Copy)'
     inboxes:
       errors:
+        invalid: 'Select inboxes that belong to this account'
         already_connected: '%{inbox} is already connected to the AI agent %{agent}'
         agent_bot_connected: '%{inbox} is connected to an agent bot. Disconnect the bot before connecting an AI agent'
     llm:

@@ -14,6 +14,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
 
   before_action :fetch_ai_agent, except: [:index, :create]
   before_action :check_authorization
+  before_action :validate_inbox_ids, only: [:create, :update]
 
   def index
     @ai_agents = Current.account.ai_agents.includes(:inboxes).order(created_at: :desc)
@@ -60,6 +61,16 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
 
   def permitted_params
     params.require(:ai_agent).permit(*SETTINGS, LIST_SETTINGS.index_with { [] })
+  end
+
+  # inbox_ids= finds inboxes across all accounts, so ids outside this account are rejected before the
+  # connection validations run and could echo another account's inbox or agent names.
+  def validate_inbox_ids
+    inbox_ids = params.dig(:ai_agent, :inbox_ids)
+    return if inbox_ids.nil?
+    return if inbox_ids.is_a?(Array) && Current.account.inboxes.where(id: inbox_ids).count == inbox_ids.uniq.size
+
+    render_could_not_create_error(I18n.t('ai_agents.inboxes.errors.invalid'))
   end
 
   # Returns nil unless every message is a non-empty user or assistant text within the playground limits.

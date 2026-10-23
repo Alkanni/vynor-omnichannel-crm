@@ -29,8 +29,10 @@ class AiAgents::LlmClient
     raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.not_configured') if api_key.blank?
 
     Llm::Config.with_api_key(api_key, api_base: api_base, &)
+  # Provider messages can echo the endpoint or parts of the key, so only the error type reaches users;
+  # the original error stays attached as the cause for exception tracking.
   rescue RubyLLM::Error, Faraday::Error => e
-    raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.request_failed', reason: e.message)
+    raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.request_failed', reason: e.class.name.demodulize)
   end
 
   def api_base

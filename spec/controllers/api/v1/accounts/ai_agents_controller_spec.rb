@@ -192,11 +192,15 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(inbox.reload.ai_agent).to eq(other_agent)
     end
 
-    it 'rejects inboxes of another account' do
+    it 'rejects inboxes of another account without revealing their connections' do
+      foreign_inbox = create(:inbox, name: 'Foreign Inbox')
+      create(:ai_agent_inbox, ai_agent: create(:ai_agent, account: foreign_inbox.account, name: 'Foreign AI'), inbox: foreign_inbox)
+
       patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
-            params: { inbox_ids: [create(:inbox).id] }, headers: admin.create_new_auth_token, as: :json
+            params: { inbox_ids: [inbox.id, foreign_inbox.id] }, headers: admin.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('Select inboxes that belong to this account')
       expect(ai_agent.inboxes.reload).to be_empty
     end
   end
@@ -252,6 +256,17 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body['error']).to include('API key is not configured')
+    end
+
+    it 'reports provider failures by error type without echoing the provider message' do
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'sk-test')
+      allow(Llm::Config).to receive(:with_api_key)
+        .and_raise(RubyLLM::UnauthorizedError.new(nil, 'Incorrect API key provided: sk-tes***test at https://internal-llm.example'))
+
+      post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('The AI model request failed (UnauthorizedError)')
     end
 
     it 'returns unauthorized for agents' do
