@@ -9,6 +9,14 @@ class AiAgentsAPI extends ApiClient {
   duplicate(id) {
     return axios.post(`${this.url}/${id}/duplicate`);
   }
+
+  train(id) {
+    return axios.post(`${this.url}/${id}/train`);
+  }
+
+  playground(id, messages) {
+    return axios.post(`${this.url}/${id}/playground`, { messages });
+  }
 }
 
 export default new AiAgentsAPI();

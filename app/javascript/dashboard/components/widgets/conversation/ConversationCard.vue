@@ -59,7 +59,9 @@ const showMetaSection = computed(() => {
 });
 
 const isAIAssignee = computed(() =>
-  ['AgentBot', 'Captain::Assistant'].includes(props.chat?.meta?.assignee_type)
+  ['AgentBot', 'Captain::Assistant', 'AiAgent'].includes(
+    props.chat?.meta?.assignee_type
+  )
 );
 
 const hasSlaPolicyId = computed(

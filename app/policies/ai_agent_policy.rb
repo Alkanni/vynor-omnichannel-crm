@@ -22,4 +22,12 @@ class AiAgentPolicy < ApplicationPolicy
   def duplicate?
     @account_user.administrator?
   end
+
+  def train?
+    @account_user.administrator?
+  end
+
+  def playground?
+    @account_user.administrator?
+  end
 end

@@ -133,5 +133,32 @@ RSpec.describe AiAgent do
       expect(copy.attributes.except('id', 'name', 'created_at', 'updated_at'))
         .to eq(ai_agent.attributes.except('id', 'name', 'created_at', 'updated_at'))
     end
+
+    it 'does not copy the inbox connections or the training time' do
+      ai_agent.update!(trained_at: Time.current)
+      create(:ai_agent_inbox, ai_agent: ai_agent)
+
+      copy = ai_agent.duplicate!
+
+      expect(copy.inboxes).to be_empty
+      expect(copy.trained_at).to be_nil
+    end
+  end
+
+  describe '#schedule_training' do
+    before do
+      ai_agent.save!
+      Redis::Alfred.delete(format(Redis::Alfred::AI_AGENT_TRAINING_SCHEDULED, id: ai_agent.id))
+    end
+
+    after { Redis::Alfred.delete(format(Redis::Alfred::AI_AGENT_TRAINING_SCHEDULED, id: ai_agent.id)) }
+
+    it 'queues one indexing job for a burst of knowledge changes' do
+      expect do
+        create(:ai_agent_knowledge_source, ai_agent: ai_agent)
+        create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+        create(:ai_agent_product, ai_agent: ai_agent)
+      end.to have_enqueued_job(AiAgents::IndexKnowledgeJob).with(ai_agent).exactly(:once)
+    end
   end
 end

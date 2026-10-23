@@ -73,7 +73,11 @@ Rails.application.routes.draw do
             end
           end
           resources :ai_agents, only: [:index, :create, :show, :update, :destroy] do
-            post :duplicate, on: :member
+            member do
+              post :duplicate
+              post :train
+              post :playground
+            end
             scope module: :ai_agents do
               resources :knowledge_sources, only: [:index, :create, :update, :destroy] do
                 collection do

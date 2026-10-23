@@ -51,6 +51,12 @@ module Redis::RedisKeys
   UNREAD_CONVERSATIONS_V2_FILTER_BUILD_LOCK = "#{UNREAD_CONVERSATIONS_V2_FILTER_PREFIX}::BUILD_LOCK".freeze
   UNREAD_CONVERSATIONS_V2_FILTER_REFRESH_THROTTLE = "#{UNREAD_CONVERSATIONS_V2_FILTER_PREFIX}::REFRESH_THROTTLE".freeze
 
+  ## AI Agent keys
+  # Present while a knowledge indexing job is queued, so a burst of knowledge changes queues a single job
+  AI_AGENT_TRAINING_SCHEDULED = 'AI_AGENT::%<id>d::TRAINING_SCHEDULED'.freeze
+  # Held while a knowledge indexing job runs, so two jobs never embed the same knowledge
+  AI_AGENT_TRAINING_LOCK = 'AI_AGENT::%<id>d::TRAINING_LOCK'.freeze
+
   ## User Keys
   # SSO Auth Tokens
   USER_SSO_AUTH_TOKEN = 'USER_SSO_AUTH_TOKEN::%<user_id>d::%<token>s'.freeze

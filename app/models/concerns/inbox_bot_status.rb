@@ -2,7 +2,7 @@ module InboxBotStatus
   extend ActiveSupport::Concern
 
   def active_bot?
-    external_bot_active?
+    external_bot_active? || ai_agent_inbox.present?
   end
 
   def external_bot_active?

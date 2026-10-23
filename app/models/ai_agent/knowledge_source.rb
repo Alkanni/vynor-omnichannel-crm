@@ -54,6 +54,7 @@ class AiAgent::KnowledgeSource < ApplicationRecord
   validates :content, length: { maximum: MAX_EXTRACTED_CHARACTERS }, if: -> { website? || file? }
 
   after_create_commit :enqueue_processing, if: :pending?
+  after_commit -> { ai_agent.schedule_training }, unless: :destroyed_by_association
 
   def resync!
     update!(status: :pending, error_message: nil)
