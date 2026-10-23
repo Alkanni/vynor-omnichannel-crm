@@ -182,6 +182,52 @@ RSpec.describe AiAgents::ReplyJob do
     end
   end
 
+  # Web widget and WhatsApp conversations are created with the first customer message, so the welcome comes after it.
+  { channel_widget: {}, channel_whatsapp: { sync_templates: false, validate_provider_config: false } }.each do |channel, channel_options|
+    context "when the welcome message follows the first question on #{channel}" do
+      let(:inbox) { create(channel, account: account, **channel_options).inbox }
+      let(:embedding) { Array.new(1536) { |index| index.zero? ? 1.0 : 0.0 } }
+      let(:embedding_requests) { [] }
+      let(:chat_requests) { [] }
+
+      before do
+        allow(AiAgents::ReplyGenerator).to receive(:new).and_call_original
+        ai_agent.update!(welcome_message: 'Halo! Ada yang bisa kami bantu?')
+        create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+        source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
+        ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at,
+                                          content: 'Jam buka toko: Senin sampai Sabtu 09.00-21.00', embedding: embedding)
+        stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
+          embedding_requests << JSON.parse(request.body)
+          { status: 200, headers: { 'Content-Type' => 'application/json' },
+            body: { data: [{ embedding: embedding }], usage: { prompt_tokens: 4 } }.to_json }
+        end
+        stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
+          chat_requests << JSON.parse(request.body)
+          { status: 200, headers: { 'Content-Type' => 'application/json' },
+            body: { id: 'chatcmpl-1', model: ai_agent.model, usage: { prompt_tokens: 10, completion_tokens: 5 },
+                    choices: [{ message: { role: 'assistant', content: { messages: ['Kami buka Senin sampai Sabtu, 09.00-21.00.'] }.to_json } }] }
+              .to_json }
+        end
+      end
+
+      it 'answers the question with the knowledge, after the greeting' do
+        message = create(:message, **message_attributes, content: 'Halo, toko buka jam berapa?')
+        AiAgentListener.instance.conversation_created(Events::Base.new('conversation.created', Time.zone.now, conversation: conversation))
+
+        described_class.perform_now(message)
+
+        expect(embedding_requests.sole['input']).to eq(['Halo, toko buka jam berapa?'])
+        request = chat_requests.sole
+        expect(request['messages'].first['content']).to include('<knowledge>', 'Jam buka toko: Senin sampai Sabtu 09.00-21.00')
+        expect(request['messages'].drop(1).pluck('role', 'content'))
+          .to eq([['assistant', 'Halo! Ada yang bisa kami bantu?'], ['user', 'Halo, toko buka jam berapa?']])
+        expect(ai_replies.where("additional_attributes ->> 'ai_agent_reply_to' = ?", message.id.to_s).pluck(:content))
+          .to eq(['Kami buka Senin sampai Sabtu, 09.00-21.00.'])
+      end
+    end
+  end
+
   context 'when Stop AI after Handoff is off' do
     let(:session) { AiAgents::ConversationSession.new(conversation: conversation, ai_agent: ai_agent) }
 

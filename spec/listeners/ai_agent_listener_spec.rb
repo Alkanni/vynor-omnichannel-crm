@@ -13,10 +13,11 @@ describe AiAgentListener do
   describe '#conversation_created' do
     let(:event) { Events::Base.new('conversation.created', Time.zone.now, conversation: conversation) }
 
-    it 'sends the welcome message from the AI agent' do
+    it 'sends the welcome message from the AI agent, marked as the welcome' do
       listener.conversation_created(event)
 
-      expect(conversation.messages.outgoing.where(sender: ai_agent).pluck(:content)).to eq(['Halo! Ada yang bisa kami bantu?'])
+      welcome = conversation.messages.outgoing.where(sender: ai_agent).sole
+      expect(welcome).to have_attributes(content: 'Halo! Ada yang bisa kami bantu?', additional_attributes: { 'ai_agent_welcome' => true })
     end
 
     it 'does not send a welcome message when the agent has none' do

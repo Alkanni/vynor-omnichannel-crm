@@ -5,7 +5,8 @@ class AiAgentListener < BaseListener
     return unless ai_agent&.welcome_message.present? && conversation.pending?
 
     conversation.messages.create!(account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :outgoing,
-                                  sender: ai_agent, content: ai_agent.welcome_message)
+                                  sender: ai_agent, content: ai_agent.welcome_message,
+                                  additional_attributes: { AiAgents::ConversationSession::WELCOME_MARKER => true })
   end
 
   def message_created(event)

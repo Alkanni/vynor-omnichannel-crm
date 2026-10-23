@@ -5,6 +5,7 @@ class AiAgents::ConversationSession
   HANDOFF_MARKER = 'ai_agent_handoff'.freeze
   PENDING_MARKER = 'ai_agent_pending'.freeze
   SHEET_ROW_MARKER = 'ai_agent_sheet_row'.freeze
+  WELCOME_MARKER = 'ai_agent_welcome'.freeze
 
   pattr_initialize [:conversation!, :ai_agent!]
 
@@ -22,8 +23,7 @@ class AiAgents::ConversationSession
   end
 
   def history
-    scope = ai_agent.session_only_memory ? session_messages : conversation.messages
-    records = scope.where(message_type: [:incoming, :outgoing], private: false).reorder(id: :desc).limit(ai_agent.history_limit).to_a.reverse
+    records = history_records
     with_files = records.last(ai_agent.read_file_limit)
 
     records.filter_map do |message|
@@ -84,6 +84,15 @@ class AiAgents::ConversationSession
   end
 
   private
+
+  # The latest messages up to the history limit, oldest first. Channels that create the conversation with the first
+  # customer message get the welcome message after it, and a history ending with the welcome would hide the
+  # customer's question, so the welcome goes first.
+  def history_records
+    scope = ai_agent.session_only_memory ? session_messages : conversation.messages
+    records = scope.where(message_type: [:incoming, :outgoing], private: false).reorder(id: :desc).limit(ai_agent.history_limit).to_a.reverse
+    records.partition { |message| message.additional_attributes.key?(WELCOME_MARKER) }.flatten
+  end
 
   def awaiting_human?
     conversation.open? && last_handoff.present? &&
