@@ -19,8 +19,7 @@ class Api::V1::Accounts::AiAgents::GoogleSheetsController < Api::V1::Accounts::A
     raise InvalidSettings, I18n.t('ai_agents.google_sheets.errors.unavailable') unless self.class.available?
 
     url = google_client.auth_code.authorize_url(
-      redirect_uri: google_sheets_redirect_uri, scope: scope, access_type: 'offline', prompt: 'consent',
-      state: @ai_agent.to_sgid(expires_in: 15.minutes, for: STATE_PURPOSE).to_s
+      redirect_uri: google_sheets_redirect_uri, scope: scope, access_type: 'offline', prompt: 'consent', state: issue_state(@ai_agent)
     )
     render json: { url: url }
   end

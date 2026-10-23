@@ -1,12 +1,13 @@
 # Google redirects here after the admin consents to Google Sheets access for an AI agent. The signed state names
-# the agent; tokens are stored encrypted and never leave the server.
+# the agent and must come back to the browser that requested it; tokens are stored encrypted and never leave the server.
 class AiAgents::GoogleSheetsCallbacksController < ApplicationController
   include AiAgentGoogleSheetsConcern
 
   def show
     ai_agent = GlobalID::Locator.locate_signed(params[:state].to_s, for: STATE_PURPOSE)
-    return head :bad_request unless ai_agent.is_a?(AiAgent)
+    return head :bad_request unless ai_agent.is_a?(AiAgent) && state_from_this_browser?
 
+    cookies.delete(STATE_COOKIE)
     connect(ai_agent) if params[:code].present?
     redirect_to integrations_url(ai_agent, params[:code].present? ? 'connected' : 'error')
   rescue OAuth2::Error => e
