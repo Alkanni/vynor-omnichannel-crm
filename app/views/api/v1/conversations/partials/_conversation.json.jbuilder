@@ -12,6 +12,9 @@ json.meta do
       json.partial! 'api/v1/models/agent_bot_slim', formats: [:json], resource: conversation.assigned_entity
     end
     json.assignee_type 'AgentBot'
+  elsif conversation.assigned_entity.is_a?(AiAgent)
+    json.assignee conversation.assigned_entity.push_event_data
+    json.assignee_type 'AiAgent'
   elsif conversation.assignee_type == 'User'
     json.assignee do
       json.partial! 'api/v1/models/agent', formats: [:json], resource: conversation.assigned_entity

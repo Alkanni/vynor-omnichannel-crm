@@ -319,9 +319,9 @@ class Conversation < ApplicationRecord
   def set_active_bot_conversation
     # TODO: make this an inbox config instead of assuming bot conversations should start as pending
     self.status = :pending
-    return unless inbox.agent_bot_inbox&.active? && assignee_id.blank?
+    return if assignee_id.present?
 
-    self.ai_assignee = inbox.agent_bot
+    self.ai_assignee = inbox.agent_bot_inbox&.active? ? inbox.agent_bot : inbox.ai_agent
   end
 
   def notify_conversation_creation

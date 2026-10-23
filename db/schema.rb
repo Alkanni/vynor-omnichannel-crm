@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_22_020000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_22_030002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -176,6 +176,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_020000) do
     t.index ["user_id"], name: "index_agent_sessions_on_user_id"
   end
 
+  create_table "ai_agent_inboxes", force: :cascade do |t|
+    t.bigint "ai_agent_id", null: false
+    t.bigint "inbox_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ai_agent_id"], name: "index_ai_agent_inboxes_on_ai_agent_id"
+    t.index ["inbox_id"], name: "index_ai_agent_inboxes_on_inbox_id", unique: true
+  end
+
+  create_table "ai_agent_knowledge_chunks", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "ai_agent_id", null: false
+    t.string "chunkable_type", null: false
+    t.bigint "chunkable_id", null: false
+    t.datetime "chunkable_updated_at", null: false
+    t.text "content", null: false
+    t.vector "embedding", limit: 1536, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_ai_agent_knowledge_chunks_on_account_id"
+    t.index ["ai_agent_id"], name: "index_ai_agent_knowledge_chunks_on_ai_agent_id"
+    t.index ["chunkable_type", "chunkable_id"], name: "index_ai_agent_knowledge_chunks_on_chunkable"
+  end
+
   create_table "ai_agent_knowledge_sources", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "ai_agent_id", null: false
@@ -231,6 +255,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_020000) do
     t.integer "message_limit", default: 10, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "trained_at"
     t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 

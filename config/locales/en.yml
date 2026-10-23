@@ -450,6 +450,15 @@ en:
       description: 'Sync your contacts and conversations with LeadSquared CRM. This integration automatically creates leads in LeadSquared when new contacts are added, and logs conversation activity to provide your sales team with complete context.'
   ai_agents:
     duplicate_name: '%{name} (Copy)'
+    inboxes:
+      errors:
+        already_connected: '%{inbox} is already connected to the AI agent %{agent}'
+        agent_bot_connected: '%{inbox} is connected to an agent bot. Disconnect the bot before connecting an AI agent'
+    llm:
+      errors:
+        not_configured: 'The AI model API key is not configured. Ask the installation administrator to add it in Super Admin'
+        request_failed: 'The AI model request failed (%{reason})'
+        empty_reply: 'The AI model returned an empty reply'
     knowledge:
       errors:
         invalid_url: 'Enter a full web address that starts with http:// or https://'

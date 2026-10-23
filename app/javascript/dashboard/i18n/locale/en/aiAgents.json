@@ -160,7 +160,30 @@
       },
       "SAVE": "Save AI Settings",
       "SAVE_SUCCESS": "AI settings saved",
-      "SAVE_ERROR": "Could not save the AI settings. Please try again."
+      "SAVE_ERROR": "Could not save the AI settings. Please try again.",
+      "CONNECTED_INBOXES": {
+        "TITLE": "Connected Inboxes",
+        "DESCRIPTION": "The AI agent replies to new and pending conversations in these inboxes. An inbox can be connected to one AI agent only.",
+        "PLACEHOLDER": "Select inboxes",
+        "SEARCH_PLACEHOLDER": "Search inboxes...",
+        "EMPTY": "No inboxes found"
+      },
+      "TRAINING": {
+        "LAST_TRAINED": "Last trained {time}",
+        "NEVER_TRAINED": "Not trained yet",
+        "TRAIN": "Train",
+        "TRAIN_SUCCESS": "Training started. Knowledge changes are also trained automatically.",
+        "TRAIN_ERROR": "Could not start training. Please try again."
+      },
+      "LLM_NOT_CONFIGURED": "The AI model API key is not configured, so this AI agent cannot reply or train its knowledge. Ask the installation administrator to add it in Super Admin."
+    },
+    "PLAYGROUND": {
+      "TITLE": "Playground",
+      "DESCRIPTION": "Chat with this AI agent to test its replies. Saved settings and trained knowledge are used; nothing is sent to customers.",
+      "RESET": "Reset conversation",
+      "PLACEHOLDER": "Type a message...",
+      "SEND": "Send message",
+      "ERROR": "The AI agent could not reply. Please try again."
     },
     "KNOWLEDGE": {
       "TABS": {

@@ -29,6 +29,7 @@ class AiAgent::Product < ApplicationRecord
   has_one_attached :image
 
   before_validation :assign_account
+  after_commit -> { ai_agent.schedule_training }, unless: :destroyed_by_association
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :description, length: { maximum: 5_000 }

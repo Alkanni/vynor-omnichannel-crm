@@ -21,6 +21,7 @@
 #  stop_ai_after_handoff      :boolean          default(TRUE), not null
 #  temperature                :string           default("balanced"), not null
 #  timezone                   :string           default("Asia/Jakarta"), not null
+#  trained_at                 :datetime
 #  transfer_conditions        :text
 #  watcher_enabled            :boolean          default(FALSE), not null
 #  welcome_message            :text
@@ -35,10 +36,20 @@
 class AiAgent < ApplicationRecord
   LLM_FEATURE = 'assistant'.freeze
   TEMPERATURES = %w[precise balanced creative].freeze
+  TRAINING_DELAY = 10.seconds
 
   belongs_to :account
   has_many :knowledge_sources, class_name: 'AiAgent::KnowledgeSource', dependent: :destroy
   has_many :products, class_name: 'AiAgent::Product', dependent: :destroy
+  has_many :knowledge_chunks, class_name: 'AiAgent::KnowledgeChunk', dependent: :delete_all
+  has_many :ai_agent_inboxes, dependent: :destroy
+  has_many :inboxes, through: :ai_agent_inboxes
+  has_many :messages, as: :sender, dependent: :nullify
+  has_many :assigned_conversations, class_name: 'Conversation',
+                                    foreign_key: :assignee_agent_bot_id,
+                                    dependent: :nullify,
+                                    as: :ai_assignee,
+                                    inverse_of: :ai_assignee
 
   attribute :model, :string, default: -> { Llm::Models.default_model_for(LLM_FEATURE) }
 
@@ -61,11 +72,28 @@ class AiAgent < ApplicationRecord
     transaction do
       copy = dup
       copy.name = I18n.t('ai_agents.duplicate_name', name: name).truncate(255)
+      copy.trained_at = nil
       copy.save!
       knowledge_sources.each { |source| source.copy_to!(copy) }
       products.each { |product| product.copy_to!(copy) }
       copy
     end
+  end
+
+  # Knowledge changes arrive in bursts (e.g. a batch of website links finishing), so only one
+  # indexing job is queued until it starts; see AiAgents::IndexKnowledgeJob.
+  def schedule_training
+    return unless Redis::Alfred.set(format(Redis::Alfred::AI_AGENT_TRAINING_SCHEDULED, id: id), 1, nx: true, ex: 1.hour)
+
+    AiAgents::IndexKnowledgeJob.set(wait: TRAINING_DELAY).perform_later(self)
+  end
+
+  def push_event_data
+    { id: id, name: name, avatar_url: '', type: 'ai_agent' }
+  end
+
+  def webhook_data
+    { id: id, name: name, type: 'ai_agent' }
   end
 
   def knowledge_stats
