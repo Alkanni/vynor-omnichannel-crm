@@ -65,5 +65,28 @@ describe AiAgentListener do
       expect { listener.message_created(Events::Base.new('message.created', Time.zone.now, message: message)) }
         .not_to have_enqueued_job(AiAgents::ReplyJob)
     end
+
+    context 'when the AI handed the conversation off' do
+      let(:message) { create(:message, **message_attributes, content: 'Halo, masih menunggu') }
+      # Reloaded like the dispatched event, so the inbox reads the agent settings changed below.
+      let(:event) { Events::Base.new('message.created', Time.zone.now, message: message.reload) }
+
+      before do
+        ai_agent.update!(pending_unassigned_message: 'Mohon tunggu, agen kami segera membalas.')
+        AiAgents::ConversationSession.new(conversation: conversation, ai_agent: ai_agent).handoff!(:transfer_conditions)
+      end
+
+      it 'sends the pending message instead of a reply' do
+        expect { listener.message_created(event) }.not_to have_enqueued_job(AiAgents::ReplyJob)
+        expect(conversation.messages.outgoing.where(sender: ai_agent).pluck(:content)).to eq(['Mohon tunggu, agen kami segera membalas.'])
+      end
+
+      it 'schedules a reply when Stop AI after Handoff is off' do
+        ai_agent.update!(stop_ai_after_handoff: false)
+
+        expect { listener.message_created(event) }.to have_enqueued_job(AiAgents::ReplyJob).with(message)
+        expect(conversation.messages.outgoing.where(sender: ai_agent)).to be_empty
+      end
+    end
   end
 end

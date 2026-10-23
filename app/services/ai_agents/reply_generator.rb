@@ -1,18 +1,11 @@
-# Builds the LLM request for an AI Agent (behavior, local time, relevant knowledge, history) and returns
-# the reply as a list of chat bubbles. Messages are { role: :user | :assistant, content:, attachments: }.
+# Builds the LLM request for an AI Agent (behavior, local time, relevant knowledge, actions, history) and returns
+# the reply as chat bubbles plus the actions it takes. Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
   MAX_REPLY_MESSAGES = 5
   MAX_QUERY_CHARACTERS = 4_000
-  RESPONSE_SCHEMA = {
-    name: 'ai_agent_reply',
-    schema: {
-      type: 'object',
-      properties: { messages: { type: 'array', items: { type: 'string' } } },
-      required: ['messages'],
-      additionalProperties: false
-    }
-  }.freeze
+  MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
+  Reply = Data.define(:messages, :handoff, :labels)
   KNOWLEDGE_INSTRUCTIONS = <<~TEXT.freeze
     Use the knowledge below to answer. State facts such as prices, stock, schedules, and policies only when they appear
     in the knowledge or in the conversation. If the knowledge does not cover the question, say that you do not know.
@@ -25,18 +18,24 @@ class AiAgents::ReplyGenerator
   pattr_initialize [:ai_agent!, :messages!]
 
   def perform
-    content = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature),
-                          instructions: instructions, messages: llm_messages, schema: RESPONSE_SCHEMA)
-    replies = content.is_a?(Hash) ? Array(content['messages']).grep(String).map(&:strip).compact_blank : []
-    raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.empty_reply') if replies.empty?
+    content = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
+                          messages: llm_messages, schema: actions.json_schema('ai_agent_reply', MESSAGES_PROPERTY))
+    content = {} unless content.is_a?(Hash)
+    reply = Reply.new(messages: reply_messages(content), **actions.parse(content))
+    # A silent handoff may come without a note; any other turn needs something to send.
+    raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.empty_reply') if reply.messages.empty? && !reply.handoff
 
-    replies.first(MAX_REPLY_MESSAGES)
+    reply
   end
 
   private
 
+  def reply_messages(content)
+    Array(content['messages']).grep(String).map(&:strip).compact_blank.first(MAX_REPLY_MESSAGES)
+  end
+
   def instructions
-    [ai_agent.behavior.presence, current_time, knowledge, RESPONSE_INSTRUCTIONS].compact.join("\n\n")
+    [ai_agent.behavior.presence, current_time, knowledge, actions.instructions, RESPONSE_INSTRUCTIONS].compact.join("\n\n")
   end
 
   def current_time
@@ -69,6 +68,10 @@ class AiAgents::ReplyGenerator
       attachments = message[:attachments].presence
       { role: message[:role], content: attachments ? RubyLLM::Content.new(message[:content], attachments) : message[:content] }
     end
+  end
+
+  def actions
+    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent)
   end
 
   def client

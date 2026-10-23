@@ -231,7 +231,8 @@ RSpec.describe 'AI Agents API', type: :request do
 
     it 'returns the reply of the agent for the conversation so far' do
       ai_agent.update!(history_limit: 2)
-      generator = instance_double(AiAgents::ReplyGenerator, perform: ['Kami buka 07.30 - 18.00.'])
+      reply = AiAgents::ReplyGenerator::Reply.new(messages: ['Kami buka 07.30 - 18.00.'], handoff: false, labels: [])
+      generator = instance_double(AiAgents::ReplyGenerator, perform: reply)
       allow(AiAgents::ReplyGenerator).to receive(:new).and_return(generator)
 
       post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json
