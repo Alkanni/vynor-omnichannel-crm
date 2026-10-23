@@ -450,6 +450,19 @@ en:
       description: 'Sync your contacts and conversations with LeadSquared CRM. This integration automatically creates leads in LeadSquared when new contacts are added, and logs conversation activity to provide your sales team with complete context.'
   ai_agents:
     duplicate_name: '%{name} (Copy)'
+    google_sheets:
+      row_added: '%{agent} added a row to Google Sheets'
+      errors:
+        unavailable: 'Google Sheets needs the Google OAuth client and Active Record encryption keys, configured by the installation administrator'
+        not_connected: 'Connect Google Sheets first'
+        invalid_url: 'Enter a Google Sheets URL that starts with https://docs.google.com/spreadsheets/d/'
+        invalid_sheet_name: 'Enter the name of the sheet tab (up to 100 characters)'
+        when_to_write_too_long: 'When to write can be up to 3000 characters'
+        empty_header: 'The first row of the sheet is empty. Add the column headers there first'
+        reconnect: 'Google access expired or was revoked. Reconnect Google Sheets'
+        forbidden: 'Google denied access to this spreadsheet. Share it with the connected Google account'
+        not_found: 'The spreadsheet or sheet was not found. Check the URL and the sheet name'
+        request_failed: 'Google Sheets could not be reached. Try again later'
     handoff:
       activity: '%{agent} handed the conversation over to a human agent (%{reason})'
       reasons:

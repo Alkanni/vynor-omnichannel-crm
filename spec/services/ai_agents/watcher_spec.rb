@@ -24,7 +24,7 @@ RSpec.describe AiAgents::Watcher do
   end
 
   it 'asks the model which actions apply to the transcript and keeps only allowed labels' do
-    expect(described_class.new(ai_agent: ai_agent, messages: messages).perform).to eq(handoff: true, labels: ['complaint'])
+    expect(described_class.new(ai_agent: ai_agent, messages: messages).perform).to eq(handoff: true, labels: ['complaint'], sheet_row: nil)
 
     request = chat_requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0.2)

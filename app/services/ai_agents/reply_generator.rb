@@ -5,7 +5,11 @@ class AiAgents::ReplyGenerator
   MAX_REPLY_MESSAGES = 5
   MAX_QUERY_CHARACTERS = 4_000
   MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
-  Reply = Data.define(:messages, :handoff, :labels)
+  Reply = Data.define(:messages, :handoff, :labels, :sheet_row) do
+    def initialize(messages:, handoff:, labels:, sheet_row: nil)
+      super
+    end
+  end
   KNOWLEDGE_INSTRUCTIONS = <<~TEXT.freeze
     Use the knowledge below to answer. State facts such as prices, stock, schedules, and policies only when they appear
     in the knowledge or in the conversation. If the knowledge does not cover the question, say that you do not know.
@@ -15,7 +19,8 @@ class AiAgents::ReplyGenerator
     so use more than one item only when separate bubbles help, and never more than #{MAX_REPLY_MESSAGES}.
   TEXT
 
-  pattr_initialize [:ai_agent!, :messages!]
+  # written_rows: the Google Sheets rows already written for the conversation (see AiAgents::ActionSchema).
+  pattr_initialize [:ai_agent!, :messages!, :written_rows]
 
   def perform
     content = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
@@ -71,7 +76,7 @@ class AiAgents::ReplyGenerator
   end
 
   def actions
-    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent)
+    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows)
   end
 
   def client

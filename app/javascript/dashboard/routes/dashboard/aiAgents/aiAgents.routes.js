@@ -3,6 +3,7 @@ import AiAgentsIndexPage from './pages/AiAgentsIndexPage.vue';
 import AiAgentDetailPage from './pages/AiAgentDetailPage.vue';
 import AiAgentGeneralPage from './pages/AiAgentGeneralPage.vue';
 import KnowledgeSourcesPage from './pages/KnowledgeSourcesPage.vue';
+import AiAgentIntegrationsPage from './pages/AiAgentIntegrationsPage.vue';
 import KnowledgeTextPage from './pages/knowledge/KnowledgeTextPage.vue';
 import KnowledgeWebsitePage from './pages/knowledge/KnowledgeWebsitePage.vue';
 import KnowledgeFilePage from './pages/knowledge/KnowledgeFilePage.vue';
@@ -78,6 +79,12 @@ export const routes = [
             meta,
           },
         ],
+      },
+      {
+        path: 'integrations',
+        name: 'ai_agents_integrations',
+        component: AiAgentIntegrationsPage,
+        meta,
       },
     ],
   },

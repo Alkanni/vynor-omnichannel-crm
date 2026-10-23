@@ -91,6 +91,10 @@ Rails.application.routes.draw do
               resources :products, only: [:index, :create, :update, :destroy] do
                 post :bulk_destroy, on: :collection
               end
+              resource :google_sheets, only: [:show, :update, :destroy] do
+                post :authorization
+                post :test_connection
+              end
             end
           end
           resources :agent_bots, only: [:index, :create, :show, :update, :destroy] do
@@ -583,6 +587,7 @@ Rails.application.routes.draw do
 
   get 'microsoft/callback', to: 'microsoft/callbacks#show'
   get 'google/callback', to: 'google/callbacks#show'
+  get 'ai_agents/google_sheets/callback', to: 'ai_agents/google_sheets_callbacks#show'
   get 'instagram/callback', to: 'instagram/callbacks#show'
   get 'tiktok/callback', to: 'tiktok/callbacks#show'
   get 'notion/callback', to: 'notion/callbacks#show'
