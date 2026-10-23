@@ -164,6 +164,39 @@ RSpec.describe Avatar::AvatarFromUrlJob do
     end
   end
 
+  context 'with a Telegram file URL' do
+    let(:telegram_url) { 'https://api.telegram.org/file/bot123456:SECRET-TOKEN/photos/file_0.jpg' }
+
+    before do
+      allow(Resolv).to receive(:getaddresses).with('api.telegram.org').and_return(['149.154.167.220'])
+      allow(Rails.logger).to receive(:info)
+      allow(Rails.logger).to receive(:error)
+    end
+
+    it 'filters the bot token from the not found log' do
+      stub_request(:get, telegram_url).to_return(status: 404)
+
+      described_class.perform_now(create(:contact), telegram_url)
+
+      expect(Rails.logger).to have_received(:info)
+        .with('AvatarFromUrlJob: avatar not found at https://api.telegram.org/file/bot[FILTERED]/photos/file_0.jpg')
+    end
+
+    it 'filters the bot token from the error log' do
+      stub_request(:get, telegram_url).to_return(status: [500, 'Internal Server Error'])
+
+      described_class.perform_now(create(:contact), telegram_url)
+
+      expect(Rails.logger).to have_received(:error).with(
+        'AvatarFromUrlJob error for https://api.telegram.org/file/bot[FILTERED]/photos/file_0.jpg: SafeFetch::HttpError - 500 Internal Server Error'
+      )
+    end
+
+    it 'does not log its arguments' do
+      expect(described_class.log_arguments).to be(false)
+    end
+  end
+
   context 'with regular avatarable' do
     let(:avatarable) { create(:agent_bot) }
 

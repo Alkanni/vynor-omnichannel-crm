@@ -10,10 +10,13 @@ class Avatar::AvatarFromUrlJob < ApplicationJob
 
   include UrlHelper
   queue_as :purgable
+  # Avatar URLs can carry credentials, e.g. Telegram file URLs embed the bot token.
+  self.log_arguments = false
 
   ALLOWED_CONTENT_TYPES = Avatarable::ALLOWED_AVATAR_CONTENT_TYPES
   MAX_DOWNLOAD_SIZE = 15.megabytes
   RATE_LIMIT_WINDOW = 1.minute
+  TELEGRAM_FILE_TOKEN = %r{(api\.telegram\.org/file/bot)[^/]+}
 
   def perform(avatarable, avatar_url)
     return unless syncable_avatar?(avatarable, avatar_url)
@@ -22,7 +25,7 @@ class Avatar::AvatarFromUrlJob < ApplicationJob
   rescue SafeFetch::HttpError => e
     log_http_error(avatar_url, e)
   rescue SafeFetch::Error => e
-    Rails.logger.error "AvatarFromUrlJob error for #{avatar_url}: #{e.class} - #{e.message}"
+    Rails.logger.error filter_token("AvatarFromUrlJob error for #{avatar_url}: #{e.class} - #{e.message}")
   ensure
     update_avatar_sync_attributes(avatarable, avatar_url)
   end
@@ -58,10 +61,14 @@ class Avatar::AvatarFromUrlJob < ApplicationJob
 
   def log_http_error(avatar_url, error)
     if error.message.start_with?('404')
-      Rails.logger.info "AvatarFromUrlJob: avatar not found at #{avatar_url}"
+      Rails.logger.info filter_token("AvatarFromUrlJob: avatar not found at #{avatar_url}")
     else
-      Rails.logger.error "AvatarFromUrlJob error for #{avatar_url}: #{error.class} - #{error.message}"
+      Rails.logger.error filter_token("AvatarFromUrlJob error for #{avatar_url}: #{error.class} - #{error.message}")
     end
+  end
+
+  def filter_token(log_message)
+    log_message.gsub(TELEGRAM_FILE_TOKEN, '\1[FILTERED]')
   end
 
   def should_sync_avatar?(avatarable, avatar_url)
