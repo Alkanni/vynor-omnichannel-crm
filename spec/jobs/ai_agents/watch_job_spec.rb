@@ -5,7 +5,7 @@ RSpec.describe AiAgents::WatchJob do
   let(:ai_agent) { create(:ai_agent, account: account, watcher_enabled: true, transfer_conditions: 'Transfer when the customer complains.') }
   let(:inbox) { create(:inbox, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
-  let(:watcher) { instance_double(AiAgents::Watcher, perform: { handoff: true, labels: ['complaint'] }) }
+  let(:watcher) { instance_double(AiAgents::Watcher, perform: { handoff: true, labels: ['complaint'], sheet_row: nil }) }
 
   before do
     create(:ai_agent_inbox, ai_agent: ai_agent, inbox: inbox)
@@ -22,7 +22,7 @@ RSpec.describe AiAgents::WatchJob do
     expect(conversation).to be_open
     expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_handoff' = 'watcher'")).to exist
     expect(AiAgents::Watcher).to have_received(:new)
-      .with(ai_agent: ai_agent, messages: [hash_including(role: :user, content: 'Pelayanannya buruk sekali')])
+      .with(ai_agent: ai_agent, messages: [hash_including(role: :user, content: 'Pelayanannya buruk sekali')], written_rows: [])
   end
 
   it 'skips conversations a human agent took over meanwhile' do

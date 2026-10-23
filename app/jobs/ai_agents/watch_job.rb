@@ -10,7 +10,7 @@ class AiAgents::WatchJob < ApplicationJob
     # A human agent may have taken over since the reply.
     return unless session.ai_active?
 
-    actions = AiAgents::Watcher.new(ai_agent: ai_agent, messages: session.history).perform
+    actions = AiAgents::Watcher.new(ai_agent: ai_agent, messages: session.history, written_rows: session.sheet_rows).perform
     session.apply!(**actions, reason: :watcher)
   rescue StandardError => e
     # The reply was already sent, so a failed check is reported without handing the conversation off.

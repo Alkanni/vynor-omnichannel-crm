@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_22_030002) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_23_020000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -183,6 +183,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_030002) do
     t.datetime "updated_at", null: false
     t.index ["ai_agent_id"], name: "index_ai_agent_inboxes_on_ai_agent_id"
     t.index ["inbox_id"], name: "index_ai_agent_inboxes_on_inbox_id", unique: true
+  end
+
+  create_table "ai_agent_integrations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "ai_agent_id", null: false
+    t.string "integration_type", null: false
+    t.integer "status", default: 0, null: false
+    t.jsonb "settings", default: {}, null: false
+    t.text "credentials"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_ai_agent_integrations_on_account_id"
+    t.index ["ai_agent_id", "integration_type"], name: "index_ai_agent_integrations_on_agent_and_type", unique: true
   end
 
   create_table "ai_agent_knowledge_chunks", force: :cascade do |t|

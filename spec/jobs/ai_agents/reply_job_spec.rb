@@ -33,7 +33,8 @@ RSpec.describe AiAgents::ReplyJob do
 
     expect(AiAgents::ReplyGenerator).to have_received(:new).once
     expect(AiAgents::ReplyGenerator).to have_received(:new)
-      .with(ai_agent: ai_agent, messages: array_including(hash_including(content: 'Halo'), hash_including(content: 'Harga detailing?')))
+      .with(ai_agent: ai_agent, messages: array_including(hash_including(content: 'Halo'), hash_including(content: 'Harga detailing?')),
+            written_rows: [])
     expect(ai_replies.count).to eq(2)
   end
 
@@ -146,6 +147,17 @@ RSpec.describe AiAgents::ReplyJob do
       expect(conversation.reload.label_list).to eq(['booking'])
       expect(conversation).to be_pending
     end
+  end
+
+  it 'queues the sheet row the reply decided to write' do
+    message = create(:message, **message_attributes, content: 'Nama Budi, booking 24 Oktober')
+    allow(generator).to receive(:perform).and_return(
+      AiAgents::ReplyGenerator::Reply.new(messages: ['Booking dicatat.'], handoff: false, labels: [], sheet_row: ['Budi', '', '24 Oktober'])
+    )
+
+    expect { described_class.perform_now(message) }
+      .to have_enqueued_job(AiAgents::AppendSheetRowJob).with(conversation, ['Budi', '', '24 Oktober'])
+    expect(AiAgents::ReplyGenerator).to have_received(:new).with(ai_agent: ai_agent, messages: anything, written_rows: [])
   end
 
   describe 'watcher' do

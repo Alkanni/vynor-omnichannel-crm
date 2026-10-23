@@ -4,6 +4,7 @@ class AiAgents::ConversationSession
   REPLY_MARKER = 'ai_agent_reply_to'.freeze
   HANDOFF_MARKER = 'ai_agent_handoff'.freeze
   PENDING_MARKER = 'ai_agent_pending'.freeze
+  SHEET_ROW_MARKER = 'ai_agent_sheet_row'.freeze
 
   pattr_initialize [:conversation!, :ai_agent!]
 
@@ -37,9 +38,23 @@ class AiAgents::ConversationSession
     send_message(content, REPLY_MARKER => to.id)
   end
 
-  def apply!(handoff:, labels:, reason:)
+  def apply!(handoff:, labels:, reason:, sheet_row: nil)
     add_labels(labels)
+    AiAgents::AppendSheetRowJob.perform_later(conversation, sheet_row) if sheet_row
     handoff!(reason) if handoff
+  end
+
+  # Rows the AI wrote to Google Sheets for this conversation, from the activity messages that record them.
+  def sheet_rows
+    conversation.messages.activity.where("messages.additional_attributes ->> '#{SHEET_ROW_MARKER}' IS NOT NULL")
+                .reorder(:id).map { |message| message.additional_attributes[SHEET_ROW_MARKER] }
+  end
+
+  def record_sheet_row!(values)
+    conversation.messages.create!(
+      account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :activity,
+      content: I18n.t('ai_agents.google_sheets.row_added', agent: ai_agent.name), additional_attributes: { SHEET_ROW_MARKER => values }
+    )
   end
 
   # The only way the AI hands a conversation over to humans. The activity message tells agents why and marks

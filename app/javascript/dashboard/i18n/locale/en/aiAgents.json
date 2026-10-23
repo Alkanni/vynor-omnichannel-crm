@@ -37,7 +37,8 @@
       "NOT_FOUND": "This AI agent does not exist or was deleted.",
       "TABS": {
         "GENERAL": "General",
-        "KNOWLEDGE_SOURCES": "Knowledge Sources"
+        "KNOWLEDGE_SOURCES": "Knowledge Sources",
+        "INTEGRATIONS": "Integrations"
       }
     },
     "GENERAL": {
@@ -357,6 +358,56 @@
         "DELETE_DESCRIPTION": "The AI agent will no longer use this file. This cannot be undone.",
         "DELETE_SUCCESS": "File deleted",
         "DELETE_ERROR": "Could not delete the file. Please try again."
+      }
+    },
+    "INTEGRATIONS": {
+      "DESCRIPTION": "Connect tools that this AI agent uses during conversations.",
+      "COMING_SOON": "More integrations are coming soon.",
+      "GOOGLE_SHEETS": {
+        "TITLE": "Google Sheets",
+        "DESCRIPTION": "The AI agent adds a row to your spreadsheet, such as a booking or an order, when a conversation meets your condition.",
+        "CONNECTED_AS": "Connected as {email}",
+        "CONNECT": "Connect",
+        "RECONNECT": "Reconnect",
+        "DISCONNECT": "Disconnect",
+        "UNAVAILABLE": "Google Sheets needs the Google OAuth client and Active Record encryption keys. Ask the installation administrator to configure them.",
+        "NEEDS_RECONNECT": "Google access was lost, for example because access was revoked or the spreadsheet was removed. The AI agent stops writing rows until you reconnect and check the sheet settings.",
+        "CONNECT_SUCCESS": "Google Sheets connected",
+        "CONNECT_ERROR": "Could not connect Google Sheets. Please try again.",
+        "LOAD_ERROR": "Could not load the Google Sheets settings. Please try again.",
+        "SPREADSHEET": {
+          "TITLE": "Spreadsheet URL",
+          "DESCRIPTION": "Copy the address of the spreadsheet from your browser. The connected Google account needs edit access to it.",
+          "PLACEHOLDER": "https://docs.google.com/spreadsheets/d/..."
+        },
+        "SHEET_NAME": {
+          "TITLE": "Sheet name",
+          "DESCRIPTION": "The tab that receives the rows. Its first row holds the column headers.",
+          "PLACEHOLDER": "e.g. Sheet1"
+        },
+        "TEST": "Test connection",
+        "TEST_SUCCESS": "Connection works. The columns are shown below.",
+        "TEST_ERROR": "Could not read the sheet. Please check the URL and the sheet name.",
+        "COLUMNS": {
+          "TITLE": "Columns",
+          "DESCRIPTION": "The AI agent fills one value per column, taken from the conversation.",
+          "EMPTY": "Test the connection to read the columns from the header row."
+        },
+        "WHEN_TO_WRITE": {
+          "TITLE": "When to write",
+          "DESCRIPTION": "Describe when the AI agent adds a row. It writes the same data only once per conversation.",
+          "PLACEHOLDER": "e.g. When the customer has sent their name, date, and time for the booking."
+        },
+        "SAVE": "Save Google Sheets settings",
+        "SAVE_SUCCESS": "Google Sheets settings saved",
+        "SAVE_ERROR": "Could not save the Google Sheets settings. Please try again.",
+        "DISCONNECT_SUCCESS": "Google Sheets disconnected",
+        "DISCONNECT_ERROR": "Could not disconnect Google Sheets. Please try again.",
+        "DISCONNECT_DIALOG": {
+          "TITLE": "Disconnect Google Sheets?",
+          "DESCRIPTION": "The AI agent stops writing rows, Google access is revoked, and the sheet settings are removed.",
+          "CONFIRM": "Disconnect"
+        }
       }
     }
   }

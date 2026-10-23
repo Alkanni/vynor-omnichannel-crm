@@ -21,12 +21,12 @@ class AiAgents::ReplyJob < ApplicationJob
   def reply(session, ai_agent, message)
     return session.handoff!(:message_limit) if session.reply_count >= ai_agent.message_limit
 
-    reply = AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: session.history).perform
+    reply = AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: session.history, written_rows: session.sheet_rows).perform
     # The customer may have written again while the reply was generated; that message's job answers both.
     return unless answerable?(session, message)
 
     reply.messages.each { |content| session.reply!(content, to: message) } unless reply.handoff && ai_agent.silent_handoff
-    session.apply!(handoff: reply.handoff, labels: reply.labels, reason: :transfer_conditions)
+    session.apply!(handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row, reason: :transfer_conditions)
     AiAgents::WatchJob.perform_later(message.conversation) if watch?(ai_agent, reply)
   end
 

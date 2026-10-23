@@ -6,7 +6,7 @@ class AiAgents::Watcher
     Decide which of the actions below apply to the conversation now.
   TEXT
 
-  pattr_initialize [:ai_agent!, :messages!]
+  pattr_initialize [:ai_agent!, :messages!, :written_rows]
 
   def perform
     content = AiAgents::LlmClient.new.chat(
@@ -24,6 +24,6 @@ class AiAgents::Watcher
   end
 
   def actions
-    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent)
+    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows)
   end
 end
