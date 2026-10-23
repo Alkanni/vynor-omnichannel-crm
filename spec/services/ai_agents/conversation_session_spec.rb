@@ -60,4 +60,90 @@ RSpec.describe AiAgents::ConversationSession do
       expect(session.reply_count).to eq(0)
     end
   end
+
+  describe '#handoff!' do
+    it 'opens the conversation, clears the AI assignee, and records why' do
+      session.handoff!(:transfer_conditions)
+
+      conversation.reload
+      expect(conversation).to be_open
+      expect(conversation.ai_assignee).to be_nil
+      expect(conversation.messages.activity.sole.additional_attributes).to eq('ai_agent_handoff' => 'transfer_conditions')
+    end
+
+    it 'does nothing once the conversation left the AI' do
+      conversation.open!
+
+      session.handoff!(:transfer_conditions)
+
+      expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_handoff' IS NOT NULL")).to be_empty
+    end
+  end
+
+  describe '#ai_active?' do
+    it 'is on for pending conversations and, after a handoff, only while the AI may keep replying' do
+      expect(session.ai_active?).to be(true)
+
+      session.handoff!(:transfer_conditions)
+      expect(session.ai_active?).to be(false)
+
+      ai_agent.update!(stop_ai_after_handoff: false)
+      expect(session.ai_active?).to be(true)
+
+      create(:message, **message_attributes, message_type: :outgoing, private: true, sender: create(:user, account: account))
+      expect(session.ai_active?).to be(true)
+
+      create(:message, **message_attributes, message_type: :outgoing, sender: create(:user, account: account))
+      expect(session.ai_active?).to be(false)
+    end
+
+    it 'is off for conversations a human opened without an AI handoff' do
+      ai_agent.update!(stop_ai_after_handoff: false)
+      conversation.open!
+
+      expect(session.ai_active?).to be(false)
+    end
+  end
+
+  describe '#send_pending_message' do
+    let(:pending_messages) { conversation.messages.outgoing.where(sender: ai_agent) }
+
+    before do
+      ai_agent.update!(pending_assigned_message: 'Agen kami segera membalas.', pending_unassigned_message: 'Mohon tunggu, kami carikan agen.')
+      session.handoff!(:transfer_conditions)
+    end
+
+    it 'tells the customer once per handoff whether an agent is assigned' do
+      2.times { session.send_pending_message }
+      conversation.update!(assignee: create(:user, account: account))
+      2.times { session.send_pending_message }
+
+      expect(pending_messages.pluck(:content)).to eq(['Mohon tunggu, kami carikan agen.', 'Agen kami segera membalas.'])
+      expect(pending_messages.map { |message| message.additional_attributes['ai_agent_pending'] }).to eq(%w[unassigned assigned])
+      expect(conversation.reload.waiting_since).to be_present
+    end
+
+    it 'sends nothing on a silent handoff, after a human reply, or when the message is empty' do
+      ai_agent.update!(silent_handoff: true)
+      session.send_pending_message
+
+      ai_agent.update!(silent_handoff: false, pending_unassigned_message: '')
+      session.send_pending_message
+
+      ai_agent.update!(pending_unassigned_message: 'Mohon tunggu.')
+      create(:message, **message_attributes, message_type: :outgoing, sender: create(:user, account: account))
+      session.send_pending_message
+
+      expect(pending_messages).to be_empty
+    end
+
+    it 'starts over with the next handoff' do
+      session.send_pending_message
+      conversation.update!(status: :pending)
+      session.handoff!(:message_limit)
+      session.send_pending_message
+
+      expect(pending_messages.count).to eq(2)
+    end
+  end
 end

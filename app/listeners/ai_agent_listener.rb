@@ -11,8 +11,13 @@ class AiAgentListener < BaseListener
   def message_created(event)
     message = extract_message_and_account(event)[0]
     ai_agent = message.inbox.ai_agent
-    return unless ai_agent && message.incoming? && message.conversation.pending?
+    return unless ai_agent && message.incoming?
 
-    AiAgents::ReplyJob.set(wait: ai_agent.message_await.seconds).perform_later(message)
+    session = AiAgents::ConversationSession.new(conversation: message.conversation, ai_agent: ai_agent)
+    if session.ai_active?
+      AiAgents::ReplyJob.set(wait: ai_agent.message_await.seconds).perform_later(message)
+    else
+      session.send_pending_message
+    end
   end
 end

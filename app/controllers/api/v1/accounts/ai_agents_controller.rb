@@ -48,7 +48,8 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     messages = playground_messages
     return render_could_not_create_error('Invalid messages') if messages.nil?
 
-    render json: { messages: AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages.last(@ai_agent.history_limit)).perform }
+    reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages.last(@ai_agent.history_limit)).perform
+    render json: { messages: reply.messages }
   rescue AiAgents::LlmError => e
     render_could_not_create_error(e.message)
   end

@@ -410,16 +410,17 @@ class Message < ApplicationRecord
     reopen_resolved_conversation if conversation.resolved?
   end
 
+  # A human reply takes a pending conversation over from its AI agent, which then stops answering it.
   def mark_pending_conversation_as_open_for_human_response
-    return unless captain_pending_conversation?
+    return unless ai_agent_pending_conversation?
     return unless human_response?
     return if private?
 
-    conversation.open!
+    conversation.update!(status: :open, ai_assignee: nil)
   end
 
-  def captain_pending_conversation?
-    false
+  def ai_agent_pending_conversation?
+    conversation.pending? && conversation.inbox.ai_agent.present?
   end
 
   def reopen_resolved_conversation

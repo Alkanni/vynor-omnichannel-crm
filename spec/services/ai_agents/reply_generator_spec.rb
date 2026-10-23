@@ -42,7 +42,8 @@ RSpec.describe AiAgents::ReplyGenerator do
   it 'returns the reply bubbles and sends the agent settings, knowledge, and history to the model' do
     travel_to(Time.utc(2026, 10, 22, 3, 0)) do
       expect(described_class.new(ai_agent: ai_agent, messages: messages).perform)
-        .to eq(['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'])
+        .to eq(described_class::Reply.new(messages: ['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'],
+                                          handoff: false, labels: []))
     end
 
     expect(embedding_requests.sole).to include('model' => 'text-embedding-3-small', 'input' => ["Jam buka?\nHari Minggu juga?"])
@@ -54,6 +55,42 @@ RSpec.describe AiAgents::ReplyGenerator do
                                                 'Jam buka: setiap hari 07.30 - 18.00')
     expect(system_prompt['content']).not_to include('Harga detailing')
     expect(request['messages'].drop(1).pluck('role', 'content')).to eq(messages.map { |message| [message[:role].to_s, message[:content]] })
+  end
+
+  it 'asks only for messages when the agent has no transfer conditions or allowed labels' do
+    described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+    expect(chat_requests.sole['response_format']['json_schema']['schema']['properties'].keys).to eq(['messages'])
+  end
+
+  describe 'actions' do
+    let(:reply_content) { { messages: ['Baik, kami sambungkan ke tim CS.'], handoff: true, labels: %w[complaint vip] }.to_json }
+
+    before do
+      ai_agent.update!(transfer_conditions: 'Transfer when the customer complains.', label_conditions: 'Apply complaint for complaints.',
+                       allowed_label_ids: [create(:label, account: ai_agent.account, title: 'complaint').id])
+      create(:label, account: ai_agent.account, title: 'vip')
+    end
+
+    it 'asks for the handoff and allowed labels, and drops labels outside the allowed list' do
+      reply = described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+      expect(reply).to have_attributes(messages: ['Baik, kami sambungkan ke tim CS.'], handoff: true, labels: ['complaint'])
+      request = chat_requests.sole
+      schema = request['response_format']['json_schema']['schema']
+      expect(schema['required']).to eq(%w[messages handoff labels])
+      expect(schema['properties']['labels']).to eq('type' => 'array', 'items' => { 'type' => 'string', 'enum' => ['complaint'] })
+      expect(request['messages'].first['content']).to include('Transfer when the customer complains.', 'Use only these labels: complaint',
+                                                              'Apply complaint for complaints.')
+    end
+
+    context 'when a handoff comes without a note' do
+      let(:reply_content) { { messages: [], handoff: true, labels: [] }.to_json }
+
+      it 'returns the handoff instead of raising an empty reply error' do
+        expect(described_class.new(ai_agent: ai_agent, messages: messages).perform).to have_attributes(messages: [], handoff: true)
+      end
+    end
   end
 
   it 'skips the knowledge search when the agent has no knowledge' do

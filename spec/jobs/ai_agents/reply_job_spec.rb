@@ -6,8 +6,10 @@ RSpec.describe AiAgents::ReplyJob do
   let(:inbox) { create(:inbox, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:message_attributes) { { account: account, inbox: inbox, conversation: conversation } }
-  let(:generator) { instance_double(AiAgents::ReplyGenerator, perform: ['Halo!', 'Ada yang bisa dibantu?']) }
+  let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Halo!', 'Ada yang bisa dibantu?'], handoff: false, labels: []) }
+  let(:generator) { instance_double(AiAgents::ReplyGenerator, perform: reply) }
   let(:ai_replies) { conversation.messages.where(sender: ai_agent) }
+  let(:handoff_activities) { conversation.messages.activity.where("additional_attributes ->> 'ai_agent_handoff' IS NOT NULL") }
 
   before do
     create(:ai_agent_inbox, ai_agent: ai_agent, inbox: inbox)
@@ -39,7 +41,7 @@ RSpec.describe AiAgents::ReplyJob do
     message = create(:message, **message_attributes, content: 'Halo')
     allow(generator).to receive(:perform) do
       create(:message, **message_attributes, content: 'Masih di sana?')
-      ['Halo!']
+      reply
     end
 
     described_class.perform_now(message)
@@ -67,6 +69,7 @@ RSpec.describe AiAgents::ReplyJob do
     expect(AiAgents::ReplyGenerator).not_to have_received(:new)
     expect(conversation.reload).to be_open
     expect(ai_replies.count).to eq(2)
+    expect(handoff_activities.sole.additional_attributes).to eq('ai_agent_handoff' => 'message_limit')
   end
 
   it 'hands the conversation off without replying when the model fails' do
@@ -80,5 +83,127 @@ RSpec.describe AiAgents::ReplyJob do
     expect(ai_replies).to be_empty
     expect(conversation.reload).to be_open
     expect(tracker).to have_received(:capture_exception)
+    expect(handoff_activities.sole.additional_attributes).to eq('ai_agent_handoff' => 'error')
+  end
+
+  describe 'actions' do
+    let(:message) { create(:message, **message_attributes, content: 'Saya mau komplain, sambungkan ke CS') }
+    let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, kami sambungkan ke tim CS.'], handoff: true, labels: []) }
+
+    before { allow(Rails.configuration.dispatcher).to receive(:dispatch).and_call_original }
+
+    it 'sends the transition note and hands the conversation off when the transfer conditions are met' do
+      expect(conversation.reload.ai_assignee).to eq(ai_agent)
+
+      described_class.perform_now(message)
+
+      expect(ai_replies.pluck(:content)).to eq(['Baik, kami sambungkan ke tim CS.'])
+      conversation.reload
+      expect(conversation).to be_open
+      expect(conversation.ai_assignee).to be_nil
+      expect(handoff_activities.sole.content).to eq("#{ai_agent.name} handed the conversation over to a human agent (transfer conditions met)")
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch)
+        .with(Events::Types::CONVERSATION_BOT_HANDOFF, anything, hash_including(conversation: conversation))
+    end
+
+    it 'sends no AI message on a silent handoff' do
+      ai_agent.update!(silent_handoff: true)
+
+      described_class.perform_now(message)
+
+      expect(ai_replies).to be_empty
+      expect(conversation.reload).to be_open
+    end
+
+    it 'keeps the team at handoff so auto-assignment can pick a team member' do
+      team = create(:team, account: account)
+      conversation.update!(team: team)
+
+      described_class.perform_now(message)
+
+      expect(conversation.reload).to be_open
+      expect(conversation.team).to eq(team)
+    end
+
+    it 'removes the team at handoff when Ignore Team Handoff is on' do
+      ai_agent.update!(ignore_team_handoff: true)
+      conversation.update!(team: create(:team, account: account))
+
+      described_class.perform_now(message)
+
+      expect(conversation.reload).to be_open
+      expect(conversation.team).to be_nil
+    end
+
+    it 'adds the labels of the reply in the name of the AI agent' do
+      create(:label, account: account, title: 'booking')
+      allow(generator).to receive(:perform)
+        .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Booking dicatat.'], handoff: false, labels: ['booking']))
+
+      expect { described_class.perform_now(message) }
+        .to have_enqueued_job(Conversations::ActivityMessageJob)
+        .with(conversation, hash_including(content: "#{ai_agent.name} added booking"))
+      expect(conversation.reload.label_list).to eq(['booking'])
+      expect(conversation).to be_pending
+    end
+  end
+
+  describe 'watcher' do
+    let(:message) { create(:message, **message_attributes, content: 'Halo') }
+
+    before { ai_agent.update!(watcher_enabled: true, transfer_conditions: 'Transfer when the customer complains.') }
+
+    it 'is queued after a reply when it is enabled and the agent has actions' do
+      expect { described_class.perform_now(message) }.to have_enqueued_job(AiAgents::WatchJob).with(conversation)
+    end
+
+    it 'is not queued when it is disabled, the agent has no actions, or the reply handed off' do
+      ai_agent.update!(watcher_enabled: false)
+      expect { described_class.perform_now(message) }.not_to have_enqueued_job(AiAgents::WatchJob)
+
+      ai_agent.update!(watcher_enabled: true, transfer_conditions: '')
+      expect { described_class.perform_now(create(:message, **message_attributes)) }.not_to have_enqueued_job(AiAgents::WatchJob)
+
+      ai_agent.update!(transfer_conditions: 'Transfer when the customer complains.')
+      allow(generator).to receive(:perform).and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Baik.'], handoff: true, labels: []))
+      expect { described_class.perform_now(create(:message, **message_attributes)) }.not_to have_enqueued_job(AiAgents::WatchJob)
+    end
+  end
+
+  context 'when Stop AI after Handoff is off' do
+    let(:session) { AiAgents::ConversationSession.new(conversation: conversation, ai_agent: ai_agent) }
+
+    before do
+      ai_agent.update!(stop_ai_after_handoff: false, message_limit: 5)
+      session.handoff!(:transfer_conditions)
+    end
+
+    it 'keeps answering after a handoff until a human agent replies' do
+      described_class.perform_now(create(:message, **message_attributes, content: 'Masih ada pertanyaan'))
+      expect(ai_replies.count).to eq(2)
+      expect(conversation.reload.waiting_since).to be_present
+
+      create(:message, **message_attributes, message_type: :outgoing, sender: create(:user, account: account), content: 'Saya bantu ya')
+      described_class.perform_now(create(:message, **message_attributes, content: 'Terima kasih'))
+      expect(ai_replies.count).to eq(2)
+    end
+
+    it 'stays quiet when Silent Agent Handoff is on' do
+      ai_agent.update!(silent_handoff: true)
+
+      described_class.perform_now(create(:message, **message_attributes, content: 'Masih ada pertanyaan'))
+
+      expect(ai_replies).to be_empty
+    end
+
+    it 'stays quiet once the AI message limit is reached' do
+      ai_agent.update!(message_limit: 1)
+      session.reply!('Balasan', to: create(:message, **message_attributes))
+
+      described_class.perform_now(create(:message, **message_attributes, content: 'Lagi'))
+
+      expect(AiAgents::ReplyGenerator).not_to have_received(:new)
+      expect(ai_replies.count).to eq(1)
+    end
   end
 end

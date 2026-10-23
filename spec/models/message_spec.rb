@@ -274,9 +274,34 @@ RSpec.describe Message do
   describe '#mark_pending_conversation_as_open_for_human_response' do
     let(:conversation) { create(:conversation, status: :pending) }
 
-    it 'does not mark the conversation open when pending is used without captain' do
+    it 'does not mark the conversation open when pending is used without an AI agent' do
       create(:message, message_type: :outgoing, conversation: conversation)
       expect(conversation.reload.pending?).to be true
+    end
+
+    context 'when an AI agent handles the conversation' do
+      let(:ai_agent) { create(:ai_agent, account: conversation.account) }
+      let(:agent) { create(:user, account: conversation.account) }
+
+      before do
+        create(:ai_agent_inbox, ai_agent: ai_agent, inbox: conversation.inbox)
+        conversation.update!(ai_assignee: ai_agent)
+      end
+
+      it 'opens the conversation and clears the AI assignee when a human agent replies' do
+        create(:message, message_type: :outgoing, conversation: conversation, sender: agent)
+
+        expect(conversation.reload).to be_open
+        expect(conversation.ai_assignee).to be_nil
+      end
+
+      it 'keeps the conversation with the AI agent for private notes and AI replies' do
+        create(:message, message_type: :outgoing, private: true, conversation: conversation, sender: agent)
+        create(:message, message_type: :outgoing, conversation: conversation, sender: ai_agent)
+
+        expect(conversation.reload).to be_pending
+        expect(conversation.ai_assignee).to eq(ai_agent)
+      end
     end
   end
 

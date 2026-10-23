@@ -26,6 +26,8 @@ module AssigneeActivityMessageHandler
                     I18n.t('auto_assignment.policy_actor', policy_name: Current.executed_by.name)
                   when Inbox
                     I18n.t('auto_assignment.default_policy_name')
+                  when AiAgent
+                    Current.executed_by.name
                   else
                     I18n.t('automation.system_name')
                   end

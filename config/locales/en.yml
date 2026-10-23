@@ -450,6 +450,13 @@ en:
       description: 'Sync your contacts and conversations with LeadSquared CRM. This integration automatically creates leads in LeadSquared when new contacts are added, and logs conversation activity to provide your sales team with complete context.'
   ai_agents:
     duplicate_name: '%{name} (Copy)'
+    handoff:
+      activity: '%{agent} handed the conversation over to a human agent (%{reason})'
+      reasons:
+        transfer_conditions: 'transfer conditions met'
+        watcher: 'transfer conditions met, detected by the watcher'
+        message_limit: 'AI message limit reached'
+        error: 'the AI model could not reply'
     inboxes:
       errors:
         invalid: 'Select inboxes that belong to this account'

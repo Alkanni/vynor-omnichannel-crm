@@ -57,30 +57,30 @@
       },
       "TRANSFER_CONDITIONS": {
         "TITLE": "Agent Transfer Conditions",
-        "DESCRIPTION": "Define conditions that trigger the AI to transfer the chat to a human agent. Chat status will become Pending and appear in the Assigned",
+        "DESCRIPTION": "Define conditions that trigger the AI to transfer the chat to a human agent. The chat leaves the AI, becomes Open, and appears in the Assigned or Unassigned tab.",
         "PLACEHOLDER": "e.g. Transfer when the customer asks to talk to a person or wants to complain."
       },
       "STOP_AI_AFTER_HANDOFF": {
         "TITLE": "Stop AI after Handoff",
-        "DESCRIPTION": "Stop the AI from sending messages after the chat status changes to Pending."
+        "DESCRIPTION": "Stop the AI from replying once it hands the chat over to a human agent. When off, the AI keeps replying until a human agent replies."
       },
       "SILENT_HANDOFF": {
         "TITLE": "Silent Agent Handoff",
-        "DESCRIPTION": "AI silently transfers the conversation to an agent with no further AI replies."
+        "DESCRIPTION": "AI transfers the conversation to an agent without a transition message and sends no further messages."
       },
       "PENDING_MESSAGES": {
         "TITLE": "Pending status messages",
-        "DESCRIPTION": "Set messages customers receive while waiting for handoff",
+        "DESCRIPTION": "Set messages customers receive while they wait for a human agent after a handoff",
         "ASSIGNED": {
           "TITLE": "Pending - assigned message",
           "BADGE": "Assigned tab",
-          "DESCRIPTION": "Sent when Stop AI after Handoff is on and a pending chat already has an assigned agent.",
+          "DESCRIPTION": "Sent once per handoff when the customer writes and an agent is already assigned. Requires Stop AI after Handoff on and Silent Agent Handoff off.",
           "PLACEHOLDER": "Enter message for pending assigned conversations"
         },
         "UNASSIGNED": {
           "TITLE": "Pending - unassigned message",
           "BADGE": "Unassigned tab",
-          "DESCRIPTION": "Sent when Stop AI after Handoff is on and no agent is assigned yet.",
+          "DESCRIPTION": "Sent once per handoff when the customer writes and no agent is assigned yet. Requires Stop AI after Handoff on and Silent Agent Handoff off.",
           "PLACEHOLDER": "Enter message for pending unassigned conversations"
         }
       },
@@ -139,7 +139,7 @@
         },
         "WATCHER": {
           "TITLE": "Watcher",
-          "DESCRIPTION": "Monitors AI responses to ensure important functions are executed."
+          "DESCRIPTION": "After each AI reply, runs an extra AI check that applies a handoff or label the reply missed."
         },
         "TIMEZONE": {
           "TITLE": "Timezone",
@@ -156,7 +156,7 @@
       },
       "IGNORE_TEAM_HANDOFF": {
         "TITLE": "Ignore Team Handoff",
-        "DESCRIPTION": "The AI will not consider team assignment when handing off to a human agent."
+        "DESCRIPTION": "Remove the conversation's team at handoff so any inbox agent can be assigned. When off, the team is kept and auto-assignment picks a team member."
       },
       "SAVE": "Save AI Settings",
       "SAVE_SUCCESS": "AI settings saved",
