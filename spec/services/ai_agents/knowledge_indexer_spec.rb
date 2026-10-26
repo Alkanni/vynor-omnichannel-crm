@@ -6,7 +6,9 @@ RSpec.describe AiAgents::KnowledgeIndexer do
   let(:indexer) { described_class.new(ai_agent: ai_agent) }
 
   before do
-    allow(AiAgents::LlmClient).to receive_messages(configured?: true, new: client)
+    create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
+    allow(AiAgents::LlmClient).to receive(:new).and_return(client)
     allow(client).to receive(:embed) { |texts| Array.new(texts.size) { Array.new(1536, 0.1) } }
   end
 
@@ -53,7 +55,7 @@ RSpec.describe AiAgents::KnowledgeIndexer do
   it 'only removes stale chunks when the API key is not configured' do
     qa = create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
     indexer.perform
-    allow(AiAgents::LlmClient).to receive(:configured?).and_return(false)
+    InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY').destroy!
     ai_agent.update_column(:trained_at, nil) # rubocop:disable Rails/SkipsModelValidations
     qa.destroy!
     create(:ai_agent_knowledge_source, ai_agent: ai_agent)
@@ -63,5 +65,31 @@ RSpec.describe AiAgents::KnowledgeIndexer do
     expect(ai_agent.knowledge_chunks).to be_empty
     expect(client).to have_received(:embed).once
     expect(ai_agent.reload.trained_at).to be_nil
+  end
+
+  context 'without an embedding model' do
+    before { InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MODEL').update!(value: '') }
+
+    it 'stores the chunks without embeddings for keyword search, even without an API key' do
+      InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY').destroy!
+      qa = create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+
+      indexer.perform
+
+      expect(ai_agent.knowledge_chunks.pluck(:content, :embedding)).to eq([["Q: #{qa.title}\nA: #{qa.content}", nil]])
+      expect(client).not_to have_received(:embed)
+      expect(ai_agent.reload.trained_at).to be_present
+    end
+
+    it 'embeds those chunks once an embedding model is set' do
+      create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+      indexer.perform
+
+      InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MODEL').update!(value: 'text-embedding-3-small')
+      indexer.perform
+
+      expect(client).to have_received(:embed).once
+      expect(ai_agent.knowledge_chunks.sole.embedding).to eq(Array.new(1536, 0.1))
+    end
   end
 end

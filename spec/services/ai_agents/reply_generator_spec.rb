@@ -22,6 +22,7 @@ RSpec.describe AiAgents::ReplyGenerator do
 
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
     ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
                                       content: 'Jam buka: setiap hari 07.30 - 18.00', embedding: opening_hours)
     ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
@@ -46,7 +47,8 @@ RSpec.describe AiAgents::ReplyGenerator do
                                           handoff: false, labels: []))
     end
 
-    expect(embedding_requests.sole).to include('model' => 'text-embedding-3-small', 'input' => ["Jam buka?\nHari Minggu juga?"])
+    expect(embedding_requests.sole).to include('model' => 'text-embedding-3-small', 'input' => ["Jam buka?\nHari Minggu juga?"],
+                                               'dimensions' => 1536)
     request = chat_requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0.2, 'response_format' => hash_including('type' => 'json_schema'))
     system_prompt = request['messages'].first
@@ -90,6 +92,43 @@ RSpec.describe AiAgents::ReplyGenerator do
       it 'returns the handoff instead of raising an empty reply error' do
         expect(described_class.new(ai_agent: ai_agent, messages: messages).perform).to have_attributes(messages: [], handoff: true)
       end
+    end
+  end
+
+  it 'searches the knowledge by keywords when no embedding model is set' do
+    InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MODEL').update!(value: '')
+
+    described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Berapa harga detailing?' }]).perform
+
+    expect(embedding_requests).to be_empty
+    expect(chat_requests.sole['messages'].first['content']).to include('Harga detailing: Rp750.000')
+      .and(satisfy { |content| content.exclude?('Jam buka: setiap hari') })
+  end
+
+  context 'with an OpenAI-compatible gateway and a separate embedding endpoint' do
+    let(:gateway_requests) { [] }
+
+    before do
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_ENDPOINT', value: 'http://9router.test:20128/')
+      create(:installation_config, name: 'AI_AGENT_MODELS', value: 'cx/gpt-5.5')
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_ENDPOINT', value: 'https://api.openai.com')
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_API_KEY', value: 'embedding-key')
+      ai_agent.update!(model: 'cx/gpt-5.5')
+      stub_request(:post, 'http://9router.test:20128/v1/chat/completions').to_return do |request|
+        gateway_requests << request
+        { status: 200, headers: { 'Content-Type' => 'application/json' },
+          body: { id: 'chatcmpl-1', model: 'cx/gpt-5.5', choices: [{ message: { role: 'assistant', content: reply_content } }] }.to_json }
+      end
+    end
+
+    it 'sends the gateway model ID as is and embeds with the embedding key' do
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.messages).to include('Ada lagi yang bisa dibantu?')
+
+      request = gateway_requests.sole
+      expect(JSON.parse(request.body)['model']).to eq('cx/gpt-5.5')
+      expect(request.headers['Authorization']).to eq('Bearer test-key')
+      expect(chat_requests).to be_empty
+      expect(a_request(:post, 'https://api.openai.com/v1/embeddings').with(headers: { 'Authorization' => 'Bearer embedding-key' })).to have_been_made
     end
   end
 

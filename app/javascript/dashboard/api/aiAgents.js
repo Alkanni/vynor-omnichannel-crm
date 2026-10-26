@@ -6,6 +6,10 @@ class AiAgentsAPI extends ApiClient {
     super('ai_agents', { accountScoped: true });
   }
 
+  getModels() {
+    return axios.get(`${this.url}/models`);
+  }
+
   duplicate(id) {
     return axios.post(`${this.url}/${id}/duplicate`);
   }

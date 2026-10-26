@@ -194,6 +194,7 @@ RSpec.describe AiAgents::ReplyJob do
         allow(AiAgents::ReplyGenerator).to receive(:new).and_call_original
         ai_agent.update!(welcome_message: 'Halo! Ada yang bisa kami bantu?')
         create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+        create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
         source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
         ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at,
                                           content: 'Jam buka toko: Senin sampai Sabtu 09.00-21.00', embedding: embedding)

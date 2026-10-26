@@ -73,6 +73,7 @@ Rails.application.routes.draw do
             end
           end
           resources :ai_agents, only: [:index, :create, :show, :update, :destroy] do
+            get :models, on: :collection
             member do
               post :duplicate
               post :train

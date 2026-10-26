@@ -31,6 +31,33 @@ RSpec.describe 'AI Agents API', type: :request do
     end
   end
 
+  describe 'GET /api/v1/accounts/{account.id}/ai_agents/models' do
+    let(:url) { "/api/v1/accounts/#{account.id}/ai_agents/models" }
+
+    it 'returns the built-in models without the coming soon ones' do
+      get url, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      models = response.parsed_body['models']
+      expect(models).to include({ 'id' => 'gpt-4.1', 'display_name' => 'GPT-4.1' })
+      expect(models.pluck('id')).not_to include('claude-sonnet-4.5')
+    end
+
+    it 'returns the gateway models when they are configured' do
+      create(:installation_config, name: 'AI_AGENT_MODELS', value: 'cx/gpt-5.5')
+
+      get url, headers: admin.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['models']).to eq([{ 'id' => 'cx/gpt-5.5', 'display_name' => 'cx/gpt-5.5' }])
+    end
+
+    it 'returns unauthorized for agents' do
+      get url, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe 'GET /api/v1/accounts/{account.id}/ai_agents/:id' do
     it 'returns the AI agent settings' do
       get "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}", headers: admin.create_new_auth_token, as: :json

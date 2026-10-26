@@ -7,6 +7,10 @@ class AiAgentPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def models?
+    @account_user.administrator?
+  end
+
   def create?
     @account_user.administrator?
   end

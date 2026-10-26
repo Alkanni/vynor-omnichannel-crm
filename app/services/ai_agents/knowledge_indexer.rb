@@ -1,6 +1,7 @@
 # Brings an agent's knowledge chunks in line with its ready knowledge sources and products.
 # Records are re-embedded only when their updated_at differs from the version stored on their chunks,
-# and a source that is re-syncing or failed is left out until it is ready again.
+# and a source that is re-syncing or failed is left out until it is ready again. Without an embedding
+# model the chunks are stored without vectors for keyword search.
 class AiAgents::KnowledgeIndexer
   EMBEDDING_BATCH_SIZE = 100
 
@@ -9,9 +10,10 @@ class AiAgents::KnowledgeIndexer
   def perform
     indexable = indexable_versions
     remove_stale_chunks(indexable)
-    return unless AiAgents::LlmClient.configured?
+    @embeddings = AiAgents::LlmClient.embedding_model.present?
+    return if @embeddings && AiAgents::LlmClient.embedding_api_key.blank?
 
-    indexed = ai_agent.knowledge_chunks.group(:chunkable_type, :chunkable_id).maximum(:chunkable_updated_at)
+    indexed = indexed_chunks.group(:chunkable_type, :chunkable_id).maximum(:chunkable_updated_at)
     indexable.each do |klass, versions|
       changed_ids = versions.reject { |id, version| indexed[[klass.name, id]] == version }.keys
       klass.where(id: changed_ids).find_each { |record| index(record) }
@@ -34,10 +36,15 @@ class AiAgents::KnowledgeIndexer
     end
   end
 
+  # Chunks stored for keyword search are indexed again once an embedding model is set.
+  def indexed_chunks
+    @embeddings ? ai_agent.knowledge_chunks.where.not(embedding: nil) : ai_agent.knowledge_chunks
+  end
+
   def index(record)
     version = record.updated_at
     texts = chunk_texts(record)
-    embeddings = texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| client.embed(batch) }
+    embeddings = @embeddings ? texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| client.embed(batch) } : []
 
     record.with_lock do
       # The record changed while it was being embedded; the job queued by that change indexes it.

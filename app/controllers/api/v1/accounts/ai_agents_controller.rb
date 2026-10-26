@@ -12,7 +12,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   # inbox_ids is not a column, so the default JSON wrapping into ai_agent would drop it.
   wrap_parameters :ai_agent, include: SETTINGS + LIST_SETTINGS
 
-  before_action :fetch_ai_agent, except: [:index, :create]
+  before_action :fetch_ai_agent, except: [:index, :create, :models]
   before_action :check_authorization
   before_action :validate_inbox_ids, only: [:create, :update]
 
@@ -21,6 +21,10 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   end
 
   def show; end
+
+  def models
+    render json: { models: AiAgent.available_models }
+  end
 
   def create
     @ai_agent = Current.account.ai_agents.create!(permitted_params)

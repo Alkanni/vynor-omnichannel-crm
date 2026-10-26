@@ -5,7 +5,6 @@ import { useStore } from 'vuex';
 import { useIntervalFn } from '@vueuse/core';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
-import { useCaptainConfigStore } from 'dashboard/store/captain/preferences';
 import { timeZoneOptions } from 'dashboard/routes/dashboard/settings/inbox/helpers/businessHour';
 import { dynamicTime } from 'shared/helpers/timeHelper';
 import AiAgentsAPI from 'dashboard/api/aiAgents';
@@ -28,7 +27,6 @@ const props = defineProps({
   },
 });
 
-const LLM_FEATURE = 'assistant';
 const TRAINING_POLL_INTERVAL = 5000;
 const TRAINING_POLL_ATTEMPTS = 24;
 const TEXT_LIMITS = {
@@ -41,7 +39,6 @@ const TEXT_LIMITS = {
 
 const { t } = useI18n();
 const store = useStore();
-const captainConfigStore = useCaptainConfigStore();
 
 const labels = useMapGetter('labels/getLabels');
 const inboxes = useMapGetter('inboxes/getInboxes');
@@ -74,6 +71,7 @@ const toForm = agent => ({
 const form = reactive(toForm(props.agent));
 const savedForm = ref(toForm(props.agent));
 const isSaving = ref(false);
+const availableModels = ref([]);
 
 const labelOptions = computed(() =>
   labels.value.map(label => ({ value: label.id, label: label.title }))
@@ -95,10 +93,10 @@ const selectedLabelIds = computed({
 });
 
 const modelOptions = computed(() => {
-  const options = captainConfigStore
-    .getModelsForFeature(LLM_FEATURE)
-    .filter(model => !model.coming_soon)
-    .map(model => ({ value: model.id, label: model.display_name }));
+  const options = availableModels.value.map(model => ({
+    value: model.id,
+    label: model.display_name,
+  }));
   if (options.some(option => option.value === form.model)) return options;
 
   return [{ value: form.model, label: form.model }, ...options];
@@ -284,7 +282,12 @@ watch(
 );
 
 onMounted(async () => {
-  captainConfigStore.fetch();
+  // Without the list, the model dropdown still shows the agent's current model.
+  AiAgentsAPI.getModels()
+    .then(({ data }) => {
+      availableModels.value = data.models;
+    })
+    .catch(() => {});
   // Knowledge edits on the other tab retrain the agent, so the training time is refreshed here.
   try {
     await store.dispatch('aiAgents/show', props.agent.id);
