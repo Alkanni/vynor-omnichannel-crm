@@ -72,6 +72,11 @@ RSpec.describe ApplicationRecord do
                   value: 'telegram-secret'
 
   it_behaves_like 'encrypted external credential',
+                  factory: :channel_telegram,
+                  attribute: :webhook_secret,
+                  value: 'telegram-webhook-secret'
+
+  it_behaves_like 'encrypted external credential',
                   factory: :channel_twitter_profile,
                   attribute: :twitter_access_token,
                   value: 'twitter-access-secret'

@@ -4,7 +4,7 @@ RSpec.describe Webhooks::TelegramEventsJob do
   subject(:job) { described_class.perform_later(params) }
 
   let!(:telegram_channel) { create(:channel_telegram) }
-  let!(:params) { { :bot_token => telegram_channel.bot_token, 'telegram' => { test: 'test' } } }
+  let!(:params) { { :channel_id => telegram_channel.id, 'telegram' => { test: 'test' } } }
 
   it 'enqueues the job' do
     expect { job }.to have_enqueued_job(described_class)
@@ -12,14 +12,18 @@ RSpec.describe Webhooks::TelegramEventsJob do
       .on_queue('default')
   end
 
+  it 'does not log its arguments' do
+    expect(described_class.log_arguments).to be(false)
+  end
+
   context 'when invalid params' do
-    it 'returns nil when no bot_token' do
+    it 'returns nil when no channel_id' do
       expect(described_class.perform_now({})).to be_nil
     end
 
     it 'logs a warning when channel is not found' do
-      expect(Rails.logger).to receive(:warn).with('Telegram event discarded: Channel not found for bot_token: invalid')
-      described_class.perform_now({ bot_token: 'invalid' })
+      expect(Rails.logger).to receive(:warn).with('Telegram event discarded: Channel not found for channel_id: 0')
+      described_class.perform_now({ channel_id: 0 })
     end
   end
 
@@ -32,6 +36,16 @@ RSpec.describe Webhooks::TelegramEventsJob do
                                                                      params: params['telegram'].with_indifferent_access)
       expect(process_service).to receive(:perform)
       described_class.perform_now(params.with_indifferent_access)
+    end
+
+    it 'processes jobs enqueued with the bot token before the webhook secret change' do
+      process_service = double
+      allow(Telegram::IncomingMessageService).to receive(:new).and_return(process_service)
+      allow(process_service).to receive(:perform)
+
+      described_class.perform_now({ bot_token: telegram_channel.bot_token, telegram: { test: 'test' } }.with_indifferent_access)
+
+      expect(Telegram::IncomingMessageService).to have_received(:new).with(inbox: telegram_channel.inbox, params: { 'test' => 'test' })
     end
 
     it 'logs a warning and does not process events if account is suspended' do
@@ -49,7 +63,7 @@ RSpec.describe Webhooks::TelegramEventsJob do
   end
 
   context 'when update message params' do
-    let!(:params) { { :bot_token => telegram_channel.bot_token, 'telegram' => { edited_message: 'test' } } }
+    let!(:params) { { :channel_id => telegram_channel.id, 'telegram' => { edited_message: 'test' } } }
 
     it 'calls Telegram::UpdateMessageService' do
       process_service = double

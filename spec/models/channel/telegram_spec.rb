@@ -55,6 +55,52 @@ RSpec.describe Channel::Telegram do
     end
   end
 
+  describe '#setup_telegram_webhook' do
+    # A fresh instance, since the factory stubs out the webhook setup on the created object
+    let(:channel) { described_class.find(telegram_channel.id) }
+    let(:telegram_api) { "https://api.telegram.org/bot#{telegram_channel.bot_token}" }
+
+    before do
+      stub_request(:post, "#{telegram_api}/deleteWebhook")
+    end
+
+    it 'registers the webhook without the bot token and stores a generated secret' do
+      set_webhook = stub_request(:post, "#{telegram_api}/setWebhook")
+                    .with(body: hash_including('url' => 'https://app.example.com/webhooks/telegram',
+                                               'secret_token' => /\A[a-zA-Z0-9]{64}\z/))
+                    .to_return(status: 200, body: { ok: true }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      with_modified_env FRONTEND_URL: 'https://app.example.com' do
+        channel.save!
+      end
+
+      expect(set_webhook).to have_been_requested
+      expect(channel.reload.webhook_secret).to match(/\A[a-zA-Z0-9]{64}\z/)
+    end
+
+    it 'reuses the existing secret' do
+      telegram_channel.update!(webhook_secret: 'existing-secret')
+      set_webhook = stub_request(:post, "#{telegram_api}/setWebhook")
+                    .with(body: hash_including('secret_token' => 'existing-secret'))
+                    .to_return(status: 200, body: { ok: true }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      channel.save!
+
+      expect(set_webhook).to have_been_requested
+      expect(channel.reload.webhook_secret).to eq('existing-secret')
+    end
+
+    it 'does not store a secret when Telegram rejects the webhook' do
+      stub_request(:post, "#{telegram_api}/setWebhook")
+        .to_return(status: 400, body: { ok: false }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      channel.save
+
+      expect(channel.errors[:bot_token]).to be_present
+      expect(channel.reload.webhook_secret).to be_nil
+    end
+  end
+
   context 'when a valid message and empty attachments' do
     it 'send message' do
       message = create(:message, message_type: :outgoing, content: 'test',

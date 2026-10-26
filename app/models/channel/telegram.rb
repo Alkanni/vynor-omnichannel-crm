@@ -2,23 +2,25 @@
 #
 # Table name: channel_telegram
 #
-#  id         :bigint           not null, primary key
-#  bot_name   :string
-#  bot_token  :string           not null
-#  created_at :datetime         not null
-#  updated_at :datetime         not null
-#  account_id :integer          not null
+#  id             :bigint           not null, primary key
+#  bot_name       :string
+#  bot_token      :string           not null
+#  webhook_secret :string
+#  created_at     :datetime         not null
+#  updated_at     :datetime         not null
+#  account_id     :integer          not null
 #
 # Indexes
 #
-#  index_channel_telegram_on_bot_token  (bot_token) UNIQUE
+#  index_channel_telegram_on_bot_token       (bot_token) UNIQUE
+#  index_channel_telegram_on_webhook_secret  (webhook_secret) UNIQUE
 #
 
 class Channel::Telegram < ApplicationRecord
   include Channelable
 
   # TODO: Remove guard once encryption keys become mandatory (target 3-4 releases out).
-  encrypts :bot_token, deterministic: true if Chatwoot.encryption_configured?
+  encrypts :bot_token, :webhook_secret, deterministic: true if Chatwoot.encryption_configured?
 
   self.table_name = 'channel_telegram'
   EDITABLE_ATTRS = [:bot_token].freeze
@@ -93,12 +95,19 @@ class Channel::Telegram < ApplicationRecord
   end
 
   def setup_telegram_webhook
+    secret = webhook_secret.presence || SecureRandom.alphanumeric(64)
     HTTParty.post("#{telegram_api_url}/deleteWebhook")
     response = HTTParty.post("#{telegram_api_url}/setWebhook",
                              body: {
-                               url: "#{ENV.fetch('FRONTEND_URL', nil)}/webhooks/telegram/#{bot_token}"
+                               url: "#{ENV.fetch('FRONTEND_URL', nil)}/webhooks/telegram",
+                               secret_token: secret
                              })
-    errors.add(:bot_token, 'error setting up the webook') unless response.success?
+    # Store the secret only once Telegram has it, otherwise the previous webhook would be rejected for lacking the header.
+    if response.success?
+      self.webhook_secret = secret
+    else
+      errors.add(:bot_token, 'error setting up the webook')
+    end
   end
 
   def send_message(message)

@@ -1,10 +1,10 @@
 class Webhooks::TelegramEventsJob < ApplicationJob
   queue_as :default
+  # Arguments hold customer message payloads, and jobs enqueued before channel_id was introduced hold the bot token.
+  self.log_arguments = false
 
   def perform(params = {})
-    return unless params[:bot_token]
-
-    channel = Channel::Telegram.find_by(bot_token: params[:bot_token])
+    channel = find_channel(params)
 
     if channel_is_inactive?(channel)
       log_inactive_channel(channel, params)
@@ -15,6 +15,13 @@ class Webhooks::TelegramEventsJob < ApplicationJob
   end
 
   private
+
+  def find_channel(params)
+    return Channel::Telegram.find_by(id: params[:channel_id]) if params[:channel_id]
+
+    # Jobs enqueued before the webhook secret change carry the bot token instead of the channel id.
+    Channel::Telegram.find_by(bot_token: params[:bot_token])
+  end
 
   def channel_is_inactive?(channel)
     return true if channel.blank?
@@ -27,7 +34,7 @@ class Webhooks::TelegramEventsJob < ApplicationJob
     message = if channel&.id
                 "Account #{channel.account.id} is not active for channel #{channel.id}"
               else
-                "Channel not found for bot_token: #{params[:bot_token]}"
+                "Channel not found for channel_id: #{params[:channel_id]}"
               end
     Rails.logger.warn("Telegram event discarded: #{message}")
   end
