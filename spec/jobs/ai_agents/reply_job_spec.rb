@@ -207,7 +207,9 @@ RSpec.describe AiAgents::ReplyJob do
           chat_requests << JSON.parse(request.body)
           { status: 200, headers: { 'Content-Type' => 'application/json' },
             body: { id: 'chatcmpl-1', model: ai_agent.model, usage: { prompt_tokens: 10, completion_tokens: 5 },
-                    choices: [{ message: { role: 'assistant', content: { messages: ['Kami buka Senin sampai Sabtu, 09.00-21.00.'] }.to_json } }] }
+                    choices: [{ message: { role: 'assistant', content: nil, tool_calls: [{ id: 'call_1', type: 'function', function: {
+                      name: 'ai_agent_reply', arguments: { messages: ['Kami buka Senin sampai Sabtu, 09.00-21.00.'] }.to_json
+                    } }] } }] }
               .to_json }
         end
       end

@@ -10,6 +10,7 @@ RSpec.describe AiAgents::Watcher do
   end
   let(:chat_requests) { [] }
   let(:reply_content) { { handoff: true, labels: %w[complaint vip] }.to_json }
+  let(:tool_call) { { id: 'call_1', type: 'function', function: { name: 'ai_agent_watch', arguments: reply_content } } }
 
   before do
     ai_agent.update!(allowed_label_ids: [create(:label, account: ai_agent.account, title: 'complaint').id])
@@ -18,8 +19,8 @@ RSpec.describe AiAgents::Watcher do
     stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
       chat_requests << JSON.parse(request.body)
       { status: 200, headers: { 'Content-Type' => 'application/json' },
-        body: { id: 'chatcmpl-1', model: 'gpt-4.1-mini', choices: [{ message: { role: 'assistant', content: reply_content } }],
-                usage: { prompt_tokens: 10, completion_tokens: 5 } }.to_json }
+        body: { id: 'chatcmpl-1', model: 'gpt-4.1-mini', usage: { prompt_tokens: 10, completion_tokens: 5 },
+                choices: [{ message: { role: 'assistant', content: nil, tool_calls: [tool_call] } }] }.to_json }
     end
   end
 
@@ -28,7 +29,7 @@ RSpec.describe AiAgents::Watcher do
 
     request = chat_requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0.2)
-    expect(request['response_format']['json_schema']['schema']['properties'])
+    expect(request['tools'].sole['function']['parameters']['properties'])
       .to eq('handoff' => { 'type' => 'boolean' }, 'labels' => { 'type' => 'array', 'items' => { 'type' => 'string', 'enum' => ['complaint'] } })
     expect(request['messages'].first['content']).to include('Transfer when the customer complains.', 'Apply complaint when the customer complains.')
     expect(request['messages'].last).to include('role' => 'user', 'content' => "Customer: Pelayanannya buruk\nAI agent: Mohon maaf, Kak.")

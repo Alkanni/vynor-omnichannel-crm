@@ -3,7 +3,6 @@
 # knowledge is searched by keywords instead (see AiAgent::KnowledgeChunk.keyword_ranked).
 class AiAgents::LlmClient
   EMBEDDING_DIMENSIONS = 1536
-  SCHEMA_INSTRUCTIONS = 'Respond with only a JSON object that matches this JSON schema:'.freeze
 
   class << self
     def configured? = api_key.present?
@@ -24,15 +23,17 @@ class AiAgents::LlmClient
   end
 
   # Gateways name models their own way (e.g. cx/gpt-5.5 on 9router), so the model ID is sent as is instead of being
-  # looked up in the RubyLLM registry. Some also ignore response_format (9router with Codex models answers in plain
-  # text), so the schema is spelled out in the instructions too.
+  # looked up in the RubyLLM registry. The structured reply comes back as the arguments of a forced function call,
+  # because some gateways drop response_format (9router with Codex models answers in plain text) while function calling
+  # works on them. Returns the arguments as a Hash, or the text when the model answered without calling the function.
   def chat(model:, temperature:, instructions:, messages:, schema:)
     with_context(self.class.api_key, endpoint) do |context|
+      tool = AiAgents::ReplyTool.new(**schema)
       chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
-                    .with_instructions("#{instructions}\n\n#{SCHEMA_INSTRUCTIONS}\n#{schema[:schema].to_json}")
-                    .with_temperature(temperature).with_schema(schema)
+                    .with_instructions(instructions).with_temperature(temperature).with_tool(tool, choice: tool.name)
       messages.each { |message| chat.add_message(message) }
-      chat.complete.content
+      result = chat.complete
+      result.is_a?(RubyLLM::Tool::Halt) ? result.content.deep_stringify_keys : result.content
     end
   end
 
