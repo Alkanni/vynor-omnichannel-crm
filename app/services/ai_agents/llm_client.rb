@@ -3,6 +3,7 @@
 # knowledge is searched by keywords instead (see AiAgent::KnowledgeChunk.keyword_ranked).
 class AiAgents::LlmClient
   EMBEDDING_DIMENSIONS = 1536
+  SCHEMA_INSTRUCTIONS = 'Respond with only a JSON object that matches this JSON schema:'.freeze
 
   class << self
     def configured? = api_key.present?
@@ -22,12 +23,14 @@ class AiAgents::LlmClient
     end
   end
 
-  # Gateways name models their own way (e.g. cx/gpt-5.5 on 9router), so the model ID is sent as is
-  # instead of being looked up in the RubyLLM registry.
+  # Gateways name models their own way (e.g. cx/gpt-5.5 on 9router), so the model ID is sent as is instead of being
+  # looked up in the RubyLLM registry. Some also ignore response_format (9router with Codex models answers in plain
+  # text), so the schema is spelled out in the instructions too.
   def chat(model:, temperature:, instructions:, messages:, schema:)
     with_context(self.class.api_key, endpoint) do |context|
       chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
-                    .with_instructions(instructions).with_temperature(temperature).with_schema(schema)
+                    .with_instructions("#{instructions}\n\n#{SCHEMA_INSTRUCTIONS}\n#{schema[:schema].to_json}")
+                    .with_temperature(temperature).with_schema(schema)
       messages.each { |message| chat.add_message(message) }
       chat.complete.content
     end

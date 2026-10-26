@@ -55,6 +55,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     expect(system_prompt).to include('role' => 'developer')
     expect(system_prompt['content']).to include('Kamu adalah asisten Grand Sehat.', 'Thursday, 22 October 2026 10:00 (Asia/Jakarta)',
                                                 'Jam buka: setiap hari 07.30 - 18.00')
+      .and end_with("Respond with only a JSON object that matches this JSON schema:\n#{request['response_format']['json_schema']['schema'].to_json}")
     expect(system_prompt['content']).not_to include('Harga detailing')
     expect(request['messages'].drop(1).pluck('role', 'content')).to eq(messages.map { |message| [message[:role].to_s, message[:content]] })
   end
