@@ -24,6 +24,16 @@ RSpec.describe AiAgents::ConversationSession do
       )
     end
 
+    it 'starts with the welcome message even when it was posted after the first customer message' do
+      create(:message, **message_attributes, content: 'Toko buka jam berapa?')
+      create(:message, **message_attributes, message_type: :outgoing, sender: ai_agent, content: 'Halo! Ada yang bisa kami bantu?',
+                                             additional_attributes: { 'ai_agent_welcome' => true })
+
+      expect(session.history.map { |entry| entry.slice(:role, :content) }).to eq(
+        [{ role: :assistant, content: 'Halo! Ada yang bisa kami bantu?' }, { role: :user, content: 'Toko buka jam berapa?' }]
+      )
+    end
+
     it 'keeps only the current session when session-only memory is on' do
       create(:message, **message_attributes, content: 'Pertanyaan lama')
       create(:reporting_event, name: 'conversation_resolved', account: account, inbox: inbox, conversation: conversation,
