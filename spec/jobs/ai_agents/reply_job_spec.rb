@@ -197,7 +197,8 @@ RSpec.describe AiAgents::ReplyJob do
         create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
         source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
         ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at,
-                                          content: 'Jam buka toko: Senin sampai Sabtu 09.00-21.00', embedding: embedding)
+                                          content: 'Jam buka toko: Senin sampai Sabtu 09.00-21.00', embedding: embedding,
+                                          embedding_model: 'text-embedding-3-small')
         stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
           embedding_requests << JSON.parse(request.body)
           { status: 200, headers: { 'Content-Type' => 'application/json' },
@@ -220,7 +221,7 @@ RSpec.describe AiAgents::ReplyJob do
 
         described_class.perform_now(message)
 
-        expect(embedding_requests.sole['input']).to eq(['Halo, toko buka jam berapa?'])
+        expect(embedding_requests.sole['input']).to eq(['query: Halo, toko buka jam berapa?'])
         request = chat_requests.sole
         expect(request['messages'].first['content']).to include('<knowledge>', 'Jam buka toko: Senin sampai Sabtu 09.00-21.00')
         expect(request['messages'].drop(1).pluck('role', 'content'))

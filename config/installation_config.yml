@@ -206,7 +206,7 @@
 - name: AI_AGENT_EMBEDDING_MODEL
   display_title: 'AI Agent Embedding Model'
   value: 'text-embedding-3-small'
-  description: 'Embedding model used to search AI Agent knowledge; it must return 1536-dimension vectors. Leave blank to search knowledge by keywords instead, e.g. when the endpoint has no embeddings API. Train the agents again after changing it.'
+  description: 'Embedding model used to search AI Agent knowledge, e.g. text-embedding-3-small, or nvidia/nvidia/nemotron-3-embed-1b on 9router. Leave blank to search knowledge by keywords instead, e.g. when the endpoint has no embeddings API. Train the agents again after changing it; until then they answer without the knowledge embedded with the previous model.'
   locked: false
 - name: AI_AGENT_EMBEDDING_ENDPOINT
   display_title: 'AI Agent Embedding Endpoint (optional)'

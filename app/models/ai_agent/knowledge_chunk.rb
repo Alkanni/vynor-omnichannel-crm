@@ -6,7 +6,8 @@
 #  chunkable_type       :string           not null
 #  chunkable_updated_at :datetime         not null
 #  content              :text             not null
-#  embedding            :vector(1536)
+#  embedding            :vector
+#  embedding_model      :string
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  account_id           :bigint           not null

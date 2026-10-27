@@ -1,7 +1,7 @@
 # Brings an agent's knowledge chunks in line with its ready knowledge sources and products.
 # Records are re-embedded only when their updated_at differs from the version stored on their chunks,
-# and a source that is re-syncing or failed is left out until it is ready again. Without an embedding
-# model the chunks are stored without vectors for keyword search.
+# and a source that is re-syncing or failed is left out until it is ready again. Chunks record the embedding
+# model they were embedded with; without an embedding model they are stored without vectors for keyword search.
 class AiAgents::KnowledgeIndexer
   EMBEDDING_BATCH_SIZE = 100
 
@@ -10,8 +10,8 @@ class AiAgents::KnowledgeIndexer
   def perform
     indexable = indexable_versions
     remove_stale_chunks(indexable)
-    @embeddings = AiAgents::LlmClient.embedding_model.present?
-    return if @embeddings && AiAgents::LlmClient.embedding_api_key.blank?
+    @embedding_model = AiAgents::LlmClient.embedding_model
+    return if @embedding_model && AiAgents::LlmClient.embedding_api_key.blank?
 
     indexed = indexed_chunks.group(:chunkable_type, :chunkable_id).maximum(:chunkable_updated_at)
     indexable.each do |klass, versions|
@@ -36,15 +36,15 @@ class AiAgents::KnowledgeIndexer
     end
   end
 
-  # Chunks stored for keyword search are indexed again once an embedding model is set.
+  # Chunks stored for keyword search or embedded with another model are embedded again with the current one.
   def indexed_chunks
-    @embeddings ? ai_agent.knowledge_chunks.where.not(embedding: nil) : ai_agent.knowledge_chunks
+    @embedding_model ? ai_agent.knowledge_chunks.where(embedding_model: @embedding_model) : ai_agent.knowledge_chunks
   end
 
   def index(record)
     version = record.updated_at
     texts = chunk_texts(record)
-    embeddings = @embeddings ? texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| client.embed(batch) } : []
+    embeddings = @embedding_model ? texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| client.embed(batch, input_type: :passage) } : []
 
     record.with_lock do
       # The record changed while it was being embedded; the job queued by that change indexes it.
@@ -52,8 +52,8 @@ class AiAgents::KnowledgeIndexer
 
       ai_agent.knowledge_chunks.where(chunkable: record).delete_all
       texts.zip(embeddings).each do |content, embedding|
-        AiAgent::KnowledgeChunk.create!(account_id: ai_agent.account_id, ai_agent: ai_agent, chunkable: record,
-                                        chunkable_updated_at: version, content: content, embedding: embedding)
+        AiAgent::KnowledgeChunk.create!(account_id: ai_agent.account_id, ai_agent: ai_agent, chunkable: record, chunkable_updated_at: version,
+                                        content: content, embedding: embedding, embedding_model: @embedding_model)
       end
     end
   end
