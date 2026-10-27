@@ -53,7 +53,7 @@ class AiAgent < ApplicationRecord
                                     as: :ai_assignee,
                                     inverse_of: :ai_assignee
 
-  attribute :model, :string, default: -> { Llm::Models.default_model_for(LLM_FEATURE) }
+  attribute :model, :string, default: -> { default_model }
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :behavior, length: { maximum: 15_000 }
@@ -69,6 +69,23 @@ class AiAgent < ApplicationRecord
   validates :timezone, inclusion: { in: TZInfo::Timezone.all_identifiers }
   validate :model_supported
   validate :allowed_labels_belong_to_account
+
+  # Gateway model IDs from Super Admin (AI_AGENT_MODELS, e.g. for 9router or OpenRouter) replace the built-in OpenAI models.
+  def self.available_models
+    gateway = gateway_models
+    return gateway.map { |id| { id: id, display_name: id } } if gateway.any?
+
+    Llm::Models.feature_config(LLM_FEATURE)[:models].reject { |config| config[:coming_soon] }.map { |config| config.slice(:id, :display_name) }
+  end
+
+  def self.default_model
+    gateway_models.first || Llm::Models.default_model_for(LLM_FEATURE)
+  end
+
+  def self.gateway_models
+    InstallationConfig.find_by(name: 'AI_AGENT_MODELS')&.value.to_s.split(',').map(&:strip).compact_blank.uniq
+  end
+  private_class_method :gateway_models
 
   def duplicate!
     transaction do
@@ -123,10 +140,7 @@ class AiAgent < ApplicationRecord
   end
 
   def model_supported
-    config = Llm::Models.model_config(model)
-    return if Llm::Models.valid_model_for?(LLM_FEATURE, model) && !config['coming_soon']
-
-    errors.add(:model, :inclusion)
+    errors.add(:model, :inclusion) unless self.class.available_models.any? { |available| available[:id] == model }
   end
 
   def allowed_labels_belong_to_account

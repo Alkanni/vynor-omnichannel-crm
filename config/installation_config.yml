@@ -193,12 +193,30 @@
   locked: false
 - name: CAPTAIN_OPEN_AI_ENDPOINT
   display_title: 'OpenAI API Endpoint (optional)'
-  description: 'The OpenAI endpoint configured for use in Captain AI. Default: https://api.openai.com/'
+  description: 'The OpenAI endpoint configured for use in Captain AI, without the /v1 suffix. AI Agents accept any OpenAI-compatible endpoint, such as 9router or OpenRouter. Default: https://api.openai.com/'
   locked: false
 - name: CAPTAIN_EMBEDDING_MODEL
   display_title: 'Embedding Model (optional)'
   description: 'The embedding model configured for use in Captain AI. Default: text-embedding-3-small'
   locked: false
+- name: AI_AGENT_MODELS
+  display_title: 'AI Agent Models (optional)'
+  description: 'Comma-separated model IDs offered to AI Agents, for OpenAI-compatible gateways such as 9router or OpenRouter (e.g. cx/gpt-5.5, cx/gpt-5.4-mini). When set, they replace the built-in OpenAI models and the first one is the default for new agents.'
+  locked: false
+- name: AI_AGENT_EMBEDDING_MODEL
+  display_title: 'AI Agent Embedding Model'
+  value: 'text-embedding-3-small'
+  description: 'Embedding model used to search AI Agent knowledge; it must return 1536-dimension vectors. Leave blank to search knowledge by keywords instead, e.g. when the endpoint has no embeddings API. Train the agents again after changing it.'
+  locked: false
+- name: AI_AGENT_EMBEDDING_ENDPOINT
+  display_title: 'AI Agent Embedding Endpoint (optional)'
+  description: 'OpenAI-compatible endpoint for AI Agent embeddings, without the /v1 suffix. Default: the OpenAI API Endpoint above.'
+  locked: false
+- name: AI_AGENT_EMBEDDING_API_KEY
+  display_title: 'AI Agent Embedding API Key (optional)'
+  description: 'API key for the AI Agent Embedding Endpoint. Default: the OpenAI API Key above.'
+  locked: false
+  type: secret
 - name: CAPTAIN_FIRECRAWL_API_KEY
   display_title: 'FireCrawl API Key (optional)'
   description: 'The FireCrawl API key for the Captain AI service'

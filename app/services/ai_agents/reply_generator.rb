@@ -59,8 +59,12 @@ class AiAgents::ReplyGenerator
     query = latest_customer_text
     return [] if query.blank? || !ai_agent.knowledge_chunks.exists?
 
-    embedding = client.embed([query]).first
-    ai_agent.knowledge_chunks.nearest_neighbors(:embedding, embedding, distance: 'cosine').limit(ai_agent.context_limit).to_a
+    chunks = if AiAgents::LlmClient.embedding_model
+               ai_agent.knowledge_chunks.nearest_neighbors(:embedding, client.embed([query]).first, distance: 'cosine')
+             else
+               ai_agent.knowledge_chunks.keyword_ranked(query)
+             end
+    chunks.limit(ai_agent.context_limit).to_a
   end
 
   # The customer messages since the last reply, so a burst of short messages is searched as one question.

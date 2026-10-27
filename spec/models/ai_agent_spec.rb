@@ -68,6 +68,21 @@ RSpec.describe AiAgent do
       expect(ai_agent).not_to be_valid
     end
 
+    context 'when gateway models are configured' do
+      before { create(:installation_config, name: 'AI_AGENT_MODELS', value: ' cx/gpt-5.5, cx/gpt-5.4-mini,,cx/gpt-5.5 ') }
+
+      it 'accepts only those models and defaults new agents to the first one' do
+        expect(described_class.new.model).to eq('cx/gpt-5.5')
+        expect(described_class.available_models).to eq([{ id: 'cx/gpt-5.5', display_name: 'cx/gpt-5.5' },
+                                                        { id: 'cx/gpt-5.4-mini', display_name: 'cx/gpt-5.4-mini' }])
+
+        ai_agent.model = 'cx/gpt-5.4-mini'
+        expect(ai_agent).to be_valid
+        ai_agent.model = 'gpt-4.1'
+        expect(ai_agent).not_to be_valid
+      end
+    end
+
     it 'accepts labels of the same account only' do
       own_label = create(:label, account: account)
       other_label = create(:label)

@@ -194,6 +194,7 @@ RSpec.describe AiAgents::ReplyJob do
         allow(AiAgents::ReplyGenerator).to receive(:new).and_call_original
         ai_agent.update!(welcome_message: 'Halo! Ada yang bisa kami bantu?')
         create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+        create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
         source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
         ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at,
                                           content: 'Jam buka toko: Senin sampai Sabtu 09.00-21.00', embedding: embedding)
@@ -206,7 +207,9 @@ RSpec.describe AiAgents::ReplyJob do
           chat_requests << JSON.parse(request.body)
           { status: 200, headers: { 'Content-Type' => 'application/json' },
             body: { id: 'chatcmpl-1', model: ai_agent.model, usage: { prompt_tokens: 10, completion_tokens: 5 },
-                    choices: [{ message: { role: 'assistant', content: { messages: ['Kami buka Senin sampai Sabtu, 09.00-21.00.'] }.to_json } }] }
+                    choices: [{ message: { role: 'assistant', content: nil, tool_calls: [{ id: 'call_1', type: 'function', function: {
+                      name: 'ai_agent_reply', arguments: { messages: ['Kami buka Senin sampai Sabtu, 09.00-21.00.'] }.to_json
+                    } }] } }] }
               .to_json }
         end
       end
