@@ -44,7 +44,7 @@ class AiAgents::KnowledgeIndexer
   def index(record)
     version = record.updated_at
     texts = chunk_texts(record)
-    embeddings = @embedding_model ? texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| client.embed(batch) } : []
+    embeddings = @embedding_model ? texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| client.embed(batch, input_type: :passage) } : []
 
     record.with_lock do
       # The record changed while it was being embedded; the job queued by that change indexes it.

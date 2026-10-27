@@ -63,7 +63,11 @@ class AiAgents::ReplyGenerator
     chunks = embedding_model ? ai_agent.knowledge_chunks.where(embedding_model: embedding_model) : ai_agent.knowledge_chunks
     return [] if query.blank? || !chunks.exists?
 
-    chunks = embedding_model ? chunks.nearest_neighbors(:embedding, client.embed([query]).first, distance: 'cosine') : chunks.keyword_ranked(query)
+    chunks = if embedding_model
+               chunks.nearest_neighbors(:embedding, client.embed([query], input_type: :query).first, distance: 'cosine')
+             else
+               chunks.keyword_ranked(query)
+             end
     chunks.limit(ai_agent.context_limit).to_a
   end
 

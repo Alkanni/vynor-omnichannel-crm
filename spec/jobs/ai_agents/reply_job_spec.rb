@@ -221,7 +221,7 @@ RSpec.describe AiAgents::ReplyJob do
 
         described_class.perform_now(message)
 
-        expect(embedding_requests.sole['input']).to eq(['Halo, toko buka jam berapa?'])
+        expect(embedding_requests.sole['input']).to eq(['query: Halo, toko buka jam berapa?'])
         request = chat_requests.sole
         expect(request['messages'].first['content']).to include('<knowledge>', 'Jam buka toko: Senin sampai Sabtu 09.00-21.00')
         expect(request['messages'].drop(1).pluck('role', 'content'))

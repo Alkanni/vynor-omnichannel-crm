@@ -51,7 +51,7 @@ RSpec.describe AiAgents::ReplyGenerator do
                                           handoff: false, labels: []))
     end
 
-    expect(embedding_requests.sole).to eq('model' => 'text-embedding-3-small', 'input' => ["Jam buka?\nHari Minggu juga?"])
+    expect(embedding_requests.sole).to eq('model' => 'text-embedding-3-small', 'input' => ["query: Jam buka?\nHari Minggu juga?"])
     request = chat_requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0.2,
                                'tool_choice' => { 'type' => 'function', 'function' => { 'name' => 'ai_agent_reply' } })
