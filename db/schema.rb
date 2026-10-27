@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_26_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_27_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -205,9 +205,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_000000) do
     t.bigint "chunkable_id", null: false
     t.datetime "chunkable_updated_at", null: false
     t.text "content", null: false
-    t.vector "embedding", limit: 1536
+    t.vector "embedding"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "embedding_model"
     t.index ["account_id"], name: "index_ai_agent_knowledge_chunks_on_account_id"
     t.index ["ai_agent_id"], name: "index_ai_agent_knowledge_chunks_on_ai_agent_id"
     t.index ["chunkable_type", "chunkable_id"], name: "index_ai_agent_knowledge_chunks_on_chunkable"

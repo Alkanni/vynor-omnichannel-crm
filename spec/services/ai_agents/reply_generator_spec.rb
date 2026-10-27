@@ -27,10 +27,10 @@ RSpec.describe AiAgents::ReplyGenerator do
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
     create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
-    ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
-                                      content: 'Jam buka: setiap hari 07.30 - 18.00', embedding: opening_hours)
-    ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
-                                      content: 'Harga detailing: Rp750.000', embedding: pricing)
+    { 'Jam buka: setiap hari 07.30 - 18.00' => opening_hours, 'Harga detailing: Rp750.000' => pricing }.each do |content, embedding|
+      ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
+                                        content: content, embedding: embedding, embedding_model: 'text-embedding-3-small')
+    end
     stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
       embedding_requests << JSON.parse(request.body)
       { status: 200, headers: { 'Content-Type' => 'application/json' },
@@ -51,8 +51,7 @@ RSpec.describe AiAgents::ReplyGenerator do
                                           handoff: false, labels: []))
     end
 
-    expect(embedding_requests.sole).to include('model' => 'text-embedding-3-small', 'input' => ["Jam buka?\nHari Minggu juga?"],
-                                               'dimensions' => 1536)
+    expect(embedding_requests.sole).to eq('model' => 'text-embedding-3-small', 'input' => ["Jam buka?\nHari Minggu juga?"])
     request = chat_requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0.2,
                                'tool_choice' => { 'type' => 'function', 'function' => { 'name' => 'ai_agent_reply' } })
@@ -135,6 +134,29 @@ RSpec.describe AiAgents::ReplyGenerator do
       expect(chat_requests).to be_empty
       expect(a_request(:post, 'https://api.openai.com/v1/embeddings').with(headers: { 'Authorization' => 'Bearer embedding-key' })).to have_been_made
     end
+  end
+
+  it 'leaves out chunks embedded with another model until the agent is trained again' do
+    InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MODEL').update!(value: 'nvidia/nvidia/nemotron-3-embed-1b')
+
+    described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+    expect(embedding_requests).to be_empty
+    expect(chat_requests.sole['messages'].first['content']).not_to include('<knowledge>')
+  end
+
+  it 'searches chunks of any vector size with the model they were embedded with' do
+    nemotron = Array.new(2048) { |index| index.zero? ? 1.0 : 0.0 }
+    InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MODEL').update!(value: 'nvidia/nvidia/nemotron-3-embed-1b')
+    ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
+                                      content: 'Promo: gratis cuci mobil', embedding: nemotron, embedding_model: 'nvidia/nvidia/nemotron-3-embed-1b')
+    stub_request(:post, 'https://api.openai.com/v1/embeddings')
+      .to_return(status: 200, headers: { 'Content-Type' => 'application/json' }, body: { data: [{ embedding: nemotron }] }.to_json)
+
+    described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+    expect(chat_requests.sole['messages'].first['content']).to include('Promo: gratis cuci mobil')
+      .and(satisfy { |content| content.exclude?('Jam buka: setiap hari') })
   end
 
   it 'skips the knowledge search when the agent has no knowledge' do

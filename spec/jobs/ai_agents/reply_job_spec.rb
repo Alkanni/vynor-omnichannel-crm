@@ -197,7 +197,8 @@ RSpec.describe AiAgents::ReplyJob do
         create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
         source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
         ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at,
-                                          content: 'Jam buka toko: Senin sampai Sabtu 09.00-21.00', embedding: embedding)
+                                          content: 'Jam buka toko: Senin sampai Sabtu 09.00-21.00', embedding: embedding,
+                                          embedding_model: 'text-embedding-3-small')
         stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
           embedding_requests << JSON.parse(request.body)
           { status: 200, headers: { 'Content-Type' => 'application/json' },

@@ -25,7 +25,21 @@ RSpec.describe AiAgents::KnowledgeIndexer do
       "Q: #{qa.title}\nA: #{qa.content}",
       "Product: Paket Detailing\nPrice: 750000.00\nWeight: 0 grams\nStock: 3"
     )
+    expect(ai_agent.knowledge_chunks.distinct.pluck(:embedding_model)).to eq(['text-embedding-3-small'])
     expect(ai_agent.reload.trained_at).to be_present
+  end
+
+  it 'embeds chunks again when the embedding model changes, whatever its vector size' do
+    create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+    indexer.perform
+
+    InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MODEL').update!(value: 'nvidia/nvidia/nemotron-3-embed-1b')
+    allow(client).to receive(:embed) { |texts| Array.new(texts.size) { Array.new(2048, 0.2) } }
+    indexer.perform
+
+    chunk = ai_agent.knowledge_chunks.sole
+    expect(chunk.embedding_model).to eq('nvidia/nvidia/nemotron-3-embed-1b')
+    expect(chunk.embedding.size).to eq(2048)
   end
 
   it 'embeds only records that changed since the last run and drops deleted ones' do

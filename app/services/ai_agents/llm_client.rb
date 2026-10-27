@@ -2,8 +2,6 @@
 # OpenAI, 9router or OpenRouter. Embeddings may use their own endpoint and key (AI_AGENT_EMBEDDING_*); without an embedding model,
 # knowledge is searched by keywords instead (see AiAgent::KnowledgeChunk.keyword_ranked).
 class AiAgents::LlmClient
-  EMBEDDING_DIMENSIONS = 1536
-
   class << self
     def configured? = api_key.present?
     def api_key = setting('CAPTAIN_OPEN_AI_API_KEY')
@@ -15,10 +13,10 @@ class AiAgents::LlmClient
     end
   end
 
+  # Vectors keep the model's own size (e.g. 1536 for text-embedding-3-small, 2048 for NVIDIA nemotron-3-embed-1b).
   def embed(texts)
     with_context(self.class.embedding_api_key, self.class.setting('AI_AGENT_EMBEDDING_ENDPOINT') || endpoint) do |context|
-      context.embed(texts, model: self.class.embedding_model, provider: :openai, assume_model_exists: true,
-                           dimensions: EMBEDDING_DIMENSIONS).vectors
+      context.embed(texts, model: self.class.embedding_model, provider: :openai, assume_model_exists: true).vectors
     end
   end
 

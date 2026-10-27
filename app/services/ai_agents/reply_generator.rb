@@ -55,15 +55,15 @@ class AiAgents::ReplyGenerator
     "#{KNOWLEDGE_INSTRUCTIONS}\n<knowledge>\n#{entries.join("\n\n")}\n</knowledge>"
   end
 
+  # Only chunks embedded with the current embedding model are compared, since vectors of another model differ in
+  # meaning and often in size; they count again once the agent is trained with the current model.
   def relevant_chunks
     query = latest_customer_text
-    return [] if query.blank? || !ai_agent.knowledge_chunks.exists?
+    embedding_model = AiAgents::LlmClient.embedding_model
+    chunks = embedding_model ? ai_agent.knowledge_chunks.where(embedding_model: embedding_model) : ai_agent.knowledge_chunks
+    return [] if query.blank? || !chunks.exists?
 
-    chunks = if AiAgents::LlmClient.embedding_model
-               ai_agent.knowledge_chunks.nearest_neighbors(:embedding, client.embed([query]).first, distance: 'cosine')
-             else
-               ai_agent.knowledge_chunks.keyword_ranked(query)
-             end
+    chunks = embedding_model ? chunks.nearest_neighbors(:embedding, client.embed([query]).first, distance: 'cosine') : chunks.keyword_ranked(query)
     chunks.limit(ai_agent.context_limit).to_a
   end
 
