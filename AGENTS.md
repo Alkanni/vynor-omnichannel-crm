@@ -90,7 +90,7 @@ Every repository change follows, without skipping stages:
 | `06 Code Review` | Agent | Relevant checks pass locally, PR open, PR CI green (pre-existing failures documented) |
 | `07 Approved & Merge` | Owner | Owner reviewed and squash-merged the PR |
 | `08 Post-Merge Verification` | Agent | Evidence comment on the issue: merge SHA, CI on `main`, each acceptance criterion re-checked on `main` |
-| `09 Done` | Automation | Owner closed the issue |
+| `09 Done` | Automation | Issue closed by the owner, or by the agent on the owner's explicit instruction (§6) |
 
 - Move back when needed: review asks for changes → `04 In Progress`; requirements are ambiguous or changed → `02 Triage & Analysis`.
 - Ready gate: implementation starts only for an item in `03 Ready for Development`. An explicit owner instruction in chat to implement a specific issue counts as approval; quote it in an issue comment, then move the item to `03` on the owner's behalf.
@@ -137,9 +137,9 @@ Every repository change follows, without skipping stages:
 ### 6. Review, Merge & Post-Merge Verification
 
 - Re-check the PR diff against the issue, the acceptance criteria, CI status, conflicts, and unresolved comments. The agent acts through the owner's GitHub account, so AI self-review is never presented as human approval.
-- The agent never merges PRs or closes issues; the owner reviews and squash-merges. Flag HIGH risk (auth/authorization, payments, destructive migrations, sensitive data, security controls, infrastructure, secrets, major architecture, breaking API changes) at the top of the PR's Review Notes.
+- The agent never merges PRs; the owner reviews and squash-merges. Flag HIGH risk (auth/authorization, payments, destructive migrations, sensitive data, security controls, infrastructure, secrets, major architecture, breaking API changes) at the top of the PR's Review Notes.
 - After the owner merges: confirm the merge commit and CI on `main`, re-check each acceptance criterion on `main` (UAT/smoke test when relevant), post the evidence as an issue comment, and move the item to `08 Post-Merge Verification`. If verification fails, keep the issue open, comment the failure, and move the item back to `04 In Progress`.
-- The owner closes the issue once the Definition of Done is met.
+- The owner closes the issue once the Definition of Done is met. The agent closes an issue only when the owner explicitly asks in chat to close that specific issue: first quote the instruction in an issue comment, then run `gh api -X PATCH repos/Alkanni/vynor-omnichannel-crm/issues/<n> -f state=closed -f state_reason=completed`. The guard hook keeps blocking `gh issue close` as a safeguard against unrequested closes.
 
 ### 7. Final Report
 
