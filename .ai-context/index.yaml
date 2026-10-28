@@ -1,0 +1,127 @@
+# Knowledge catalog for .ai-context/
+# Load README.md first, then only the documents relevant to the task.
+schema_version: 1
+repository: vynor-omnichannel-crm
+upstream: chatwoot/chatwoot v4.18.0 (no local modifications at analysis time)
+last_analyzed_commit: 9f920b549c14491a4e587687a3eed5d21c6ccc7d
+analyzed_on: 2026-10-20
+method: static source reading (ripgrep/sed); no runtime, no LSP, no AST tooling
+staleness_check: "git diff --stat 9f920b54..HEAD -- <source_refs>"
+
+documents:
+  - id: readme
+    path: README.md
+    purpose: Orientation, usage instructions, confidence legend
+    verification: VERIFIED
+
+  - id: repository-inventory
+    path: repository-inventory.md
+    purpose: Environment/tooling assessment, directory map, tech stack, process topology
+    source_refs: [Gemfile, package.json, Procfile, Procfile.dev, config/sidekiq.yml, config/schedule.yml]
+    verification: VERIFIED
+
+  - id: system-overview
+    path: system-overview.md
+    purpose: Runtime diagram, architecture classification, application surfaces
+    related_modules: [all]
+    source_refs: [config/application.rb, config/routes.rb, app/dispatchers/]
+    verification: VERIFIED
+
+  - id: architecture-map
+    path: architecture-map.md
+    purpose: Layer conventions, Current context, config layers, frontend architecture
+    source_refs: [app/controllers/application_controller.rb, lib/current.rb, lib/global_config.rb, app/models/concerns/featurable.rb, app/javascript/entrypoints/dashboard.js]
+    verification: VERIFIED
+
+  - id: module-catalog
+    path: module-catalog.md
+    purpose: 19 domain modules with paths, symbols, tables, flows
+    verification: VERIFIED (responsibilities summarized; some internals INFERRED)
+
+  - id: dependency-map
+    path: dependency-map.md
+    purpose: Module dependency graph, fan-in counts, queues, external systems, event loop cycle
+    verification: VERIFIED (counts are lower bounds)
+
+  - id: database-map
+    path: database-map.md
+    purpose: Tables, ER diagram, FKs, triggers, constraints, lifecycle, caching
+    source_refs: [db/schema.rb, app/models/, enterprise/app/models/]
+    related_modules: [tenancy, conversations, channels, captain]
+    verification: VERIFIED
+
+  - id: api-map
+    path: api-map.md
+    purpose: Route namespaces, auth per surface, key endpoints, rendering, frontend clients
+    source_refs: [config/routes.rb, app/controllers/, app/views/api/]
+    verification: VERIFIED
+
+  - id: customization-surfaces
+    path: customization-surfaces.md
+    purpose: L1-L6 customization surfaces incl. branding, feature flags, extension points
+    related_modules: [configuration, enterprise, frontend, integrations]
+    verification: VERIFIED (L4 shape INFERRED)
+
+  - id: change-impact-guide
+    path: change-impact-guide.md
+    purpose: Pre-change checklist and hotspot impact table
+    verification: INFERRED from verified relationships
+
+  - id: risks-and-unknowns
+    path: risks-and-unknowns.md
+    purpose: Architectural risks, unanalyzed areas, tool limitations
+    verification: VERIFIED basis; lists UNKNOWNs
+
+  - id: module-enterprise-overlay
+    path: modules/enterprise-overlay.md
+    purpose: EE injection mechanism, 109 injection points, premium reconciliation, custom/ slot
+    source_refs: [config/initializers/01_inject_enterprise_edition_module.rb, lib/chatwoot_app.rb, enterprise/]
+    verification: VERIFIED (custom/ load-path gap INFERRED)
+
+  - id: module-frontend
+    path: modules/frontend.md
+    purpose: Vite entrypoints, dashboard structure, state, realtime, branding hooks
+    source_refs: [app/javascript/]
+    verification: VERIFIED structure; internals not analyzed
+
+  - id: flow-event-bus
+    path: flows/event-bus.md
+    purpose: Dispatcher wiring, sync/async listeners, what each listener does
+    related_workflows: [inbound-message, outbound-reply, conversation-assignment, captain-ai-response]
+    source_refs: [app/dispatchers/, app/listeners/, lib/events/, enterprise/app/dispatchers/]
+    verification: VERIFIED
+
+  - id: flow-inbound-message
+    path: flows/inbound-message.md
+    purpose: Channel webhook/widget/email -> contact -> conversation -> message -> fan-out
+    source_refs: [app/controllers/api/v1/widget/, app/controllers/webhooks/whatsapp_controller.rb, app/jobs/webhooks/, app/services/whatsapp/incoming_message_base_service.rb, app/mailboxes/, app/models/message.rb]
+    verification: VERIFIED (widget, WhatsApp, email); other channels INFERRED
+
+  - id: flow-outbound-reply
+    path: flows/outbound-reply.md
+    purpose: Agent reply -> MessageBuilder -> SendReplyJob -> channel service
+    source_refs: [app/builders/messages/message_builder.rb, app/jobs/send_reply_job.rb, app/services/base/send_on_channel_service.rb]
+    verification: VERIFIED to channel boundary
+
+  - id: flow-request-auth
+    path: flows/request-auth.md
+    purpose: AuthN/AuthZ/tenancy for API, widget, platform, realtime
+    source_refs: [app/controllers/application_controller.rb, app/controllers/api/base_controller.rb, app/controllers/concerns/, app/policies/, app/channels/room_channel.rb]
+    verification: VERIFIED (SAML/OAuth/MFA located only)
+
+  - id: flow-conversation-assignment
+    path: flows/conversation-assignment.md
+    purpose: Conversation status lifecycle, update events, auto-assignment V1/V2
+    source_refs: [app/models/conversation.rb, app/models/concerns/auto_assignment_handler.rb, app/services/auto_assignment/]
+    verification: VERIFIED triggers; selectors not read
+
+  - id: flow-captain-ai-response
+    path: flows/captain-ai-response.md
+    purpose: Enterprise Captain AI auto-reply chain
+    source_refs: [enterprise/app/services/enterprise/message_templates/hook_execution_service.rb, enterprise/app/services/captain/conversation/response_scheduler_service.rb, enterprise/app/jobs/captain/conversation/response_builder_job.rb]
+    verification: VERIFIED trigger chain; LLM internals not traced
+
+  - id: claude-context-snippet
+    path: claude-context-snippet.md
+    purpose: Paste-ready block for CLAUDE.md/AGENTS.md
+    verification: n/a
