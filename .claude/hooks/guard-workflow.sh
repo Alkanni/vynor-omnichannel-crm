@@ -12,15 +12,23 @@ block() {
   exit 2
 }
 
-# Branch checked out where the git command runs: `git -C <dir>` is resolved against the session cwd.
-branch_in() { git -C "$cwd" -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null; }
+# Branch checked out where a git command runs; `git -C <dir>` resolves against the session cwd.
+# Prints nothing when that can't be determined (several -C, a dynamic dir, not a repo); callers treat it like main.
+git_branch() {
+  local opts dirs dir
+  opts=$(grep -oE '^git([[:space:]]+-[cC][[:space:]]+[^[:space:]]+)+' <<<"$1")
+  mapfile -t dirs < <(grep -oE -- '-C[[:space:]]+[^[:space:]]+' <<<"$opts" | sed -E 's/^-C[[:space:]]+//')
+  (( ${#dirs[@]} > 1 )) && return
+  dir=${dirs[0]:-.}
+  dir=${dir//[\"\']/}
+  [[ $dir == *[\$\`]* ]] && return
+  git -C "$cwd" -C "${dir/#\~/$HOME}" rev-parse --abbrev-ref HEAD 2>/dev/null
+}
 
-# Check each command segment, ignoring leading VAR=value assignments and git -c/-C options (the -C dir is kept for branch_in).
+# Check each command segment, ignoring leading VAR=value assignments and git -c/-C options (raw keeps them for git_branch).
 while IFS= read -r seg; do
-  seg=$(sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//' <<<"$seg")
-  dir=.
-  [[ $seg =~ ^git([[:space:]]+-c[[:space:]]+[^[:space:]]+)*[[:space:]]+-C[[:space:]]+([^[:space:]]+) ]] && dir=${BASH_REMATCH[2]/#\~/$HOME}
-  seg=$(sed -E 's/^git([[:space:]]+-[cC][[:space:]]+[^[:space:]]+)+/git/' <<<"$seg")
+  raw=$(sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//' <<<"$seg")
+  seg=$(sed -E 's/^git([[:space:]]+-[cC][[:space:]]+[^[:space:]]+)+/git/' <<<"$raw")
   case "$seg" in
     "gh pr merge"*) block "merging pull requests is owner-only" ;;
     "gh issue close"*) block "closing issues needs an explicit owner instruction; follow the documented close path" ;;
@@ -31,13 +39,15 @@ while IFS= read -r seg; do
         block "upstream chatwoot/chatwoot is read-only"
       fi ;;
     "git push"*)
-      [[ $seg =~ [[:space:]]upstream([[:space:]]|$) ]] && block "upstream chatwoot/chatwoot is read-only"
-      [[ $seg =~ [[:space:]](-f|--force|--force-with-lease)([[:space:]=]|$)|[[:space:]]\+ ]] && block "force-push is not allowed"
-      [[ $seg =~ [[:space:]](--all|--mirror)([[:space:]]|$) ]] && block "pushing every branch includes main"
-      [[ $seg =~ [[:space:]:](refs/heads/)?main([[:space:]]|$) ]] && block "pushing to main is not allowed; push the issue branch and open a PR"
-      # Without a refspec (or with HEAD), git pushes the current branch, so that must not be main.
-      # Redirections are dropped first so `2>&1` or `> log` aren't mistaken for refspecs.
-      read -ra args <<<"$(sed -E 's/^git push//; s/&?[0-9]*>&[0-9-]+//g; s/&?[0-9]*(>>?|<)[[:space:]]*[^[:space:]]+//g' <<<"$seg")"
+      unquoted=${seg//[\"\']/}
+      [[ $unquoted =~ [[:space:]]upstream([[:space:]]|$) ]] && block "upstream chatwoot/chatwoot is read-only"
+      [[ $unquoted =~ [[:space:]](-f|--force|--force-with-lease)([[:space:]=]|$)|[[:space:]]\+ ]] && block "force-push is not allowed"
+      [[ $unquoted =~ [[:space:]](--all|--branches|--mirror)([[:space:]=]|$) ]] && block "pushing every branch includes main"
+      [[ $unquoted =~ [[:space:]:](refs/heads/)?main([[:space:]]|$) ]] && block "pushing to main is not allowed; push the issue branch and open a PR"
+      [[ $seg == *[\$\`]* ]] && block "push arguments must be literal so the guard can check them"
+      # From main (or an undetermined branch), allow only explicit non-main branch names: no refspec, HEAD, @,
+      # or src:dst forms would push main. Redirections are dropped so `2>&1` or `> log` aren't taken as refspecs.
+      read -ra args <<<"$(sed -E 's/^git push//; s/&?[0-9]*>&[0-9-]+//g; s/&?[0-9]*(>>?|<)[[:space:]]*[^[:space:]]+//g' <<<"$unquoted")"
       remote= refspecs=() skip=
       for arg in "${args[@]}"; do
         if [[ -n $skip ]]; then skip=; continue; fi
@@ -47,10 +57,17 @@ while IFS= read -r seg; do
           *) if [[ -z $remote ]]; then remote=$arg; else refspecs+=("$arg"); fi ;;
         esac
       done
-      if [[ $(branch_in "$dir") == main && ( ${#refspecs[@]} -eq 0 || " ${refspecs[*]} " == *" HEAD "* ) ]]; then
-        block "pushing main is not allowed; push the issue branch and open a PR"
+      branch=$(git_branch "$raw")
+      if [[ -z $branch || $branch == main ]]; then
+        (( ${#refspecs[@]} )) || block "pushing main is not allowed; push the issue branch and open a PR"
+        for ref in "${refspecs[@]}"; do
+          [[ $ref =~ ^[A-Za-z0-9._/-]+$ && ! $ref =~ ^(HEAD|main)$ ]] ||
+            block "from main, push only explicit non-main branch names (or run the push from the issue worktree)"
+        done
       fi ;;
-    "git commit"*) [[ $(branch_in "$dir") == main ]] && block "committing on main is not allowed; work on the issue branch" ;;
+    "git commit"*)
+      branch=$(git_branch "$raw")
+      [[ -z $branch || $branch == main ]] && block "committing on main (or an undetermined branch) is not allowed; work on the issue branch" ;;
   esac
 done < <(sed -E 's/&&|\|\||[;|()]/\n/g' <<<"$cmd")
 
