@@ -28,6 +28,7 @@ git_branch() {
   mapfile -t dirs < <(grep -oE -- '-C[[:space:]]+[^[:space:]]+' <<<"$opts" | sed -E 's/^-C[[:space:]]+//')
   (( ${#dirs[@]} > 1 )) && return
   dir=${dirs[0]:-.}
+  [[ $dir == "~" || $dir =~ ^(~/)?[^~]*$ ]] || return
   git -C "$cwd" -C "${dir/#\~/$HOME}" rev-parse --abbrev-ref HEAD 2>/dev/null
 }
 
@@ -36,17 +37,20 @@ git_branch() {
 plain='^[a-z][a-z0-9-]*$'
 unsafe=$'["\'\\\\$`]'
 
-# Check each command segment; raw drops leading VAR=value/env/command prefixes and a path on git/gh,
-# seg additionally drops the global git options.
+# Check each command segment; raw collapses whitespace and drops leading VAR=value/env/command/{/! prefixes and
+# a path on git/gh, seg additionally drops the global git options.
 while IFS= read -r seg; do
-  raw=$(sed -E 's/^[[:space:]]*((env|command)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//; s#^[^[:space:]]*/(git|gh)([[:space:]]|$)#\1\2#' <<<"$seg")
+  raw=$(sed -E 's/[[:space:]]+/ /g; s/^ ?((env|command|\{|!) |[A-Za-z_][A-Za-z0-9_]*=[^ ]*( |$))*//; s#^[^[:space:]]*/(git|gh)([[:space:]]|$)#\1\2#' <<<"$seg")
   read -r first _ <<<"$raw"
   [[ $first =~ $unsafe && ${first//[\"\'\\]/} =~ (^|/)(git|gh)$ ]] && block "write git and gh as plain words"
+  name=${first##*/}
+  [[ $name == *[*?[]* ]] && [[ git == $name || gh == $name ]] && block "command names must not be glob patterns that match git or gh"
+  [[ $first =~ \{[^}]*(,|\.\.)[^}]*\} ]] && block "command names must not use brace expansion"
   seg=$(sed -E "s/^git$git_opts/git/" <<<"$raw")
   if [[ $raw =~ ^git([[:space:]]|$) ]]; then
     opts=$(grep -oE "^git$git_opts" <<<"$raw")
     read -r _ sub _ <<<"$seg"
-    [[ $opts =~ $unsafe ]] && block "git options must be plain words (no quotes, escapes, or expansions)"
+    [[ $opts =~ $unsafe || $opts == *[*?[{}]* ]] && block "git options must be plain words (no quotes, escapes, globs, or expansions)"
     [[ -z $sub || $sub =~ $plain ]] || block "the git subcommand must be a plain word"
     # In-command config can redirect a push or hide it behind an alias or include (push.*, remote.*, url.*,
     # alias.*, include.*); allow only core.hooksPath. GIT_CONFIG* is the env form of -c.
