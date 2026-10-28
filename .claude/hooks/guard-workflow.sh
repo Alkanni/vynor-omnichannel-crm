@@ -39,9 +39,12 @@ while IFS= read -r seg; do
   raw=$(sed -E 's/^[[:space:]]*((env|command)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//; s#^[^[:space:]]*/git([[:space:]]|$)#git\1#' <<<"$seg")
   seg=$(sed -E "s/^git$git_opts/git/" <<<"$raw")
   if [[ $raw =~ ^git([[:space:]]|$) ]]; then
-    # In-command config can define aliases that hide push/commit; GIT_CONFIG* is the env form of -c.
-    unquoted_raw=${raw//[\"\']/}
-    [[ ${unquoted_raw,,} =~ (-c|--config-env)[[:space:]=]+alias\. ]] && block "git alias overrides are not allowed"
+    # In-command config can redirect a push or hide it behind an alias or include (push.*, remote.*, url.*,
+    # alias.*, include.*); allow only core.hooksPath. GIT_CONFIG* is the env form of -c.
+    mapfile -t keys < <(grep -oE "^git$git_opts" <<<"${raw//[\"\']/}" | grep -oE -- '(-c|--config-env)[[:space:]=]+[^[:space:]=]+' | sed -E 's/^(-c|--config-env)[[:space:]=]+//')
+    for key in "${keys[@]}"; do
+      [[ ${key,,} == core.hookspath ]] || block "git config overrides other than core.hooksPath are not allowed"
+    done
     [[ $cmd =~ GIT_CONFIG ]] && block "GIT_CONFIG* overrides are not allowed on git commands"
     # Options the pattern can't parse (e.g. quoted values with spaces) would hide the subcommand.
     if [[ ! $seg =~ ^git[[:space:]]+[a-z][a-z0-9-]*([[:space:]]|$) && $raw =~ [[:space:]](push|commit)([[:space:]]|$) ]]; then
@@ -68,11 +71,6 @@ while IFS= read -r seg; do
       [[ $unquoted =~ [[:space:]](--all|--branches|--mirror)([[:space:]=]|$) ]] && block "pushing every branch includes main"
       [[ $unquoted =~ [[:space:]:](refs/heads/)?main([[:space:]]|$) ]] && block "pushing to main is not allowed; push the issue branch and open a PR"
       [[ $seg == *[\$\`\\]* ]] && block "push arguments must be literal so the guard can check them"
-      # Config overrides can redirect a push (push.default, remote.*, url.*.insteadOf, ...); allow only core.hooksPath.
-      mapfile -t keys < <(grep -oE "^git$git_opts" <<<"${raw//[\"\']/}" | grep -oE -- '(-c|--config-env)[[:space:]=]+[^[:space:]=]+' | sed -E 's/^(-c|--config-env)[[:space:]=]+//')
-      for key in "${keys[@]}"; do
-        [[ ${key,,} == core.hookspath ]] || block "git config overrides other than core.hooksPath are not allowed on push"
-      done
       # From main (or an undetermined branch), allow only explicit non-main branch names: no refspec, HEAD, @,
       # or src:dst forms would push main. Redirections are dropped so `2>&1` or `> log` aren't taken as refspecs.
       read -ra args <<<"$(sed -E 's/^git push//; s/&?[0-9]*>&[0-9-]+//g; s/&?[0-9]*(>>?|<)[[:space:]]*[^[:space:]]+//g' <<<"$unquoted")"
