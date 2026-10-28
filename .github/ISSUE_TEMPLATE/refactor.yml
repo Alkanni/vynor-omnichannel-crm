@@ -1,0 +1,30 @@
+name: 🧹 Refactor
+description: Perbaiki struktur kode tanpa mengubah perilaku
+title: 'refactor(scope): '
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Bagian kode yang ingin dirapikan dan bentuk akhirnya.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Background / Problem
+      description: Mengapa struktur saat ini menyulitkan (duplikasi, sulit diuji, lambat, dan sebagainya).
+    validations:
+      required: true
+  - type: textarea
+    id: affected
+    attributes:
+      label: Affected Code
+      description: File, modul, atau alur yang terdampak.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Termasuk bukti bahwa perilaku tidak berubah. Boleh dikosongkan; agent melengkapinya saat triage.
+      placeholder: |
+        - [ ] Perilaku ... tetap sama, dibuktikan oleh ...
