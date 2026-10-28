@@ -89,7 +89,7 @@ Every repository change follows, without skipping stages:
 | `05 Testing & Validation` | Agent | Implementation within scope, diff self-reviewed |
 | `06 Code Review` | Agent | Relevant checks pass locally, PR open, PR CI green (pre-existing failures documented) |
 | `07 Approved & Merge` | Owner | Owner reviewed and squash-merged the PR |
-| `08 Post-Merge Verification` | Agent | Evidence comment on the issue: merge SHA, CI on `main`, each acceptance criterion re-checked on `main` |
+| `08 Post-Merge Verification` | Agent | Evidence comment on the issue: merge SHA, CI on `main` (defined in §6), each acceptance criterion re-checked on `main` |
 | `09 Done` | Automation | Owner closed the issue |
 
 - Move back when needed: review asks for changes → `04 In Progress`; requirements are ambiguous or changed → `02 Triage & Analysis`.
@@ -139,6 +139,7 @@ Every repository change follows, without skipping stages:
 - Re-check the PR diff against the issue, the acceptance criteria, CI status, conflicts, and unresolved comments. The agent acts through the owner's GitHub account, so AI self-review is never presented as human approval.
 - The agent never merges PRs or closes issues; the owner reviews and squash-merges. Flag HIGH risk (auth/authorization, payments, destructive migrations, sensitive data, security controls, infrastructure, secrets, major architecture, breaking API changes) at the top of the PR's Review Notes.
 - After the owner merges: confirm the merge commit and CI on `main`, re-check each acceptance criterion on `main` (UAT/smoke test when relevant), post the evidence as an issue comment, and move the item to `08 Post-Merge Verification`. If verification fails, keep the issue open, comment the failure, and move the item back to `04 In Progress`.
+- CI on `main` is a green `push` run of "Run Chatwoot CE spec" for the merge SHA; link the run. If a newer merge cancelled that run, a green run for a later `main` SHA that contains the merge SHA counts instead.
 - The owner closes the issue once the Definition of Done is met.
 
 ### 7. Final Report

@@ -4,10 +4,15 @@ permissions:
 on:
   push:
     branches:
-      - develop
-      - master
+      - main
   pull_request:
   workflow_dispatch:
+
+# Merges to main in quick succession only test the newest commit;
+# other events get a unique group, so PR and manual runs are never cancelled
+concurrency:
+  group: ${{ github.event_name == 'push' && format('{0}-{1}', github.workflow, github.ref) || github.run_id }}
+  cancel-in-progress: true
 
 # Container jobs default to sh; the shard script relies on bash arrays
 defaults:
