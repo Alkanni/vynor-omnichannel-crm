@@ -19,7 +19,7 @@ block() {
 git_opts='([[:space:]]+((-c|-C|--git-dir|--work-tree|--namespace|--config-env)[[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?|-[pP]))+'
 
 # Branch checked out where a git command runs; `git -C <dir>` resolves against the session cwd.
-# Prints nothing when that can't be determined (--git-dir/--work-tree, several -C, a dynamic dir, not a repo);
+# Prints nothing when that can't be determined (--git-dir/--work-tree, several -C, not a repo);
 # callers treat it like main.
 git_branch() {
   local opts dirs dir
@@ -28,34 +28,42 @@ git_branch() {
   mapfile -t dirs < <(grep -oE -- '-C[[:space:]]+[^[:space:]]+' <<<"$opts" | sed -E 's/^-C[[:space:]]+//')
   (( ${#dirs[@]} > 1 )) && return
   dir=${dirs[0]:-.}
-  dir=${dir//[\"\']/}
-  [[ $dir == *[\$\`]* ]] && return
   git -C "$cwd" -C "${dir/#\~/$HOME}" rev-parse --abbrev-ref HEAD 2>/dev/null
 }
 
-# Check each command segment; raw drops leading VAR=value/env/command prefixes and a path on git,
+# The shell removes quotes and escapes before git/gh see their words, so every word the checks below rely on must
+# already be plain: the program name, git's global options and subcommand, and gh's command group and verb.
+plain='^[a-z][a-z0-9-]*$'
+unsafe=$'["\'\\\\$`]'
+
+# Check each command segment; raw drops leading VAR=value/env/command prefixes and a path on git/gh,
 # seg additionally drops the global git options.
 while IFS= read -r seg; do
-  raw=$(sed -E 's/^[[:space:]]*((env|command)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//; s#^[^[:space:]]*/git([[:space:]]|$)#git\1#' <<<"$seg")
+  raw=$(sed -E 's/^[[:space:]]*((env|command)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//; s#^[^[:space:]]*/(git|gh)([[:space:]]|$)#\1\2#' <<<"$seg")
+  read -r first _ <<<"$raw"
+  [[ $first =~ $unsafe && ${first//[\"\'\\]/} =~ (^|/)(git|gh)$ ]] && block "write git and gh as plain words"
   seg=$(sed -E "s/^git$git_opts/git/" <<<"$raw")
   if [[ $raw =~ ^git([[:space:]]|$) ]]; then
+    opts=$(grep -oE "^git$git_opts" <<<"$raw")
+    read -r _ sub _ <<<"$seg"
+    [[ $opts =~ $unsafe ]] && block "git options must be plain words (no quotes, escapes, or expansions)"
+    [[ -z $sub || $sub =~ $plain ]] || block "the git subcommand must be a plain word"
     # In-command config can redirect a push or hide it behind an alias or include (push.*, remote.*, url.*,
     # alias.*, include.*); allow only core.hooksPath. GIT_CONFIG* is the env form of -c.
-    mapfile -t keys < <(grep -oE "^git$git_opts" <<<"${raw//[\"\']/}" | grep -oE -- '(-c|--config-env)[[:space:]=]+[^[:space:]=]+' | sed -E 's/^(-c|--config-env)[[:space:]=]+//')
+    mapfile -t keys < <(grep -oE -- '(-c|--config-env)[[:space:]=]+[^[:space:]=]+' <<<"$opts" | sed -E 's/^(-c|--config-env)[[:space:]=]+//')
     for key in "${keys[@]}"; do
       [[ ${key,,} == core.hookspath ]] || block "git config overrides other than core.hooksPath are not allowed"
     done
     [[ $cmd =~ GIT_CONFIG ]] && block "GIT_CONFIG* overrides are not allowed on git commands"
-    # Options the pattern can't parse (quoted or escaped values with spaces) would hide the subcommand or later
-    # config overrides from the checks above.
-    [[ $(grep -oE "^git$git_opts" <<<"$raw") == *\\* ]] && block "backslashes in git options are not allowed"
-    if [[ ! $seg =~ ^git[[:space:]]+[a-z][a-z0-9-]*([[:space:]]|$) && $raw =~ [[:space:]](push|commit|-c|--config-env)([[:space:]=]|$) ]]; then
-      block "could not parse the git options; drop or simplify them"
-    fi
     # These variables, set anywhere in the command, can retarget a push or commit.
     if [[ $seg =~ ^git[[:space:]]+(push|commit)([[:space:]]|$) && $cmd =~ GIT_(DIR|WORK_TREE) ]]; then
       block "GIT_DIR and GIT_WORK_TREE must not be set around push or commit"
     fi
+  fi
+  if [[ $raw =~ ^gh[[:space:]] ]]; then
+    read -r _ group verb _ <<<"$raw"
+    [[ $group =~ $plain ]] || block "the gh command group must be a plain word"
+    [[ ! $group =~ ^(pr|issue|release)$ || $verb =~ $plain ]] || block "gh pr/issue/release subcommands must come first, as plain words"
   fi
   case "$seg" in
     "gh pr merge"*) block "merging pull requests is owner-only" ;;
