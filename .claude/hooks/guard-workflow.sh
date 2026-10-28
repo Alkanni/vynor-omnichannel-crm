@@ -46,9 +46,11 @@ while IFS= read -r seg; do
       [[ ${key,,} == core.hookspath ]] || block "git config overrides other than core.hooksPath are not allowed"
     done
     [[ $cmd =~ GIT_CONFIG ]] && block "GIT_CONFIG* overrides are not allowed on git commands"
-    # Options the pattern can't parse (e.g. quoted values with spaces) would hide the subcommand.
-    if [[ ! $seg =~ ^git[[:space:]]+[a-z][a-z0-9-]*([[:space:]]|$) && $raw =~ [[:space:]](push|commit)([[:space:]]|$) ]]; then
-      block "could not parse the git options before push/commit; drop or simplify them"
+    # Options the pattern can't parse (quoted or escaped values with spaces) would hide the subcommand or later
+    # config overrides from the checks above.
+    [[ $(grep -oE "^git$git_opts" <<<"$raw") == *\\* ]] && block "backslashes in git options are not allowed"
+    if [[ ! $seg =~ ^git[[:space:]]+[a-z][a-z0-9-]*([[:space:]]|$) && $raw =~ [[:space:]](push|commit|-c|--config-env)([[:space:]=]|$) ]]; then
+      block "could not parse the git options; drop or simplify them"
     fi
     # These variables, set anywhere in the command, can retarget a push or commit.
     if [[ $seg =~ ^git[[:space:]]+(push|commit)([[:space:]]|$) && $cmd =~ GIT_(DIR|WORK_TREE) ]]; then
