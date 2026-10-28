@@ -1,0 +1,48 @@
+name: ✨ Feature
+description: Usulkan fitur baru atau peningkatan fitur yang ada
+title: 'feat(scope): '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Apa yang ingin dibangun, dalam satu sampai tiga kalimat.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Background / Problem
+      description: Masalah atau kebutuhan bisnis yang mendasari permintaan ini, dan siapa yang terdampak.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected Outcome
+      description: Hasil yang diharapkan dari sudut pandang pengguna.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope (In/Out)
+      description: Yang termasuk dan yang tidak termasuk. Boleh dikosongkan; agent melengkapinya saat triage.
+      placeholder: |
+        In:
+        -
+        Out:
+        -
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Kondisi yang bisa diuji. Boleh dikosongkan; agent melengkapinya saat triage.
+      placeholder: |
+        - [ ] Given ..., When ..., Then ...
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies / Blockers
+      description: Issue lain, akses, atau keputusan yang harus ada lebih dulu. Tulis "none" jika tidak ada.
