@@ -39,14 +39,17 @@ while IFS= read -r seg; do
   raw=$(sed -E 's/^[[:space:]]*((env|command)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//; s#^[^[:space:]]*/git([[:space:]]|$)#git\1#' <<<"$seg")
   seg=$(sed -E "s/^git$git_opts/git/" <<<"$raw")
   if [[ $raw =~ ^git([[:space:]]|$) ]]; then
-    [[ ${raw,,} =~ -c[[:space:]]+[\"\']?alias\. ]] && block "git alias overrides are not allowed"
+    # In-command config can define aliases that hide push/commit; GIT_CONFIG* is the env form of -c.
+    unquoted_raw=${raw//[\"\']/}
+    [[ ${unquoted_raw,,} =~ (-c|--config-env)[[:space:]=]+alias\. ]] && block "git alias overrides are not allowed"
+    [[ $cmd =~ GIT_CONFIG ]] && block "GIT_CONFIG* overrides are not allowed on git commands"
     # Options the pattern can't parse (e.g. quoted values with spaces) would hide the subcommand.
     if [[ ! $seg =~ ^git[[:space:]]+[a-z][a-z0-9-]*([[:space:]]|$) && $raw =~ [[:space:]](push|commit)([[:space:]]|$) ]]; then
       block "could not parse the git options before push/commit; drop or simplify them"
     fi
     # These variables, set anywhere in the command, can retarget a push or commit.
-    if [[ $seg =~ ^git[[:space:]]+(push|commit)([[:space:]]|$) && $cmd =~ GIT_(DIR|WORK_TREE|CONFIG) ]]; then
-      block "GIT_DIR, GIT_WORK_TREE, and GIT_CONFIG* must not be set around push or commit"
+    if [[ $seg =~ ^git[[:space:]]+(push|commit)([[:space:]]|$) && $cmd =~ GIT_(DIR|WORK_TREE) ]]; then
+      block "GIT_DIR and GIT_WORK_TREE must not be set around push or commit"
     fi
   fi
   case "$seg" in
