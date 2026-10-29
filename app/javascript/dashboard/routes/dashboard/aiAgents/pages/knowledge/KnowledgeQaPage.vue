@@ -16,7 +16,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['knowledgeChanged']);
+const emit = defineEmits(['knowledgeChanged', 'viewChunks']);
 
 const SOURCE_TYPE = 'qa';
 const MAX_QUESTION_LENGTH = 1000;
@@ -226,7 +226,27 @@ watch(() => props.agent.id, fetchItems, { immediate: true });
           resize
           min-height="4rem"
         />
-        <div class="flex justify-end">
+        <div class="flex justify-end gap-1">
+          <Button
+            v-if="item.id"
+            v-tooltip.top="
+              t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', {
+                title: item.savedQuestion,
+              })
+            "
+            :aria-label="
+              t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', {
+                title: item.savedQuestion,
+              })
+            "
+            icon="i-lucide-layers"
+            color="slate"
+            variant="ghost"
+            size="sm"
+            @click="
+              emit('viewChunks', { id: item.id, title: item.savedQuestion })
+            "
+          />
           <Button
             v-tooltip.top="t('AI_AGENTS.KNOWLEDGE.QA.DELETE')"
             :aria-label="t('AI_AGENTS.KNOWLEDGE.QA.DELETE')"

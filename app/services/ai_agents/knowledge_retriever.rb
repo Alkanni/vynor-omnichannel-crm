@@ -1,7 +1,6 @@
 # Finds the knowledge chunks an AI Agent sends to the model for a question, up to its Context Limit: the nearest chunks
-# by embedding when an embedding model is set, otherwise the chunks sharing the most words with the question.
-# Only chunks embedded with the current embedding model are compared, since vectors of another model differ in
-# meaning and often in size; they count again once the agent is trained with the current model.
+# by embedding when an embedding model is set, otherwise the chunks sharing the most words with the question
+# (see AiAgent::KnowledgeChunk.searchable for the chunks compared).
 class AiAgents::KnowledgeRetriever
   # rank starts at 1. score is the cosine distance in vector mode (lower is closer) and the ts_rank in keyword mode
   # (higher is closer).
@@ -18,7 +17,7 @@ class AiAgents::KnowledgeRetriever
   private
 
   def hits(embedding_model)
-    chunks = embedding_model ? ai_agent.knowledge_chunks.where(embedding_model: embedding_model) : ai_agent.knowledge_chunks
+    chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
     return [] if query.blank? || !chunks.exists?
 
     chunks = if embedding_model

@@ -328,4 +328,86 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
   end
+
+  describe 'POST /api/v1/accounts/{account.id}/ai_agents/:id/retrieval_test' do
+    let(:url) { "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}/retrieval_test" }
+    let(:source) { create(:ai_agent_knowledge_source, ai_agent: ai_agent, title: 'Info toko') }
+    let(:text_source) { { 'id' => source.id, 'type' => 'text', 'title' => 'Info toko' } }
+
+    before do
+      ai_agent.update!(context_limit: 2)
+      ['Jam buka toko: Senin sampai Sabtu', 'Alamat toko: Jalan Merdeka 10', 'Promo bulan ini'].each do |content|
+        ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at, content: content)
+      end
+    end
+
+    it 'returns the chunks a reply to the question would send to the model, in the same order' do
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      chat_requests = []
+      stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
+        chat_requests << JSON.parse(request.body)
+        arguments = { messages: ['Senin sampai Sabtu.'] }.to_json
+        { status: 200, headers: { 'Content-Type' => 'application/json' },
+          body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: { role: 'assistant', content: nil, tool_calls: [
+            { id: 'call_1', type: 'function', function: { name: 'ai_agent_reply', arguments: arguments } }
+          ] } }] }.to_json }
+      end
+
+      post url, params: { query: 'Toko buka jam berapa?' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      body = response.parsed_body
+      expect(body).to include('context_limit' => 2, 'mode' => 'keyword', 'embedding_model' => nil)
+      expect(body['chunks'].map { |chunk| [chunk['rank'], chunk['content'], chunk['source']] })
+        .to eq([[1, 'Jam buka toko: Senin sampai Sabtu', text_source], [2, 'Alamat toko: Jalan Merdeka 10', text_source]])
+      expect(body['chunks'].pluck('score')).to all(be > 0)
+
+      AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Toko buka jam berapa?' }]).perform
+      prompt = chat_requests.sole['messages'].first['content']
+      expect(prompt.scan(/^\[(\d+)\] (.+)$/)).to eq(body['chunks'].map { |chunk| [chunk['rank'].to_s, chunk['content']] })
+    end
+
+    it 'searches by embedding when an embedding model is set' do
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
+      query_vector = Array.new(1536) { |index| index.zero? ? 1.0 : 0.0 }
+      ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at,
+                                        content: 'Jam buka', embedding: query_vector, embedding_model: 'text-embedding-3-small')
+      stub_request(:post, 'https://api.openai.com/v1/embeddings')
+        .to_return(status: 200, headers: { 'Content-Type' => 'application/json' }, body: { data: [{ embedding: query_vector }] }.to_json)
+
+      post url, params: { query: 'Jam buka?' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include('mode' => 'vector', 'embedding_model' => 'text-embedding-3-small')
+      expect(response.parsed_body['chunks'].sole).to include('rank' => 1, 'content' => 'Jam buka', 'score' => be_within(1e-6).of(0))
+    end
+
+    it 'rejects a missing, blank, non-text, or too long query' do
+      [{}, { query: '' }, { query: '   ' }, { query: ['Jam buka?'] }, { query: 'a' * 4_001 }].each do |params|
+        post url, params: params, headers: admin.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
+    end
+
+    it 'explains when the embedding API key is not configured' do
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
+      ai_agent.knowledge_chunks.update_all(embedding_model: 'text-embedding-3-small') # rubocop:disable Rails/SkipsModelValidations
+
+      post url, params: { query: 'Jam buka?' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to include('API key is not configured')
+    end
+
+    it 'is not available to agents or for AI agents of another account' do
+      post url, params: { query: 'Jam buka?' }, headers: agent.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unauthorized)
+
+      foreign_url = "/api/v1/accounts/#{account.id}/ai_agents/#{create(:ai_agent).id}/retrieval_test"
+      post foreign_url, params: { query: 'Jam buka?' }, headers: admin.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

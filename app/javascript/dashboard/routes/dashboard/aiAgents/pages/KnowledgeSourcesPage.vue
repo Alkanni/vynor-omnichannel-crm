@@ -4,8 +4,11 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import AiAgentKnowledgeAPI from 'dashboard/api/aiAgentKnowledge';
 
+import Button from 'dashboard/components-next/button/Button.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import KnowledgeStatsPanel from '../components/KnowledgeStatsPanel.vue';
+import RetrievalTestDialog from '../components/RetrievalTestDialog.vue';
+import SourceChunksDialog from '../components/SourceChunksDialog.vue';
 
 const props = defineProps({
   agent: {
@@ -19,6 +22,8 @@ const route = useRoute();
 const router = useRouter();
 
 const stats = ref({});
+const retrievalTestDialogRef = ref(null);
+const chunksDialogRef = ref(null);
 
 const tabs = computed(() => [
   {
@@ -58,14 +63,28 @@ watch(() => props.agent.id, fetchStats, { immediate: true });
 <template>
   <div class="h-full overflow-y-auto">
     <div class="flex flex-col w-full gap-5 px-6 pt-2 pb-10 mx-auto max-w-6xl">
-      <TabBar
-        :tabs="tabs"
-        :initial-active-tab="activeTabIndex"
-        @tab-changed="changeTab"
-      />
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <TabBar
+          :tabs="tabs"
+          :initial-active-tab="activeTabIndex"
+          @tab-changed="changeTab"
+        />
+        <Button
+          :label="t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.OPEN')"
+          icon="i-lucide-search-check"
+          color="slate"
+          variant="faded"
+          size="sm"
+          @click="retrievalTestDialogRef.open()"
+        />
+      </div>
       <div class="flex flex-col-reverse items-start gap-6 lg:flex-row">
         <div class="flex-1 w-full min-w-0">
-          <router-view :agent="agent" @knowledge-changed="fetchStats" />
+          <router-view
+            :agent="agent"
+            @knowledge-changed="fetchStats"
+            @view-chunks="chunksDialogRef.open($event)"
+          />
         </div>
         <KnowledgeStatsPanel
           :stats="stats"
@@ -73,5 +92,7 @@ watch(() => props.agent.id, fetchStats, { immediate: true });
         />
       </div>
     </div>
+    <RetrievalTestDialog ref="retrievalTestDialogRef" :agent-id="agent.id" />
+    <SourceChunksDialog ref="chunksDialogRef" :agent-id="agent.id" />
   </div>
 </template>

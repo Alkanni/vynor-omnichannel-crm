@@ -1,7 +1,7 @@
 class Api::V1::Accounts::AiAgents::KnowledgeSourcesController < Api::V1::Accounts::AiAgents::BaseController
   MAX_WEBSITES_PER_REQUEST = AiAgents::LinkCollector::MAX_LINKS
 
-  before_action :fetch_knowledge_source, only: [:update, :destroy, :resync]
+  before_action :fetch_knowledge_source, only: [:update, :destroy, :resync, :chunks]
 
   def index
     source_type = params.require(:source_type)
@@ -60,6 +60,13 @@ class Api::V1::Accounts::AiAgents::KnowledgeSourcesController < Api::V1::Account
 
     @knowledge_source.resync!
     render :update
+  end
+
+  # The chunks the source was indexed into, in order, flagged by whether knowledge search compares them now.
+  def chunks
+    @embedding_model = AiAgents::LlmClient.embedding_model
+    @chunks = @ai_agent.knowledge_chunks.where(chunkable: @knowledge_source).order(:id)
+    @searchable_ids = @chunks.searchable(@embedding_model).ids.to_set
   end
 
   private

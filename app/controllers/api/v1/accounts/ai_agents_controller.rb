@@ -57,6 +57,18 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     render_could_not_create_error(e.message)
   end
 
+  # Searches the knowledge for a customer question exactly as a reply would (see AiAgents::KnowledgeRetriever).
+  def retrieval_test
+    query = params[:query]
+    unless query.is_a?(String) && query.strip.present? && query.length <= AiAgents::ReplyGenerator::MAX_QUERY_CHARACTERS
+      return render_could_not_create_error('Invalid query')
+    end
+
+    @retrieval = AiAgents::KnowledgeRetriever.new(ai_agent: @ai_agent, query: query).perform
+  rescue AiAgents::LlmError => e
+    render_could_not_create_error(e.message)
+  end
+
   private
 
   def fetch_ai_agent

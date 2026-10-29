@@ -19,7 +19,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['knowledgeChanged']);
+const emit = defineEmits(['knowledgeChanged', 'viewChunks']);
 
 const SOURCE_TYPE = 'file';
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -238,6 +238,20 @@ watch(
           <SourceStatusBadge
             :status="source.status"
             :error-message="source.error_message"
+          />
+          <Button
+            v-if="source.status === 'ready'"
+            v-tooltip.top="
+              t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', { title: source.title })
+            "
+            :aria-label="
+              t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', { title: source.title })
+            "
+            icon="i-lucide-layers"
+            color="slate"
+            variant="ghost"
+            size="xs"
+            @click="emit('viewChunks', source)"
           />
           <Button
             v-if="source.status === 'failed'"

@@ -78,6 +78,7 @@ Rails.application.routes.draw do
               post :duplicate
               post :train
               post :playground
+              post :retrieval_test
             end
             scope module: :ai_agents do
               resources :knowledge_sources, only: [:index, :create, :update, :destroy] do
@@ -87,7 +88,10 @@ Rails.application.routes.draw do
                   post :websites
                   post :bulk_destroy
                 end
-                post :resync, on: :member
+                member do
+                  post :resync
+                  get :chunks
+                end
               end
               resources :products, only: [:index, :create, :update, :destroy] do
                 post :bulk_destroy, on: :collection

@@ -127,6 +127,58 @@ RSpec.describe 'AI Agent knowledge sources API', type: :request do
     end
   end
 
+  describe 'GET chunks' do
+    let(:source) { create(:ai_agent_knowledge_source, ai_agent: ai_agent) }
+    let(:other_source) { create(:ai_agent_knowledge_source, ai_agent: ai_agent) }
+
+    before do
+      [['Bagian satu', 'old-model', source], ['Bagian dua', 'text-embedding-3-small', source],
+       ['Sumber lain', 'text-embedding-3-small', other_source]].each do |content, embedding_model, chunkable|
+        ai_agent.knowledge_chunks.create!(account: account, chunkable: chunkable, chunkable_updated_at: chunkable.updated_at,
+                                          content: content, embedding_model: embedding_model)
+      end
+    end
+
+    it 'returns the chunks of the source in order, flagged by whether the current embedding model searches them' do
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
+
+      get "#{base_url}/#{source.id}/chunks", headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['embedding_model']).to eq('text-embedding-3-small')
+      expect(response.parsed_body['payload'].map { |chunk| chunk.slice('position', 'content', 'embedding_model', 'searchable') }).to eq(
+        [{ 'position' => 1, 'content' => 'Bagian satu', 'embedding_model' => 'old-model', 'searchable' => false },
+         { 'position' => 2, 'content' => 'Bagian dua', 'embedding_model' => 'text-embedding-3-small', 'searchable' => true }]
+      )
+      expect(response.parsed_body['payload'].pluck('indexed_at')).to all(be_a(Integer))
+    end
+
+    it 'flags every chunk as searchable when knowledge is searched by keywords' do
+      get "#{base_url}/#{source.id}/chunks", headers: admin.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['embedding_model']).to be_nil
+      expect(response.parsed_body['payload'].pluck('searchable')).to eq([true, true])
+    end
+
+    it 'returns no chunks for a source that is not indexed yet' do
+      new_source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
+
+      get "#{base_url}/#{new_source.id}/chunks", headers: admin.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['payload']).to eq([])
+    end
+
+    it 'does not return sources of another AI agent or to agents' do
+      foreign_source = create(:ai_agent_knowledge_source, ai_agent: create(:ai_agent, account: account))
+
+      get "#{base_url}/#{foreign_source.id}/chunks", headers: admin.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+
+      get "#{base_url}/#{source.id}/chunks", headers: agent.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   it 'deletes knowledge sources and products with their AI agent' do
     source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
     product = create(:ai_agent_product, ai_agent: ai_agent)
