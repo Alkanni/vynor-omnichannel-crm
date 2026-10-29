@@ -1,0 +1,43 @@
+name: Project status
+
+# Moves the issues a merged PR references with "Refs #<n>" to "07 Approved & Merge"
+# in the VYNOR Development project. Issues already at or past 07 are left alone.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  approved-and-merged:
+    # Self-hosted runner: skip fork PRs (they get no secrets anyway)
+    if: github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      # The workspace root holds root-owned files from container CI jobs, so check out into a subdirectory
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          path: project-status
+          sparse-checkout: .github/scripts
+
+      - name: Move referenced issues to 07
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::PROJECT_TOKEN secret is not set"
+            exit 1
+          fi
+          issues=$(grep -oE 'Refs #[0-9]+' <<<"$PR_BODY" | grep -oE '[0-9]+' | sort -un || true)
+          if [ -z "$issues" ]; then
+            echo "::notice::No 'Refs #<n>' in the PR body; nothing to move"
+            exit 0
+          fi
+          for issue in $issues; do
+            project-status/.github/scripts/project-status.sh --forward "$issue" 07
+          done

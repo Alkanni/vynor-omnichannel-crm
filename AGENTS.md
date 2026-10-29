@@ -88,7 +88,7 @@ Every repository change follows, without skipping stages:
 | `04 In Progress` | Agent | Ready gate passed, dependencies closed, no other active item, branch created |
 | `05 Testing & Validation` | Agent | Implementation within scope, diff self-reviewed |
 | `06 Code Review` | Agent | Relevant checks pass locally, PR open, PR CI green (pre-existing failures documented) |
-| `07 Approved & Merge` | Owner | Owner reviewed and squash-merged the PR |
+| `07 Approved & Merge` | Automation | Owner reviewed and squash-merged the PR; the `Project status` Action moves every issue the PR body references with `Refs #<n>` |
 | `08 Post-Merge Verification` | Agent | Evidence comment on the issue: merge SHA, CI on `main` (defined in §6), each acceptance criterion re-checked on `main` |
 | `09 Done` | Automation | Issue closed by the owner, or by the agent on the owner's explicit instruction (§6) |
 
@@ -96,7 +96,7 @@ Every repository change follows, without skipping stages:
 - Ready gate: implementation starts only for an item in `03 Ready for Development`. An explicit owner instruction in chat to implement a specific issue counts as approval; quote it in an issue comment, then move the item to `03` on the owner's behalf.
 - WIP: at most one active item (`04` or `05`) per agent; items in `06` wait on the owner and don't count. Never start an item whose dependencies are still open.
 - Blocked: add the `blocked` label, keep the current status, and comment the blocking reason, impact, required action, and current implementation state. Remove the label once unblocked.
-- Update the status with `gh project item-edit` (look up the item, field, and option IDs with `gh project item-list` / `gh project field-list --format json`; needs the `project` token scope). If an update fails, list it as a required owner action instead of skipping it.
+- Update the status with `.github/scripts/project-status.sh <issue> <status>`, where `<status>` is the stage prefix (`08`) or the full name; it needs the `project` and `repo` token scopes. If an update fails, list it as a required owner action instead of skipping it.
 
 ### 1. Analyze & Issue (no issue, no implementation)
 
