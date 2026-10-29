@@ -1,13 +1,25 @@
 # Builds the LLM request for an AI Agent (behavior, local time, relevant knowledge, actions, history) and returns
-# the reply as chat bubbles plus the actions it takes. Messages are { role: :user | :assistant, content:, attachments: }.
+# the reply as chat bubbles plus the actions it takes and a trace of how it was made.
+# Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
   MAX_REPLY_MESSAGES = 5
   MAX_QUERY_CHARACTERS = 4_000
   MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
-  Reply = Data.define(:messages, :handoff, :labels, :sheet_row) do
-    def initialize(messages:, handoff:, labels:, sheet_row: nil)
+  Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :trace) do
+    def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil)
       super
+    end
+  end
+  # retrieval is an AiAgents::KnowledgeRetriever::Result; latency_ms covers the knowledge search and the model call.
+  Trace = Data.define(:retrieval, :input_tokens, :output_tokens, :latency_ms) do
+    # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content.
+    def attributes
+      retrieved = retrieval.hits.map do |hit|
+        { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score }
+      end
+      { retrieval_mode: retrieval.mode, embedding_model: retrieval.embedding_model, retrieved: retrieved,
+        input_tokens: input_tokens, output_tokens: output_tokens, latency_ms: latency_ms }
     end
   end
   KNOWLEDGE_INSTRUCTIONS = <<~TEXT.freeze
@@ -23,10 +35,12 @@ class AiAgents::ReplyGenerator
   pattr_initialize [:ai_agent!, :messages!, :written_rows]
 
   def perform
-    content = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
-                          messages: llm_messages, schema: actions.json_schema('ai_agent_reply', MESSAGES_PROPERTY))
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
+    completion = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
+                             messages: llm_messages, schema: actions.json_schema('ai_agent_reply', MESSAGES_PROPERTY))
+    content = completion.content
     content = {} unless content.is_a?(Hash)
-    reply = Reply.new(messages: reply_messages(content), **actions.parse(content))
+    reply = Reply.new(messages: reply_messages(content), **actions.parse(content), trace: trace(completion, started_at))
     # A silent handoff may come without a note; any other turn needs something to send.
     raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.empty_reply') if reply.messages.empty? && !reply.handoff
 
@@ -34,6 +48,11 @@ class AiAgents::ReplyGenerator
   end
 
   private
+
+  def trace(completion, started_at)
+    Trace.new(retrieval: retrieval, input_tokens: completion.input_tokens, output_tokens: completion.output_tokens,
+              latency_ms: Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started_at)
+  end
 
   def reply_messages(content)
     Array(content['messages']).grep(String).map(&:strip).compact_blank.first(MAX_REPLY_MESSAGES)
@@ -48,27 +67,14 @@ class AiAgents::ReplyGenerator
   end
 
   def knowledge
-    chunks = relevant_chunks
-    return if chunks.empty?
+    return if retrieval.hits.empty?
 
-    entries = chunks.map.with_index(1) { |chunk, index| "[#{index}] #{chunk.content}" }
+    entries = retrieval.hits.map { |hit| "[#{hit.rank}] #{hit.chunk.content}" }
     "#{KNOWLEDGE_INSTRUCTIONS}\n<knowledge>\n#{entries.join("\n\n")}\n</knowledge>"
   end
 
-  # Only chunks embedded with the current embedding model are compared, since vectors of another model differ in
-  # meaning and often in size; they count again once the agent is trained with the current model.
-  def relevant_chunks
-    query = latest_customer_text
-    embedding_model = AiAgents::LlmClient.embedding_model
-    chunks = embedding_model ? ai_agent.knowledge_chunks.where(embedding_model: embedding_model) : ai_agent.knowledge_chunks
-    return [] if query.blank? || !chunks.exists?
-
-    chunks = if embedding_model
-               chunks.nearest_neighbors(:embedding, client.embed([query], input_type: :query).first, distance: 'cosine')
-             else
-               chunks.keyword_ranked(query)
-             end
-    chunks.limit(ai_agent.context_limit).to_a
+  def retrieval
+    @retrieval ||= AiAgents::KnowledgeRetriever.new(ai_agent: ai_agent, query: latest_customer_text).perform
   end
 
   # The customer messages since the last reply, so a burst of short messages is searched as one question.
