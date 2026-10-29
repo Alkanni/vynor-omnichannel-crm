@@ -256,18 +256,43 @@ RSpec.describe 'AI Agents API', type: :request do
     let(:url) { "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}/playground" }
     let(:messages) { [{ role: 'user', content: 'Halo' }, { role: 'assistant', content: 'Halo Kak' }, { role: 'user', content: 'Jam buka?' }] }
 
-    it 'returns the reply of the agent for the conversation so far' do
+    it 'returns the reply of the agent for the conversation so far, with its actions and the knowledge it used' do
       ai_agent.update!(history_limit: 2)
-      reply = AiAgents::ReplyGenerator::Reply.new(messages: ['Kami buka 07.30 - 18.00.'], handoff: false, labels: [])
+      source = create(:ai_agent_knowledge_source, ai_agent: ai_agent, title: 'Jam operasional')
+      product = create(:ai_agent_product, ai_agent: ai_agent, name: 'Detailing interior')
+      hits = [[source, "Jam operasional\n\nBuka 07.30 - 18.00", 0.12], [product, 'Product: Detailing interior', 0.34]]
+             .map.with_index(1) do |(chunkable, content, score), rank|
+        chunk = ai_agent.knowledge_chunks.create!(account: account, chunkable: chunkable, chunkable_updated_at: chunkable.updated_at,
+                                                  content: content)
+        AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: rank, score: score)
+      end
+      retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'vector', embedding_model: 'text-embedding-3-small', hits: hits)
+      reply = AiAgents::ReplyGenerator::Reply.new(
+        messages: ['Kami buka 07.30 - 18.00.'], handoff: true, labels: ['booking'],
+        trace: AiAgents::ReplyGenerator::Trace.new(retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
+      )
       generator = instance_double(AiAgents::ReplyGenerator, perform: reply)
       allow(AiAgents::ReplyGenerator).to receive(:new).and_return(generator)
 
       post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body).to eq('messages' => ['Kami buka 07.30 - 18.00.'])
+      expect(response.parsed_body).to eq(
+        'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'model' => ai_agent.model,
+        'retrieval' => {
+          'mode' => 'vector', 'embedding_model' => 'text-embedding-3-small',
+          'chunks' => [
+            { 'rank' => 1, 'score' => 0.12, 'content' => "Jam operasional\n\nBuka 07.30 - 18.00",
+              'source' => { 'id' => source.id, 'type' => 'text', 'title' => 'Jam operasional' } },
+            { 'rank' => 2, 'score' => 0.34, 'content' => 'Product: Detailing interior',
+              'source' => { 'id' => product.id, 'type' => 'product', 'title' => 'Detailing interior' } }
+          ]
+        },
+        'tokens' => { 'input' => 120, 'output' => 30 }, 'latency_ms' => 850
+      )
       expect(AiAgents::ReplyGenerator).to have_received(:new)
         .with(ai_agent: ai_agent, messages: [{ role: :assistant, content: 'Halo Kak' }, { role: :user, content: 'Jam buka?' }])
+      expect(AiAgent::ReplyTrace.count).to eq(0)
     end
 
     it 'returns unprocessable entity for invalid messages' do

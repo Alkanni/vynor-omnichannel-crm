@@ -6,7 +6,14 @@ RSpec.describe AiAgents::ReplyJob do
   let(:inbox) { create(:inbox, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:message_attributes) { { account: account, inbox: inbox, conversation: conversation } }
-  let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Halo!', 'Ada yang bisa dibantu?'], handoff: false, labels: []) }
+  let(:trace) do
+    chunk = AiAgent::KnowledgeChunk.new(id: 7, chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: 3)
+    retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'vector', embedding_model: 'text-embedding-3-small',
+                                                         hits: [AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: 1, score: 0.12)])
+    AiAgents::ReplyGenerator::Trace.new(retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
+  end
+  let(:traces) { AiAgent::ReplyTrace.where(conversation: conversation) }
+  let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Halo!', 'Ada yang bisa dibantu?'], handoff: false, labels: [], trace: trace) }
   let(:generator) { instance_double(AiAgents::ReplyGenerator, perform: reply) }
   let(:ai_replies) { conversation.messages.where(sender: ai_agent) }
   let(:handoff_activities) { conversation.messages.activity.where("additional_attributes ->> 'ai_agent_handoff' IS NOT NULL") }
@@ -26,6 +33,19 @@ RSpec.describe AiAgents::ReplyJob do
     expect(conversation.reload).to be_pending
   end
 
+  it 'records a trace of the reply with the retrieved chunks as references' do
+    message = create(:message, **message_attributes, content: 'Halo')
+
+    described_class.perform_now(message)
+
+    expect(traces.sole).to have_attributes(
+      account_id: account.id, ai_agent_id: ai_agent.id, message_id: message.id, status: 'replied', model: ai_agent.model,
+      retrieval_mode: 'vector', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, latency_ms: 850,
+      labels: [], error_class: nil,
+      retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12 }]
+    )
+  end
+
   it 'answers a burst of messages once, from the job of the latest message' do
     messages = ['Halo', 'Mau tanya', 'Harga detailing?'].map { |content| create(:message, **message_attributes, content: content) }
 
@@ -36,6 +56,7 @@ RSpec.describe AiAgents::ReplyJob do
       .with(ai_agent: ai_agent, messages: array_including(hash_including(content: 'Halo'), hash_including(content: 'Harga detailing?')),
             written_rows: [])
     expect(ai_replies.count).to eq(2)
+    expect(traces.sole.message).to eq(messages.last)
   end
 
   it 'drops the reply when the customer wrote again while it was generated' do
@@ -48,6 +69,7 @@ RSpec.describe AiAgents::ReplyJob do
     described_class.perform_now(message)
 
     expect(ai_replies).to be_empty
+    expect(traces).to be_empty
   end
 
   it 'does not answer conversations that are no longer pending' do
@@ -71,6 +93,8 @@ RSpec.describe AiAgents::ReplyJob do
     expect(conversation.reload).to be_open
     expect(ai_replies.count).to eq(2)
     expect(handoff_activities.sole.additional_attributes).to eq('ai_agent_handoff' => 'message_limit')
+    expect(traces.sole).to have_attributes(status: 'message_limit', message_id: message.id, retrieval_mode: nil, retrieved: [],
+                                           input_tokens: nil, latency_ms: nil)
   end
 
   it 'hands the conversation off without replying when the model fails' do
@@ -85,11 +109,12 @@ RSpec.describe AiAgents::ReplyJob do
     expect(conversation.reload).to be_open
     expect(tracker).to have_received(:capture_exception)
     expect(handoff_activities.sole.additional_attributes).to eq('ai_agent_handoff' => 'error')
+    expect(traces.sole).to have_attributes(status: 'error', error_class: 'AiAgents::LlmError', message_id: message.id, retrieved: [])
   end
 
   describe 'actions' do
     let(:message) { create(:message, **message_attributes, content: 'Saya mau komplain, sambungkan ke CS') }
-    let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, kami sambungkan ke tim CS.'], handoff: true, labels: []) }
+    let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, kami sambungkan ke tim CS.'], handoff: true, labels: [], trace: trace) }
 
     before { allow(Rails.configuration.dispatcher).to receive(:dispatch).and_call_original }
 
@@ -105,6 +130,7 @@ RSpec.describe AiAgents::ReplyJob do
       expect(handoff_activities.sole.content).to eq("#{ai_agent.name} handed the conversation over to a human agent (transfer conditions met)")
       expect(Rails.configuration.dispatcher).to have_received(:dispatch)
         .with(Events::Types::CONVERSATION_BOT_HANDOFF, anything, hash_including(conversation: conversation))
+      expect(traces.sole).to have_attributes(status: 'handoff', message_id: message.id, retrieval_mode: 'vector')
     end
 
     it 'sends no AI message on a silent handoff' do
@@ -139,20 +165,22 @@ RSpec.describe AiAgents::ReplyJob do
     it 'adds the labels of the reply in the name of the AI agent' do
       create(:label, account: account, title: 'booking')
       allow(generator).to receive(:perform)
-        .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Booking dicatat.'], handoff: false, labels: ['booking']))
+        .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Booking dicatat.'], handoff: false, labels: ['booking'], trace: trace))
 
       expect { described_class.perform_now(message) }
         .to have_enqueued_job(Conversations::ActivityMessageJob)
         .with(conversation, hash_including(content: "#{ai_agent.name} added booking"))
       expect(conversation.reload.label_list).to eq(['booking'])
       expect(conversation).to be_pending
+      expect(traces.sole).to have_attributes(status: 'replied', labels: ['booking'])
     end
   end
 
   it 'queues the sheet row the reply decided to write' do
     message = create(:message, **message_attributes, content: 'Nama Budi, booking 24 Oktober')
     allow(generator).to receive(:perform).and_return(
-      AiAgents::ReplyGenerator::Reply.new(messages: ['Booking dicatat.'], handoff: false, labels: [], sheet_row: ['Budi', '', '24 Oktober'])
+      AiAgents::ReplyGenerator::Reply.new(messages: ['Booking dicatat.'], handoff: false, labels: [], sheet_row: ['Budi', '', '24 Oktober'],
+                                          trace: trace)
     )
 
     expect { described_class.perform_now(message) }
@@ -177,7 +205,8 @@ RSpec.describe AiAgents::ReplyJob do
       expect { described_class.perform_now(create(:message, **message_attributes)) }.not_to have_enqueued_job(AiAgents::WatchJob)
 
       ai_agent.update!(transfer_conditions: 'Transfer when the customer complains.')
-      allow(generator).to receive(:perform).and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Baik.'], handoff: true, labels: []))
+      allow(generator).to receive(:perform)
+        .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Baik.'], handoff: true, labels: [], trace: trace))
       expect { described_class.perform_now(create(:message, **message_attributes)) }.not_to have_enqueued_job(AiAgents::WatchJob)
     end
   end
@@ -228,6 +257,9 @@ RSpec.describe AiAgents::ReplyJob do
           .to eq([['assistant', 'Halo! Ada yang bisa kami bantu?'], ['user', 'Halo, toko buka jam berapa?']])
         expect(ai_replies.where("additional_attributes ->> 'ai_agent_reply_to' = ?", message.id.to_s).pluck(:content))
           .to eq(['Kami buka Senin sampai Sabtu, 09.00-21.00.'])
+        expect(traces.sole).to have_attributes(status: 'replied', retrieval_mode: 'vector', input_tokens: 10, output_tokens: 5,
+                                               latency_ms: be >= 0)
+        expect(traces.sole.retrieved).to match([hash_including('chunk_id' => ai_agent.knowledge_chunks.sole.id, 'rank' => 1)])
       end
     end
   end

@@ -13,7 +13,7 @@ class AiAgents::Watcher
       model: ai_agent.model, temperature: AiAgents::ReplyGenerator::TEMPERATURES['precise'],
       instructions: "#{INSTRUCTIONS}\n#{actions.instructions}", messages: [{ role: :user, content: transcript }],
       schema: actions.json_schema('ai_agent_watch')
-    )
+    ).content
     actions.parse(content.is_a?(Hash) ? content : {})
   end
 

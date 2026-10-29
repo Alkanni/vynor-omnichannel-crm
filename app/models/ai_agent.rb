@@ -42,6 +42,7 @@ class AiAgent < ApplicationRecord
   has_many :knowledge_sources, class_name: 'AiAgent::KnowledgeSource', dependent: :destroy
   has_many :products, class_name: 'AiAgent::Product', dependent: :destroy
   has_many :knowledge_chunks, class_name: 'AiAgent::KnowledgeChunk', dependent: :delete_all
+  has_many :reply_traces, class_name: 'AiAgent::ReplyTrace', dependent: :delete_all
   has_many :ai_agent_inboxes, dependent: :destroy
   has_one :google_sheets_integration, -> { where(integration_type: 'google_sheets') },
           class_name: 'AiAgent::Integration', dependent: :destroy, inverse_of: :ai_agent

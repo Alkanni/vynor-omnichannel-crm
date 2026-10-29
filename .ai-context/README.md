@@ -27,6 +27,7 @@ Everything documented here is therefore upstream Chatwoot architecture — the s
 | Add/modify an API endpoint | [api-map.md](api-map.md), [flows/request-auth.md](flows/request-auth.md) |
 | DB/schema work | [database-map.md](database-map.md) |
 | Rebrand / customize the fork | [customization-surfaces.md](customization-surfaces.md), [modules/enterprise-overlay.md](modules/enterprise-overlay.md) |
+| AI Agent (knowledge, retrieval, replies) | [modules/ai-agent.md](modules/ai-agent.md) |
 | Assess blast radius before editing | [change-impact-guide.md](change-impact-guide.md), [dependency-map.md](dependency-map.md) |
 | Known gaps / risks | [risks-and-unknowns.md](risks-and-unknowns.md) |
 

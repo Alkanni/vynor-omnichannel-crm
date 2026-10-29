@@ -45,12 +45,10 @@ RSpec.describe AiAgents::ReplyGenerator do
   end
 
   it 'returns the reply bubbles and sends the agent settings, knowledge, and history to the model' do
-    travel_to(Time.utc(2026, 10, 22, 3, 0)) do
-      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform)
-        .to eq(described_class::Reply.new(messages: ['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'],
-                                          handoff: false, labels: []))
-    end
+    reply = travel_to(Time.utc(2026, 10, 22, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform }
 
+    expect(reply).to have_attributes(messages: ['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'],
+                                     handoff: false, labels: [], sheet_row: nil)
     expect(embedding_requests.sole).to eq('model' => 'text-embedding-3-small', 'input' => ["query: Jam buka?\nHari Minggu juga?"])
     request = chat_requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0.2,
@@ -61,6 +59,18 @@ RSpec.describe AiAgents::ReplyGenerator do
                                                 'Jam buka: setiap hari 07.30 - 18.00')
     expect(system_prompt['content']).not_to include('Harga detailing')
     expect(request['messages'].drop(1).pluck('role', 'content')).to eq(messages.map { |message| [message[:role].to_s, message[:content]] })
+  end
+
+  it 'traces the knowledge it retrieved, the tokens the model reported, and the time it took' do
+    trace = described_class.new(ai_agent: ai_agent, messages: messages).perform.trace
+
+    expect(trace).to have_attributes(input_tokens: 10, output_tokens: 5, latency_ms: be >= 0)
+    expect(trace.retrieval).to have_attributes(mode: 'vector', embedding_model: 'text-embedding-3-small')
+    expect(trace.retrieval.hits.map { |hit| [hit.chunk.content, hit.rank] }).to eq([['Jam buka: setiap hari 07.30 - 18.00', 1]])
+    expect(trace.attributes).to include(retrieval_mode: 'vector', embedding_model: 'text-embedding-3-small', input_tokens: 10, output_tokens: 5,
+                                        retrieved: [{ chunk_id: ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').id,
+                                                      chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: source.id, rank: 1,
+                                                      score: be_within(1e-6).of(0) }])
   end
 
   it 'asks only for messages when the agent has no transfer conditions or allowed labels' do
@@ -126,7 +136,10 @@ RSpec.describe AiAgents::ReplyGenerator do
     end
 
     it 'sends the gateway model ID as is and embeds with the embedding key' do
-      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.messages).to include('Ada lagi yang bisa dibantu?')
+      reply = described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+      expect(reply.messages).to include('Ada lagi yang bisa dibantu?')
+      expect(reply.trace).to have_attributes(input_tokens: nil, output_tokens: nil)
 
       request = gateway_requests.sole
       expect(JSON.parse(request.body)['model']).to eq('cx/gpt-5.5')

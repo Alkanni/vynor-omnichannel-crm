@@ -5,6 +5,8 @@ class AiAgents::LlmClient
   # Retrieval models such as NVIDIA nemotron-3-embed-1b rank poorly unless queries and passages are told apart, and
   # gateways like 9router drop the input_type parameter, so the role goes into the text the way E5-style models expect.
   EMBEDDING_PREFIXES = { query: 'query: ', passage: 'passage: ' }.freeze
+  # Token counts are nil when the gateway does not report usage.
+  Completion = Data.define(:content, :input_tokens, :output_tokens)
 
   class << self
     def configured? = api_key.present?
@@ -29,7 +31,8 @@ class AiAgents::LlmClient
   # Gateways name models their own way (e.g. cx/gpt-5.5 on 9router), so the model ID is sent as is instead of being
   # looked up in the RubyLLM registry. The structured reply comes back as the arguments of a forced function call,
   # because some gateways drop response_format (9router with Codex models answers in plain text) while function calling
-  # works on them. Returns the arguments as a Hash, or the text when the model answered without calling the function.
+  # works on them. The completion's content is the arguments as a Hash, or the text when the model answered without
+  # calling the function.
   def chat(model:, temperature:, instructions:, messages:, schema:)
     with_context(self.class.api_key, endpoint) do |context|
       tool = AiAgents::ReplyTool.new(**schema)
@@ -37,7 +40,10 @@ class AiAgents::LlmClient
                     .with_instructions(instructions).with_temperature(temperature).with_tool(tool, choice: tool.name)
       messages.each { |message| chat.add_message(message) }
       result = chat.complete
-      result.is_a?(RubyLLM::Tool::Halt) ? result.content.deep_stringify_keys : result.content
+      # The model's response is the latest assistant message, also when the function call halted the chat.
+      response = chat.messages.reverse.find { |message| message.role == :assistant }
+      Completion.new(content: result.is_a?(RubyLLM::Tool::Halt) ? result.content.deep_stringify_keys : result.content,
+                     input_tokens: response.input_tokens, output_tokens: response.output_tokens)
     end
   end
 

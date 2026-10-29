@@ -29,6 +29,9 @@ class AiAgent::KnowledgeChunk < ApplicationRecord
 
   # Keyword search for installations without an embedding model: chunks that share more words with the query rank first.
   # plainto_tsquery joins the query words with AND, so they are joined with OR instead to rank partial matches too.
+  # Each chunk carries its rank as keyword_rank.
   KEYWORD_RANK = "ts_rank(to_tsvector('simple', content), replace(plainto_tsquery('simple', ?)::text, ' & ', ' | ')::tsquery)".freeze
-  scope :keyword_ranked, ->(query) { order(Arel.sql(sanitize_sql_array(["#{KEYWORD_RANK} DESC, id", query]))) }
+  scope :keyword_ranked, lambda { |query|
+    select(arel_table[Arel.star], sanitize_sql_array(["#{KEYWORD_RANK} AS keyword_rank", query])).order(Arel.sql('keyword_rank DESC, id'))
+  }
 end
