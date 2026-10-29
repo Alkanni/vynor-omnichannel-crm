@@ -177,10 +177,11 @@ class Conversations::UnreadCounts::Store
       end
     end
 
+    # Deleting keys while the SCAN is still iterating left some matches behind, so every match is collected first.
     def delete_matching(pattern)
-      Redis::Alfred.scan_each(match: pattern, count: 1000) do |key|
-        Redis::Alfred.delete(key)
-      end
+      keys = []
+      Redis::Alfred.scan_each(match: pattern, count: 1000) { |key| keys << key }
+      keys.each { |key| Redis::Alfred.delete(key) }
     end
 
     def assignment_key_patterns(account_id)
