@@ -96,7 +96,7 @@ Every repository change follows, without skipping stages:
 - Ready gate: implementation starts only for an item in `03 Ready for Development`. An explicit owner instruction in chat to implement a specific issue counts as approval; quote it in an issue comment, then move the item to `03` on the owner's behalf.
 - WIP: at most one active item (`04` or `05`) per agent; items in `06` wait on the owner and don't count. Never start an item whose dependencies are still open.
 - Blocked: add the `blocked` label, keep the current status, and comment the blocking reason, impact, required action, and current implementation state. Remove the label once unblocked.
-- Update the status with `.github/scripts/project-status.sh <issue> <status>`, where `<status>` is the stage prefix (`08`) or the full name; it needs the `project` and `repo` token scopes. If an update fails, list it as a required owner action instead of skipping it.
+- Update the status with `.github/scripts/project-status.sh <issue> <status>`, where `<status>` is the stage prefix (`08`) or the full name; it needs the `project`, `repo`, `read:org`, and `read:discussion` token scopes (the `Project status` Action uses the `PROJECT_TOKEN` secret, a classic PAT with these scopes). If an update fails, list it as a required owner action instead of skipping it.
 
 ### 1. Analyze & Issue (no issue, no implementation)
 
