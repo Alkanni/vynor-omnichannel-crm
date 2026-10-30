@@ -22,7 +22,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['knowledgeChanged']);
+const emit = defineEmits(['knowledgeChanged', 'viewChunks']);
 
 const SOURCE_TYPE = 'website';
 const MODES = { BATCH: 'batch', SINGLE: 'single' };
@@ -405,6 +405,20 @@ watch(
               })
             }}
           </span>
+          <Button
+            v-if="source.status === 'ready'"
+            v-tooltip.top="
+              t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', { title: source.title })
+            "
+            :aria-label="
+              t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', { title: source.title })
+            "
+            icon="i-lucide-layers"
+            color="slate"
+            variant="ghost"
+            size="sm"
+            @click="emit('viewChunks', source)"
+          />
           <Button
             v-tooltip.top="
               t('AI_AGENTS.KNOWLEDGE.WEBSITE.RESYNC', { title: source.title })

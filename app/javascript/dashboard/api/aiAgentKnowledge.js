@@ -48,6 +48,18 @@ class AiAgentKnowledgeAPI extends ApiClient {
     return axios.post(`${this.sourcesUrl(agentId)}/${id}/resync`);
   }
 
+  getSourceChunks(agentId, id, { signal } = {}) {
+    return axios.get(`${this.sourcesUrl(agentId)}/${id}/chunks`, { signal });
+  }
+
+  testRetrieval(agentId, query, { signal } = {}) {
+    return axios.post(
+      `${this.url}/${agentId}/retrieval_test`,
+      { query },
+      { signal }
+    );
+  }
+
   bulkDeleteSources(agentId, ids) {
     return axios.post(`${this.sourcesUrl(agentId)}/bulk_destroy`, { ids });
   }

@@ -17,7 +17,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['knowledgeChanged']);
+const emit = defineEmits(['knowledgeChanged', 'viewChunks']);
 
 const SOURCE_TYPE = 'text';
 const MAX_CONTENT_LENGTH = 100000;
@@ -234,6 +234,19 @@ watch(() => props.agent.id, fetchSources, { immediate: true });
               :aria-label="t('AI_AGENTS.KNOWLEDGE.TEXT.UNSAVED')"
               role="img"
               class="rounded-full size-1.5 shrink-0 bg-n-amber-9"
+            />
+            <Button
+              v-tooltip.top="
+                t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', { title: source.title })
+              "
+              :aria-label="
+                t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', { title: source.title })
+              "
+              icon="i-lucide-layers"
+              color="slate"
+              variant="ghost"
+              size="xs"
+              @click="emit('viewChunks', source)"
             />
             <Button
               v-tooltip.top="

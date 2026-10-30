@@ -34,4 +34,8 @@ class AiAgentPolicy < ApplicationPolicy
   def playground?
     @account_user.administrator?
   end
+
+  def retrieval_test?
+    @account_user.administrator?
+  end
 end

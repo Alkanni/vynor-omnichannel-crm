@@ -358,6 +358,36 @@
         "DELETE_DESCRIPTION": "The AI agent will no longer use this file. This cannot be undone.",
         "DELETE_SUCCESS": "File deleted",
         "DELETE_ERROR": "Could not delete the file. Please try again."
+      },
+      "CHUNKS": {
+        "VIEW": "View the chunks of {title}",
+        "TITLE": "Chunks of {title}",
+        "DESCRIPTION": "The pieces this source was split into. The AI agent searches these pieces and sends the most relevant ones to the model with each reply.",
+        "CLOSE": "Close",
+        "LOAD_ERROR": "Could not load the chunks. Please try again.",
+        "EMPTY": "This source has no chunks yet. Knowledge is indexed shortly after it is added or changed.",
+        "COUNT": "{count} chunk | {count} chunks",
+        "POSITION": "Chunk {position}",
+        "NO_EMBEDDING": "Keyword search only",
+        "INDEXED": "Indexed {time}",
+        "NOT_SEARCHED": "Not searched",
+        "UNSEARCHABLE": "{count} chunk was embedded with another model and is not searched until the AI agent is trained with {model}. | {count} chunks were embedded with another model and are not searched until the AI agent is trained with {model}."
+      },
+      "RETRIEVAL_TEST": {
+        "OPEN": "Test retrieval",
+        "TITLE": "Retrieval test",
+        "DESCRIPTION": "Type a customer question to see which knowledge the AI agent would send to the model for it, in the same order as a real reply. Nothing is sent to customers.",
+        "LABEL": "Customer question",
+        "PLACEHOLDER": "For example: What are your opening hours?",
+        "RUN": "Test",
+        "CLOSE": "Close",
+        "ERROR": "Could not test the retrieval. Please try again.",
+        "MODE_VECTOR": "Searched by meaning with {model}. The score is the distance to the question: lower is closer.",
+        "MODE_KEYWORD": "Searched by keywords. The score is the keyword match: higher is closer.",
+        "LIMIT": "Up to {count} chunks are sent with a reply (Context Limit).",
+        "NO_RESULTS": "No knowledge was found. The AI agent would answer this question without knowledge.",
+        "RANK": "#{rank}",
+        "SCORE": "Score {score}"
       }
     },
     "INTEGRATIONS": {

@@ -27,6 +27,11 @@ class AiAgent::KnowledgeChunk < ApplicationRecord
 
   has_neighbors :embedding
 
+  # The chunks knowledge search compares for an embedding model: only chunks embedded with it, since vectors of another
+  # model differ in meaning and often in size (they count again once the agent is trained with it). Without an embedding
+  # model every chunk is searched by keywords.
+  scope :searchable, ->(embedding_model) { embedding_model ? where(embedding_model: embedding_model) : all }
+
   # Keyword search for installations without an embedding model: chunks that share more words with the query rank first.
   # plainto_tsquery joins the query words with AND, so they are joined with OR instead to rank partial matches too.
   # Each chunk carries its rank as keyword_rank.
