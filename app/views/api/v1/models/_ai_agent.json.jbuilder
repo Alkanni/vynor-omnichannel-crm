@@ -23,6 +23,8 @@ json.session_only_memory ai_agent.session_only_memory
 json.ignore_team_handoff ai_agent.ignore_team_handoff
 json.inbox_ids ai_agent.inbox_ids
 json.trained_at ai_agent.trained_at&.to_i
+json.training_error ai_agent.training_error
+json.training_failed_at ai_agent.training_failed_at&.to_i
 json.llm_configured AiAgents::LlmClient.configured?
 json.created_at ai_agent.created_at.to_i
 json.updated_at ai_agent.updated_at.to_i

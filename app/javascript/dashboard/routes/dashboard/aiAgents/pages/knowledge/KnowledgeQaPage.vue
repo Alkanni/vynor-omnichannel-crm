@@ -8,6 +8,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog.vue';
+import SourceIndexStatus from '../../components/SourceIndexStatus.vue';
 
 const props = defineProps({
   agent: {
@@ -39,6 +40,7 @@ const toItem = source => ({
   answer: source.content,
   savedQuestion: source.title,
   savedAnswer: source.content,
+  index: source.index,
 });
 
 const isChanged = item =>
@@ -227,6 +229,7 @@ watch(() => props.agent.id, fetchItems, { immediate: true });
           min-height="4rem"
         />
         <div class="flex justify-end gap-1">
+          <SourceIndexStatus v-if="item.index" :index="item.index" />
           <Button
             v-if="item.id"
             v-tooltip.top="

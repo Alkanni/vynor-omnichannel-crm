@@ -136,6 +136,12 @@ RSpec.describe AiAgent do
       expect(copied_image.blob_id).not_to eq(product.image.blob_id)
     end
 
+    it 'starts the copy untrained, without the indexing error of the original' do
+      ai_agent.update!(trained_at: 1.day.ago, training_error: 'The AI model request failed (TimeoutError)', training_failed_at: 1.hour.ago)
+
+      expect(ai_agent.duplicate!).to have_attributes(trained_at: nil, training_error: nil, training_failed_at: nil)
+    end
+
     it 'copies the settings under a new name' do
       label = create(:label, account: account)
       ai_agent.update!(welcome_message: 'Halo', allowed_label_ids: [label.id], history_limit: 12, temperature: 'creative')

@@ -2,8 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import { dynamicTime } from 'shared/helpers/timeHelper';
 import AiAgentKnowledgeAPI from 'dashboard/api/aiAgentKnowledge';
 
+import Banner from 'dashboard/components-next/banner/Banner.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import KnowledgeStatsPanel from '../components/KnowledgeStatsPanel.vue';
@@ -63,6 +65,14 @@ watch(() => props.agent.id, fetchStats, { immediate: true });
 <template>
   <div class="h-full overflow-y-auto">
     <div class="flex flex-col w-full gap-5 px-6 pt-2 pb-10 mx-auto max-w-6xl">
+      <Banner v-if="agent.training_error" color="ruby">
+        {{
+          t('AI_AGENTS.KNOWLEDGE.TRAINING_ERROR', {
+            time: dynamicTime(agent.training_failed_at),
+            error: agent.training_error,
+          })
+        }}
+      </Banner>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <TabBar
           :tabs="tabs"

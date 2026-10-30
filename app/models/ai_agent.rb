@@ -22,6 +22,8 @@
 #  temperature                :string           default("balanced"), not null
 #  timezone                   :string           default("Asia/Jakarta"), not null
 #  trained_at                 :datetime
+#  training_error             :string
+#  training_failed_at         :datetime
 #  transfer_conditions        :text
 #  watcher_enabled            :boolean          default(FALSE), not null
 #  welcome_message            :text
@@ -92,7 +94,7 @@ class AiAgent < ApplicationRecord
     transaction do
       copy = dup
       copy.name = I18n.t('ai_agents.duplicate_name', name: name).truncate(255)
-      copy.trained_at = nil
+      copy.assign_attributes(trained_at: nil, training_error: nil, training_failed_at: nil)
       copy.save!
       knowledge_sources.each { |source| source.copy_to!(copy) }
       products.each { |product| product.copy_to!(copy) }

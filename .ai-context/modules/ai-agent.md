@@ -1,6 +1,6 @@
 # Module: AI Agent (fork feature, CE)
 
-Commit `a9068db6` + issues #70, #72, #71, #80, #81. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
+Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
 
 ## Where things live
 
@@ -31,6 +31,11 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81. Status: **VERIFIED** from so
 ## Reply traces (`ai_agent_reply_traces`)
 
 One row per answered customer message: `status` (`replied`, `handoff`, `message_limit`, `error`), `model`, `retrieval_mode`, `embedding_model`, `retrieved` (jsonb list of `chunk_id`, `chunkable_type`, `chunkable_id`, `rank`, `score`), `labels`, `input_tokens`/`output_tokens` (nil when the gateway sends no `usage`), `latency_ms` (retrieval + model call), `error_class`. No message or chunk content is stored. Rows are deleted with their agent or conversation (`dependent: :delete_all`); no time-based retention. Not written for the Watcher call, for the playground, or when a reply is dropped because the customer wrote again.
+
+## Knowledge Health
+
+- Every knowledge source in the API (`_ai_agent_knowledge_source` partial) carries `index`: `status` (`indexed`, `outdated` when the source changed after its chunks were made, `not_indexed` without chunks), `chunks`, `other_model_chunks` (embedded with another model, so not searched), and `indexed_at`. Lists load it in one query (`KnowledgeChunk.index_summaries`); a single source loads its own (`KnowledgeSource#index_summary`). The UI shows it with `SourceIndexStatus.vue` on the Text, Website, File, and Q&A pages (#85).
+- `KnowledgeIndexer` records why a run could not embed on the agent (`training_error`, `training_failed_at`): an embedding request error (raised again so the job retries) or an embedding model without an API key. The next complete run clears it. The Knowledge page shows it as a banner.
 
 ## Knowledge Preview and Retrieval Test
 

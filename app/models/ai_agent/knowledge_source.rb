@@ -61,6 +61,11 @@ class AiAgent::KnowledgeSource < ApplicationRecord
     enqueue_processing
   end
 
+  # nil until the source has chunks (see AiAgent::KnowledgeChunk.index_summaries).
+  def index_summary
+    ai_agent.knowledge_chunks.where(chunkable: self).index_summaries(AiAgents::LlmClient.embedding_model)[id]
+  end
+
   def copy_to!(target_agent)
     copy = target_agent.knowledge_sources.new(
       attributes.slice('source_type', 'title', 'content', 'external_url', 'status', 'error_message', 'metadata')

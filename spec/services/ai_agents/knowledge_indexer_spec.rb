@@ -79,7 +79,26 @@ RSpec.describe AiAgents::KnowledgeIndexer do
 
     expect(ai_agent.knowledge_chunks).to be_empty
     expect(client).to have_received(:embed).once
-    expect(ai_agent.reload.trained_at).to be_nil
+    expect(ai_agent.reload).to have_attributes(trained_at: nil, training_error: I18n.t('ai_agents.llm.errors.not_configured'),
+                                               training_failed_at: be_present)
+  end
+
+  it 'records why the embedding request failed and raises it again so the job retries' do
+    create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+    allow(client).to receive(:embed).and_raise(AiAgents::LlmError, 'The AI model request failed (TimeoutError)')
+
+    expect { indexer.perform }.to raise_error(AiAgents::LlmError)
+    expect(ai_agent.reload).to have_attributes(trained_at: nil, training_error: 'The AI model request failed (TimeoutError)',
+                                               training_failed_at: be_present)
+  end
+
+  it 'clears the recorded error once a run completes' do
+    ai_agent.update!(training_error: 'The AI model request failed (TimeoutError)', training_failed_at: 1.hour.ago)
+    create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+
+    indexer.perform
+
+    expect(ai_agent.reload).to have_attributes(trained_at: be_present, training_error: nil, training_failed_at: nil)
   end
 
   context 'without an embedding model' do

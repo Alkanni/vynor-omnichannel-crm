@@ -9,6 +9,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog.vue';
+import SourceIndexStatus from '../../components/SourceIndexStatus.vue';
 import SourceStatusBadge from '../../components/SourceStatusBadge.vue';
 import { useProcessingPoll } from '../../composables/useProcessingPoll';
 
@@ -238,6 +239,10 @@ watch(
           <SourceStatusBadge
             :status="source.status"
             :error-message="source.error_message"
+          />
+          <SourceIndexStatus
+            v-if="source.status === 'ready'"
+            :index="source.index"
           />
           <Button
             v-if="source.status === 'ready'"

@@ -2,6 +2,8 @@
 # Records are re-embedded only when their updated_at differs from the version stored on their chunks,
 # and a source that is re-syncing or failed is left out until it is ready again. Chunks record the embedding
 # model they were embedded with; without an embedding model they are stored without vectors for keyword search.
+# A run that cannot embed records why on the agent for the Knowledge page (a request error is raised again so the job
+# retries); the next complete run clears it.
 class AiAgents::KnowledgeIndexer
   EMBEDDING_BATCH_SIZE = 100
 
@@ -11,17 +13,28 @@ class AiAgents::KnowledgeIndexer
     indexable = indexable_versions
     remove_stale_chunks(indexable)
     @embedding_model = AiAgents::LlmClient.embedding_model
-    return if @embedding_model && AiAgents::LlmClient.embedding_api_key.blank?
+    return record_failure(I18n.t('ai_agents.llm.errors.not_configured')) if @embedding_model && AiAgents::LlmClient.embedding_api_key.blank?
 
+    index_changed_records(indexable)
+    ai_agent.update_columns(trained_at: Time.current, training_error: nil, training_failed_at: nil) # rubocop:disable Rails/SkipsModelValidations
+  rescue AiAgents::LlmError => e
+    record_failure(e.message)
+    raise
+  end
+
+  private
+
+  def index_changed_records(indexable)
     indexed = indexed_chunks.group(:chunkable_type, :chunkable_id).maximum(:chunkable_updated_at)
     indexable.each do |klass, versions|
       changed_ids = versions.reject { |id, version| indexed[[klass.name, id]] == version }.keys
       klass.where(id: changed_ids).find_each { |record| index(record) }
     end
-    ai_agent.update_column(:trained_at, Time.current) # rubocop:disable Rails/SkipsModelValidations
   end
 
-  private
+  def record_failure(message)
+    ai_agent.update_columns(training_error: message, training_failed_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+  end
 
   def indexable_versions
     {

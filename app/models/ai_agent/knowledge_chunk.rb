@@ -32,6 +32,20 @@ class AiAgent::KnowledgeChunk < ApplicationRecord
   # model every chunk is searched by keywords.
   scope :searchable, ->(embedding_model) { embedding_model ? where(embedding_model: embedding_model) : all }
 
+  # How a knowledge source or product is indexed: its chunk count, the record version they were made from, when they were
+  # made, and how many are not searchable because they were embedded with another model than the current one.
+  IndexSummary = Data.define(:chunks, :version, :indexed_at, :other_model_chunks) do
+    # 'outdated' once the record changed after its chunks were made, until the next indexing.
+    def status_for(record) = version == record.updated_at ? 'indexed' : 'outdated'
+  end
+
+  # IndexSummary per chunkable_id for the chunks in scope.
+  def self.index_summaries(embedding_model)
+    other_model = embedding_model ? sanitize_sql_array(['COUNT(*) FILTER (WHERE embedding_model IS DISTINCT FROM ?)', embedding_model]) : '0'
+    group(:chunkable_id).pluck(:chunkable_id, Arel.sql('COUNT(*)'), Arel.sql('MAX(chunkable_updated_at)'), Arel.sql('MAX(created_at)'),
+                               Arel.sql(other_model)).to_h { |id, *summary| [id, IndexSummary.new(*summary)] }
+  end
+
   # Keyword search for installations without an embedding model: chunks that share more words with the query rank first.
   # plainto_tsquery joins the query words with AND, so they are joined with OR instead to rank partial matches too.
   # Each chunk carries its rank as keyword_rank.
