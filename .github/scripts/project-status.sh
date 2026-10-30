@@ -5,7 +5,7 @@
 #   <status>   stage prefix ("08") or full option name ("08 Post-Merge Verification")
 #   --forward  leave the item alone when it is already at or past <status>
 #
-# Needs gh authenticated with the `project` and `repo` scopes (GH_TOKEN in Actions).
+# Needs gh authenticated with the `project`, `repo`, `read:org`, and `read:discussion` scopes (GH_TOKEN in Actions).
 set -euo pipefail
 
 OWNER=Alkanni
