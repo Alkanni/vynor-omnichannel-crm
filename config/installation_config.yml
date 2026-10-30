@@ -208,6 +208,10 @@
   value: 'text-embedding-3-small'
   description: 'Embedding model used to search AI Agent knowledge, e.g. text-embedding-3-small, or nvidia/nvidia/nemotron-3-embed-1b on 9router. Leave blank to search knowledge by keywords instead, e.g. when the endpoint has no embeddings API. Train the agents again after changing it; until then they answer without the knowledge embedded with the previous model.'
   locked: false
+- name: AI_AGENT_EMBEDDING_MAX_DISTANCE
+  display_title: 'AI Agent Max Embedding Distance (optional)'
+  description: 'Knowledge chunks farther from the customer question than this cosine distance (0 = same meaning, 2 = opposite) are not sent to the model, so unrelated knowledge stays out of the answer. The right value depends on the embedding model; measure it with the retrieval eval in evals/ai-agent. Leave blank to send the nearest chunks up to the Context Limit.'
+  locked: false
 - name: AI_AGENT_EMBEDDING_ENDPOINT
   display_title: 'AI Agent Embedding Endpoint (optional)'
   description: 'OpenAI-compatible endpoint for AI Agent embeddings, without the /v1 suffix. Default: the OpenAI API Endpoint above.'

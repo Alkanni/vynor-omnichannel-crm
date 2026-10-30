@@ -57,6 +57,15 @@ RSpec.describe 'Super Admin Application Config API', type: :request do
         expect(flash[:notice]).to be_blank
       end
 
+      it 'rejects an AI Agent max embedding distance that is not a cosine distance' do
+        sign_in(super_admin, scope: :super_admin)
+        post '/super_admin/app_config?config=captain', params: { app_config: { AI_AGENT_EMBEDDING_MAX_DISTANCE: 'abc' } }
+
+        expect(response).to redirect_to(super_admin_app_config_path(config: 'captain'))
+        expect(flash[:alert]).to eq('AI Agent Max Embedding Distance must be a number greater than 0 and at most 2')
+        expect(InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE')&.value).to be_nil
+      end
+
       it 'rejects invalid Shopify Partner configuration before persisting any submitted value' do
         create(:installation_config, name: 'SHOPIFY_PARTNER_ORGANIZATION_ID', value: '123', locked: false)
         sign_in(super_admin, scope: :super_admin)

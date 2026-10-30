@@ -36,6 +36,23 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       expect(embedding_requests.sole['input']).to eq(['query: Jam buka?'])
     end
 
+    it 'leaves out chunks farther than the max embedding distance' do
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
+      closest = create_chunk('Jam buka', embedding: query_vector, embedding_model: 'text-embedding-3-small')
+      create_chunk('Alamat', embedding: Array.new(1536) { |index| index == 2 ? 1.0 : 0.0 }, embedding_model: 'text-embedding-3-small')
+
+      result = described_class.new(ai_agent: ai_agent, query: 'Jam buka?').perform
+
+      expect(result.hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[closest, 1]])
+    end
+
+    it 'returns no chunks when none is within the max embedding distance' do
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
+      create_chunk('Alamat', embedding: Array.new(1536) { |index| index == 2 ? 1.0 : 0.0 }, embedding_model: 'text-embedding-3-small')
+
+      expect(described_class.new(ai_agent: ai_agent, query: 'Jam buka?').perform.hits).to be_empty
+    end
+
     it 'does not embed the query when no chunk uses the current embedding model' do
       create_chunk('Model lama', embedding: query_vector, embedding_model: 'old-model')
 
@@ -58,6 +75,13 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       expect(result.hits.map(&:score)).to all(be > 0)
       expect(result.hits.first.score).to be > result.hits.last.score
       expect(embedding_requests).to be_empty
+    end
+
+    it 'leaves out chunks that share no word with the query' do
+      match = create_chunk('Harga detailing mobil')
+      create_chunk('Jam buka setiap hari')
+
+      expect(described_class.new(ai_agent: ai_agent, query: 'harga cuci').perform.hits.map(&:chunk)).to eq([match])
     end
   end
 

@@ -13,6 +13,8 @@ class AiAgents::LlmClient
     def api_key = setting('CAPTAIN_OPEN_AI_API_KEY')
     def embedding_model = setting('AI_AGENT_EMBEDDING_MODEL')
     def embedding_api_key = setting('AI_AGENT_EMBEDDING_API_KEY') || api_key
+    # Cosine distance above which knowledge chunks are not sent (see AiAgents::KnowledgeRetriever); nil sends them all.
+    def embedding_max_distance = setting('AI_AGENT_EMBEDDING_MAX_DISTANCE')&.then { |value| Float(value) }
 
     def setting(name)
       InstallationConfig.find_by(name: name)&.value.presence

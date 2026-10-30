@@ -1,6 +1,6 @@
 # Module: AI Agent (fork feature, CE)
 
-Commit `a9068db6` + issues #70, #72, #71, #80. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
+Commit `a9068db6` + issues #70, #72, #71, #80, #81. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
 
 ## Where things live
 
@@ -25,7 +25,7 @@ Commit `a9068db6` + issues #70, #72, #71, #80. Status: **VERIFIED** from source.
 - Query: the customer messages since the last reply (`ReplyGenerator#latest_customer_text`, max 4,000 characters). No conversation context yet.
 - Vector mode when `AI_AGENT_EMBEDDING_MODEL` is set: pgvector cosine `nearest_neighbors`, only chunks with the current `embedding_model` (`KnowledgeChunk.searchable`); score = cosine distance (lower is closer).
 - Keyword mode otherwise: `KnowledgeChunk.keyword_ranked`, `ts_rank` with the `simple` text search config and OR-joined terms (not BM25); score = `keyword_rank` (higher is closer).
-- Always returns the top `context_limit` (default 40) chunks; no relevance threshold, no hybrid fusion (planned in epic #69, Phase 2).
+- Candidates are the top `context_limit` (default 40) chunks; only relevant ones are kept (#81): keyword mode drops chunks with `keyword_rank` 0, vector mode drops chunks farther than `AI_AGENT_EMBEDDING_MAX_DISTANCE` (blank keeps all). With no chunk left the prompt has no `<knowledge>` block. No hybrid fusion yet (#82).
 - Chunking (`TextChunker`): paragraphs packed up to 1,500 characters, title prefixed; Q&A and products are one chunk each.
 
 ## Reply traces (`ai_agent_reply_traces`)
@@ -47,4 +47,4 @@ One row per answered customer message: `status` (`replied`, `handoff`, `message_
 
 ## Configuration
 
-Installation configs (Super Admin): `CAPTAIN_OPEN_AI_API_KEY`, `CAPTAIN_OPEN_AI_ENDPOINT`, `AI_AGENT_MODELS` (gateway model IDs), `AI_AGENT_EMBEDDING_MODEL`, `AI_AGENT_EMBEDDING_ENDPOINT`, `AI_AGENT_EMBEDDING_API_KEY`. Per-agent settings are the `AiAgentsController::SETTINGS` columns.
+Installation configs (Super Admin): `CAPTAIN_OPEN_AI_API_KEY`, `CAPTAIN_OPEN_AI_ENDPOINT`, `AI_AGENT_MODELS` (gateway model IDs), `AI_AGENT_EMBEDDING_MODEL`, `AI_AGENT_EMBEDDING_MAX_DISTANCE` (cosine distance, validated in `InstallationConfig`), `AI_AGENT_EMBEDDING_ENDPOINT`, `AI_AGENT_EMBEDDING_API_KEY`. Per-agent settings are the `AiAgentsController::SETTINGS` columns.

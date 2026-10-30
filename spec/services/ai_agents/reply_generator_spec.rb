@@ -172,6 +172,19 @@ RSpec.describe AiAgents::ReplyGenerator do
       .and(satisfy { |content| content.exclude?('Jam buka: setiap hari') })
   end
 
+  it 'sends no knowledge when no chunk is within the max embedding distance' do
+    create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
+    stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return(
+      status: 200, headers: { 'Content-Type' => 'application/json' },
+      body: { data: [{ embedding: Array.new(1536) { |index| index == 2 ? 1.0 : 0.0 } }] }.to_json
+    )
+
+    reply = described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+    expect(chat_requests.sole['messages'].first['content']).not_to include('<knowledge>')
+    expect(reply.trace.retrieval.hits).to be_empty
+  end
+
   it 'skips the knowledge search when the agent has no knowledge' do
     ai_agent.knowledge_chunks.delete_all
 

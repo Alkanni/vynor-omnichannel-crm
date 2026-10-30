@@ -37,6 +37,7 @@ class InstallationConfig < ApplicationRecord
   before_validation :set_lock
   validates :name, presence: true
   validate :saml_sso_users_check, if: -> { name == 'ENABLE_SAML_SSO_LOGIN' }
+  validate :ai_agent_max_distance_check, if: -> { name == 'AI_AGENT_EMBEDDING_MAX_DISTANCE' }
 
   # TODO: Get rid of default scope
   # https://stackoverflow.com/a/1834250/939299
@@ -70,5 +71,15 @@ class InstallationConfig < ApplicationRecord
     return unless User.exists?(provider: 'saml')
 
     errors.add(:base, 'Cannot disable SAML SSO login while users are using SAML authentication')
+  end
+
+  # Cosine distance runs from 0 (same direction) to 2 (opposite).
+  def ai_agent_max_distance_check
+    return if value.blank?
+
+    distance = Float(value, exception: false)
+    return if distance&.positive? && distance <= 2
+
+    errors.add(:base, 'AI Agent Max Embedding Distance must be a number greater than 0 and at most 2')
   end
 end
