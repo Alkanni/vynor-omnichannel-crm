@@ -1,0 +1,76 @@
+{
+  "labels": ["komplain"],
+  "settings": {
+    "behavior": "Kamu adalah CS Toko Roti Vynor. Jawab singkat, ramah, dan dalam Bahasa Indonesia.",
+    "welcome_message": "Halo! Selamat datang di Toko Roti Vynor. Ada yang bisa kami bantu?",
+    "transfer_conditions": "Alihkan ke tim CS manusia bila pelanggan komplain, marah, atau meminta refund.",
+    "label_conditions": "Beri label komplain bila pelanggan menyampaikan keluhan.",
+    "temperature": "precise",
+    "timezone": "Asia/Jakarta",
+    "history_limit": 30,
+    "context_limit": 40
+  },
+  "knowledge": [
+    {
+      "source_type": "text",
+      "title": "Profil toko",
+      "content": "Toko Roti Vynor buka setiap hari pukul 08.00-20.00 WIB, kecuali hari Jumat buka mulai pukul 13.00. Alamat toko: Jl. Merdeka No. 10, Bandung. Toko Roti Vynor membuat roti, kue, dan kue kering setiap pagi tanpa bahan pengawet."
+    },
+    {
+      "source_type": "text",
+      "title": "Kebijakan toko",
+      "content": "# Kebijakan Toko Roti Vynor\n\n## Pengiriman\n\nPengiriman dilakukan setiap hari pukul 09.00-18.00 WIB. Wilayah Kota Bandung memakai kurir toko, sedangkan luar Bandung memakai kurir pihak ketiga. Pesanan yang masuk sebelum pukul 14.00 dikirim di hari yang sama; pesanan setelah pukul 14.00 dikirim keesokan harinya.\n\nGratis ongkir berlaku untuk wilayah Kota Bandung dengan pembelian minimal Rp100.000. Pembelian di bawah Rp100.000 di Kota Bandung dikenakan ongkir Rp10.000. Ongkos kirim ke luar Bandung Rp20.000 per pesanan, kecuali kue tart yang hanya dikirim di dalam Kota Bandung karena mudah rusak.\n\n## Pembayaran\n\nPembayaran dapat dilakukan melalui transfer bank BCA dan Mandiri, QRIS, atau tunai saat mengambil di toko. Bayar di tempat (COD) hanya tersedia untuk pengiriman kurir toko di Kota Bandung dengan nilai pesanan maksimal Rp500.000. Konfirmasi pembayaran dikirim melalui chat ini dengan menyertakan foto bukti transfer.\n\n## Pesanan khusus\n\nPesanan kue ulang tahun custom, hampers, dan pesanan acara harus dibuat minimal 3 hari sebelumnya dengan DP 50%. Pelunasan dilakukan paling lambat saat pengambilan atau sebelum pesanan dikirim. Pembatalan pesanan khusus kurang dari 24 jam sebelum jadwal membuat DP tidak dapat dikembalikan.\n\n## Retur dan komplain\n\nKomplain produk rusak atau tidak sesuai diterima paling lambat 24 jam setelah produk diterima, dengan menyertakan foto produk dan nomor pesanan. Produk pengganti dikirim tanpa biaya tambahan, atau dana dikembalikan ke rekening pelanggan dalam 3 hari kerja.\n\n## Penyimpanan produk\n\nRoti tanpa pengawet tahan 2 hari di suhu ruang dan 5 hari di lemari es. Kue tart dan cheesecake harus disimpan di lemari es dan sebaiknya dihabiskan dalam 3 hari. Kue kering dalam toples tahan 1 bulan bila disimpan tertutup rapat."
+    },
+    {
+      "source_type": "text",
+      "title": "Daftar harga paket",
+      "content": "Daftar harga kue tart, hampers, kue kering, dan paket acara Toko Roti Vynor. Harga sudah termasuk kemasan.\n\n| Produk | Ukuran / isi | Harga | Keterangan |\n|---|---|---|---|\n| Kue tart coklat | diameter 16 cm | Rp150.000 | pesan minimal 3 hari sebelumnya |\n| Kue tart coklat | diameter 20 cm | Rp210.000 | pesan minimal 3 hari sebelumnya |\n| Kue tart coklat | diameter 24 cm | Rp280.000 | pesan minimal 3 hari sebelumnya |\n| Kue tart keju | diameter 16 cm | Rp165.000 | pesan minimal 3 hari sebelumnya |\n| Kue tart keju | diameter 20 cm | Rp230.000 | pesan minimal 3 hari sebelumnya |\n| Kue tart keju | diameter 24 cm | Rp300.000 | pesan minimal 3 hari sebelumnya |\n| Kue tart buah | diameter 20 cm | Rp250.000 | buah segar musiman |\n| Kue tart buah | diameter 24 cm | Rp320.000 | buah segar musiman |\n| Cheesecake | diameter 18 cm | Rp275.000 | simpan di lemari es |\n| Hampers Lebaran | isi 6 toples kue kering | Rp350.000 | tersedia bulan Ramadan |\n| Hampers Lebaran | isi 12 toples kue kering | Rp650.000 | tersedia bulan Ramadan |\n| Hampers Natal | isi 6 toples kue kering | Rp360.000 | tersedia bulan Desember |\n| Hampers Imlek | isi 8 toples kue kering | Rp480.000 | tersedia bulan Januari dan Februari |\n| Paket snack box A | 2 roti + 1 air mineral | Rp15.000 | minimal 30 box |\n| Paket snack box B | 3 roti + 1 kue + 1 air mineral | Rp22.000 | minimal 30 box |\n| Paket snack box C | 4 roti + 2 kue + 1 jus | Rp32.000 | minimal 30 box |\n| Paket tumpeng roti | 30 porsi | Rp750.000 | pesan minimal 3 hari sebelumnya |\n| Paket ulang tahun anak | 20 snack box A + kue tart coklat 20 cm | Rp620.000 | termasuk lilin dan topi pesta |\n| Paket rapat kantor | 50 snack box B | Rp1.050.000 | gratis ongkir Kota Bandung |\n| Paket pernikahan | 100 snack box C | Rp3.000.000 | gratis ongkir Kota Bandung |\n| Kue kering nastar | toples 500 gram | Rp95.000 | tahan 1 bulan |\n| Kue kering kastengel | toples 500 gram | Rp100.000 | tahan 1 bulan |\n| Kue kering putri salju | toples 500 gram | Rp85.000 | tahan 1 bulan |\n| Kue kering lidah kucing | toples 500 gram | Rp80.000 | tahan 1 bulan |"
+    },
+    { "source_type": "qa", "title": "Apakah semua produk Toko Roti Vynor halal?", "content": "Ya. Semua produk sudah bersertifikat halal MUI dan tidak memakai bahan dari babi maupun alkohol." },
+    { "source_type": "qa", "title": "Apakah bisa pesan kue ulang tahun custom?", "content": "Bisa. Pesan minimal 3 hari sebelumnya dengan DP 50% melalui chat ini. Kirim contoh desain, ukuran, dan tulisan yang diinginkan." },
+    { "source_type": "qa", "title": "Berapa minimal pesanan untuk acara kantor atau hajatan?", "content": "Minimal 30 snack box per pesanan, dipesan paling lambat 2 hari sebelumnya." },
+    { "source_type": "qa", "title": "Apakah ada program reseller?", "content": "Ada. Reseller mendapat potongan 15% untuk pembelian minimal 50 pcs per minggu. Daftar dengan mengirim nama, alamat, dan nomor HP lewat chat ini." },
+    { "source_type": "qa", "title": "Apakah toko buka saat hari libur nasional dan Lebaran?", "content": "Toko tetap buka pada hari libur nasional dengan jam biasa. Saat Idul Fitri hari pertama dan kedua toko tutup." },
+    { "source_type": "qa", "title": "Apakah tersedia produk untuk penderita diabetes atau tanpa gula?", "content": "Tersedia Roti Bebas Gula yang memakai pemanis stevia. Produk lain memakai gula biasa." },
+    { "source_type": "qa", "title": "Apakah ada produk yang mengandung kacang?", "content": "Lapis Legit dan Croissant Almond mengandung kacang. Semua produk diolah di dapur yang juga mengolah kacang, susu, dan telur." },
+    { "source_type": "qa", "title": "Apakah bisa ambil pesanan langsung di toko?", "content": "Bisa. Pesanan dapat diambil di toko Jl. Merdeka No. 10 sesuai jam buka; tunjukkan nomor pesanan ke kasir." },
+    { "source_type": "qa", "title": "Apakah ada tempat parkir?", "content": "Tersedia parkir motor di depan toko dan parkir mobil di halaman Masjid Al-Ikhlas, 50 meter dari toko." },
+    { "source_type": "qa", "title": "Apakah kue tart sudah termasuk lilin dan pisau?", "content": "Setiap kue tart sudah termasuk 1 set lilin angka, pisau plastik, dan kartu ucapan." },
+    { "source_type": "qa", "title": "Apakah ada kartu member atau poin?", "content": "Ada kartu member gratis. Setiap belanja Rp10.000 mendapat 1 poin, dan 100 poin dapat ditukar dengan voucher Rp25.000." },
+    { "source_type": "qa", "title": "Apakah menerima katering harian untuk kantor?", "content": "Ya, katering snack harian untuk kantor tersedia dengan langganan minimal 1 minggu. Hubungi staf melalui chat ini untuk penawaran." },
+    { "source_type": "qa", "title": "Apakah ada voucher atau gift card?", "content": "Gift card tersedia dengan nominal Rp50.000, Rp100.000, dan Rp200.000, berlaku 6 bulan dan dapat dipakai di toko maupun pesanan online." },
+    { "source_type": "qa", "title": "Apakah ada WiFi di toko?", "content": "Ada WiFi gratis untuk pelanggan; minta password ke kasir." },
+    { "source_type": "qa", "title": "Apakah roti bisa dibekukan?", "content": "Bisa. Roti dapat dibekukan hingga 1 bulan; hangatkan di oven 150 derajat Celsius selama 5 menit sebelum disajikan." },
+    { "source_type": "qa", "title": "Apakah bisa kirim ke luar kota?", "content": "Bisa, memakai kurir pihak ketiga dengan ongkir Rp20.000 per pesanan, kecuali kue tart yang hanya dikirim di Kota Bandung." }
+  ],
+  "products": [
+    { "name": "Roti Sobek Coklat", "description": "Roti sobek lembut isi coklat.", "price": 25000, "stock": 12, "weight": 400 },
+    { "name": "Roti Sobek Keju", "description": "Roti sobek lembut dengan taburan keju cheddar.", "price": 27000, "stock": 8, "weight": 400 },
+    { "name": "Roti Sobek Pandan", "description": "Roti sobek beraroma pandan isi srikaya.", "price": 26000, "stock": 5, "weight": 400 },
+    { "name": "Roti Tawar Kupas", "description": "Roti tawar tanpa kulit, isi 12 lembar.", "price": 18000, "stock": 20, "weight": 450 },
+    { "name": "Roti Tawar Gandum Utuh", "description": "Roti tawar dari tepung gandum utuh, tinggi serat.", "price": 24000, "stock": 10, "weight": 500 },
+    { "name": "Roti Manis Kismis", "description": "Roti manis lembut dengan kismis.", "price": 12000, "stock": 15, "weight": 120 },
+    { "name": "Croissant Mentega", "description": "Croissant berlapis mentega Prancis.", "price": 18000, "stock": 14, "weight": 80 },
+    { "name": "Croissant Almond", "description": "Croissant isi krim almond dengan taburan almond panggang.", "price": 23000, "stock": 6, "weight": 95 },
+    { "name": "Donat Gula", "description": "Donat empuk bertabur gula halus.", "price": 6000, "stock": 30, "weight": 60 },
+    { "name": "Donat Coklat Meses", "description": "Donat dengan olesan coklat dan meses.", "price": 7000, "stock": 25, "weight": 65 },
+    { "name": "Bolu Pandan", "description": "Bolu lembut aroma pandan, loyang 20 cm.", "price": 55000, "stock": 4, "weight": 600 },
+    { "name": "Bolu Gulung Keju", "description": "Bolu gulung isi krim keju.", "price": 60000, "stock": 3, "weight": 550 },
+    { "name": "Brownies Panggang", "description": "Brownies coklat panggang, loyang 20 x 20 cm.", "price": 65000, "stock": 5, "weight": 700 },
+    { "name": "Brownies Kukus Pandan", "description": "Brownies kukus lapis pandan dan coklat.", "price": 50000, "stock": 6, "weight": 650 },
+    { "name": "Pisang Bolen", "description": "Kue bolen isi pisang dan keju, isi 10.", "price": 45000, "stock": 9, "weight": 500 },
+    { "name": "Lapis Legit", "description": "Lapis legit rempah dengan taburan kacang mede, loyang 18 cm.", "price": 180000, "stock": 2, "weight": 900 },
+    { "name": "Roti Abon Sapi", "description": "Roti lembut dengan topping abon sapi dan mayones.", "price": 15000, "stock": 12, "weight": 110 },
+    { "name": "Roti Sosis", "description": "Roti isi sosis sapi panggang.", "price": 14000, "stock": 16, "weight": 105 },
+    { "name": "Baguette", "description": "Roti baguette ala Prancis, panjang 60 cm.", "price": 28000, "stock": 7, "weight": 300 },
+    { "name": "Roti Sourdough", "description": "Roti sourdough ragi alami dengan fermentasi 24 jam.", "price": 45000, "stock": 4, "weight": 700 },
+    { "name": "Kue Lumpur Kentang", "description": "Kue lumpur kentang dengan kismis, isi 6.", "price": 36000, "stock": 8, "weight": 360 },
+    { "name": "Roti Bebas Gula", "description": "Roti tawar dengan pemanis stevia untuk penderita diabetes.", "price": 30000, "stock": 6, "weight": 450 }
+  ],
+  "agents": {
+    "large": {
+      "name": "Eval - CS Toko Roti Vynor (knowledge besar)",
+      "knowledge": []
+    }
+  }
+}

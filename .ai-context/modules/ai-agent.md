@@ -1,6 +1,6 @@
 # Module: AI Agent (fork feature, CE)
 
-Commit `a9068db6` + issues #70, #72, #71. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
+Commit `a9068db6` + issues #70, #72, #71, #80. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
 
 ## Where things live
 
@@ -43,7 +43,7 @@ One row per answered customer message: `status` (`replied`, `handoff`, `message_
 
 ## Evaluation
 
-`evals/ai-agent/` (issue #71) is a Promptfoo regression eval against the playground, outside the app bundle (`npx promptfoo@0.124.1`). `setup.mjs` recreates eval agents from `fixtures/toko-roti.json` through the API; `provider.mjs` sends each case's conversation (lines starting with `AI:` become assistant messages) and exposes `handoff`, `labels`, and retrieval as metadata for assertions; `llm-rubric` cases use a judge model from `.env`. See its README for running and comparing baselines.
+`evals/ai-agent/` (issue #71) is a Promptfoo regression eval against the playground, outside the app bundle (`npx promptfoo@0.124.1`). `setup.mjs` recreates eval agents from `fixtures/toko-roti.json` through the API; `provider.mjs` sends each case's conversation (lines starting with `AI:` become assistant messages) and exposes `handoff`, `labels`, and retrieval as metadata for assertions; `llm-rubric` cases use a judge model from `.env`. A second config (`promptfooconfig.retrieval.yaml`, issue #80) runs questions through `retrieval_test` for an agent with a larger synthetic knowledge base (`fixtures/toko-roti-large.json`) and reports hit@1, hit@5, MRR, and the score distribution of relevant vs irrelevant chunks per mode. See its README for running and comparing baselines.
 
 ## Configuration
 
