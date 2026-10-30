@@ -86,10 +86,10 @@ documents:
 
   - id: module-ai-agent
     path: modules/ai-agent.md
-    purpose: Fork AI Agent feature; reply flow, retrieval, reply traces, playground, configuration
+    purpose: Fork AI Agent feature; reply flow, retrieval, reply traces, playground, evaluation, configuration
     related_modules: [conversations, frontend]
-    source_refs: [app/models/ai_agent.rb, app/models/ai_agent/, app/services/ai_agents/, app/jobs/ai_agents/, app/listeners/ai_agent_listener.rb, app/controllers/api/v1/accounts/ai_agents_controller.rb, app/controllers/api/v1/accounts/ai_agents/]
-    last_analyzed_commit: a9068db61e (+ issue #70)
+    source_refs: [app/models/ai_agent.rb, app/models/ai_agent/, app/services/ai_agents/, app/jobs/ai_agents/, app/listeners/ai_agent_listener.rb, app/controllers/api/v1/accounts/ai_agents_controller.rb, app/controllers/api/v1/accounts/ai_agents/, evals/ai-agent/]
+    last_analyzed_commit: a9068db61e (+ issues #70, #72, #71)
     verification: VERIFIED
 
   - id: flow-event-bus

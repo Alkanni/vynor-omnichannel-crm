@@ -1,0 +1,105 @@
+# A3. Multi-turn, burst pesan, dan bahasa: AI harus memahami pertanyaan lanjutan dari konteks sebelumnya, menjawab
+# beberapa pesan beruntun sekaligus, dan tetap benar walau pesan memakai singkatan atau typo.
+- description: 'A3-01: Kalau beli 4, totalnya berapa? (lanjutan Roti Sobek Coklat)'
+  metadata: { id: A3-01, category: A3 }
+  vars:
+    conversation: |-
+      Ada Roti Sobek Coklat?
+      AI: Ada, harganya Rp25.000.
+      Kalau beli 4, totalnya berapa?
+  assert:
+    - type: llm-rubric
+      value: Total Rp100.000. Boleh menambahkan gratis ongkir di Bandung karena total mencapai Rp100.000.
+    - type: icontains
+      value: '100.000'
+
+- description: 'A3-02: Kalau untuk lusa bisa? (lanjutan kue ulang tahun custom)'
+  metadata: { id: A3-02, category: A3 }
+  vars:
+    conversation: |-
+      Saya mau pesan kue ulang tahun custom.
+      AI: Bisa, pesan minimal 3 hari sebelumnya dengan DP 50%.
+      Kalau untuk lusa bisa?
+  assert:
+    - type: llm-rubric
+      value: Menjelaskan lusa belum memenuhi syarat minimal 3 hari; tidak menjanjikan pesanan bisa dibuat.
+
+- description: 'A3-03: Kalau Jumat tutup jam berapa? (lanjutan jam buka)'
+  metadata: { id: A3-03, category: A3 }
+  vars:
+    conversation: |-
+      Jam buka toko kapan?
+      AI: Setiap hari 08.00–20.00 WIB, Jumat mulai 13.00.
+      Kalau Jumat tutup jam berapa?
+  assert:
+    - type: llm-rubric
+      value: Jumat tutup pukul 20.00 WIB.
+    - type: icontains
+      value: '20.00'
+
+- description: 'A3-04: Saya tinggal di Cimahi. → Ongkirnya berapa?'
+  metadata: { id: A3-04, category: A3 }
+  vars:
+    conversation: |-
+      Saya tinggal di Cimahi.
+      Ongkirnya berapa?
+  assert:
+    - type: llm-rubric
+      value: Tidak memastikan Cimahi termasuk Bandung atau tidak; menjelaskan aturan ongkir (gratis di Bandung minimal Rp100.000, luar Bandung Rp20.000) atau menawarkan konfirmasi staf.
+
+# Tiga pesan pelanggan beruntun tanpa balasan AI di antaranya.
+- description: 'A3-05: halo → mau tanya → roti sobek coklat stoknya ada?'
+  metadata: { id: A3-05, category: A3 }
+  vars:
+    conversation: |-
+      halo
+      mau tanya
+      roti sobek coklat stoknya ada?
+  assert:
+    - type: llm-rubric
+      value: Satu jawaban yang menyatakan Roti Sobek Coklat tersedia; tidak menjawab setiap pesan terpisah.
+
+- description: 'A3-06: Oh iya, alamat toko di mana? (lanjutan Roti Sobek Coklat)'
+  metadata: { id: A3-06, category: A3 }
+  vars:
+    conversation: |-
+      Ada Roti Sobek Coklat?
+      AI: Ada, harganya Rp25.000.
+      Oh iya, alamat toko di mana?
+  assert:
+    - type: llm-rubric
+      value: Menyebut Jl. Merdeka No. 10, Bandung; tidak mengulang info produk.
+    - type: icontains
+      value: Merdeka
+
+- description: 'A3-07: kak ongkir ke luar kota brp ya? thx'
+  metadata: { id: A3-07, category: A3 }
+  vars:
+    conversation: kak ongkir ke luar kota brp ya? thx
+  assert:
+    - type: llm-rubric
+      value: Rp20.000 per pesanan untuk luar Bandung, dengan bahasa yang ramah.
+    - type: icontains
+      value: '20.000'
+
+# Draf: bahasa jawaban (mengikuti pelanggan atau selalu Bahasa Indonesia) masih menunggu keputusan tim.
+- description: 'A3-08: Do you deliver outside Bandung? How much?'
+  metadata: { id: A3-08, category: A3 }
+  vars:
+    conversation: Do you deliver outside Bandung? How much?
+  assert:
+    - type: llm-rubric
+      value: Ongkir luar Bandung Rp20.000 per pesanan.
+    - type: icontains
+      value: '20.000'
+
+# Flaky di baseline 2026-10-30: run 1 lulus, run 2 gagal.
+- description: 'A3-09: jm bka hr jumat?'
+  metadata: { id: A3-09, category: A3, flaky: true }
+  vars:
+    conversation: jm bka hr jumat?
+  assert:
+    - type: llm-rubric
+      value: Jumat buka pukul 13.00–20.00 WIB.
+    - type: icontains
+      value: '13.00'

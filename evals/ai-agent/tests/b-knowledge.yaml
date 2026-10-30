@@ -1,0 +1,113 @@
+# B. Fakta knowledge: memakai knowledge agent UAT "CS Toko Roti Vynor" (1 teks profil toko, 1 Q&A, 1 produk; lihat
+# fixtures/toko-roti.json) dan harus diganti dengan knowledge asli perusahaan. B-08 dan B-11 adalah parafrase.
+- description: 'B-01: Hari Sabtu buka jam berapa?'
+  metadata: { id: B-01, category: B }
+  vars:
+    conversation: Hari Sabtu buka jam berapa?
+  assert:
+    - type: llm-rubric
+      value: 08.00–20.00 WIB.
+    - type: icontains
+      value: '08.00'
+
+- description: 'B-02: Hari Jumat buka jam berapa?'
+  metadata: { id: B-02, category: B }
+  vars:
+    conversation: Hari Jumat buka jam berapa?
+  assert:
+    - type: llm-rubric
+      value: Mulai 13.00 sampai 20.00 WIB.
+    - type: icontains
+      value: '13.00'
+
+- description: 'B-03: Alamat tokonya di mana?'
+  metadata: { id: B-03, category: B }
+  vars:
+    conversation: Alamat tokonya di mana?
+  assert:
+    - type: icontains
+      value: Merdeka No. 10
+
+- description: 'B-04: Kirim ke Bandung kalau belanja Rp80.000 kena ongkir berapa?'
+  metadata: { id: B-04, category: B }
+  vars:
+    conversation: Kirim ke Bandung kalau belanja Rp80.000 kena ongkir berapa?
+  assert:
+    - type: llm-rubric
+      value: Tidak gratis karena di bawah Rp100.000; besaran ongkir dalam Bandung tidak ada di knowledge, jadi AI tidak boleh menebak angkanya.
+
+- description: 'B-05: Belanja Rp150.000 dikirim ke Bandung, kena ongkir?'
+  metadata: { id: B-05, category: B }
+  vars:
+    conversation: Belanja Rp150.000 dikirim ke Bandung, kena ongkir?
+  assert:
+    - type: llm-rubric
+      value: Gratis ongkir.
+
+- description: 'B-06: Kirim ke Surabaya ongkirnya berapa?'
+  metadata: { id: B-06, category: B }
+  vars:
+    conversation: Kirim ke Surabaya ongkirnya berapa?
+  assert:
+    - type: llm-rubric
+      value: Rp20.000 per pesanan.
+    - type: icontains
+      value: '20.000'
+
+- description: 'B-07: Bisa pesan kue ulang tahun custom?'
+  metadata: { id: B-07, category: B }
+  vars:
+    conversation: Bisa pesan kue ulang tahun custom?
+  assert:
+    - type: llm-rubric
+      value: Bisa; pesan minimal 3 hari sebelumnya dengan DP 50% lewat chat.
+    - type: icontains
+      value: 50%
+
+# Parafrase B-07: "cake ultah" untuk "kue ulang tahun".
+- description: 'B-08: Kalau mau order cake ultah desain sendiri gimana caranya?'
+  metadata: { id: B-08, category: B }
+  vars:
+    conversation: Kalau mau order cake ultah desain sendiri gimana caranya?
+  assert:
+    - type: llm-rubric
+      value: Bisa; pesan minimal 3 hari sebelumnya dengan DP 50% lewat chat.
+    - type: icontains
+      value: 3 hari
+
+- description: 'B-09: Harga Roti Sobek Coklat berapa?'
+  metadata: { id: B-09, category: B }
+  vars:
+    conversation: Harga Roti Sobek Coklat berapa?
+  assert:
+    - type: icontains
+      value: '25.000'
+
+# Draf: perlu keputusan tim apakah jumlah stok (12) boleh disebut; rubrik hanya memeriksa "tersedia".
+- description: 'B-10: Roti sobek coklat masih ada stok?'
+  metadata: { id: B-10, category: B }
+  vars:
+    conversation: Roti sobek coklat masih ada stok?
+  assert:
+    - type: llm-rubric
+      value: Menyatakan Roti Sobek Coklat tersedia.
+
+# Parafrase nama produk.
+- description: 'B-11: Roti yang coklat sobek-sobek itu berapaan?'
+  metadata: { id: B-11, category: B }
+  vars:
+    conversation: Roti yang coklat sobek-sobek itu berapaan?
+  assert:
+    - type: llm-rubric
+      value: Rp25.000.
+    - type: icontains
+      value: '25.000'
+
+# Jawaban bergantung pada waktu uji, yang diberikan ke judge sebagai TestTime.
+- description: 'B-12: Sekarang toko sudah buka belum?'
+  metadata: { id: B-12, category: B }
+  vars:
+    conversation: Sekarang toko sudah buka belum?
+  assert:
+    - type: llm-rubric
+      value: Menyatakan toko sedang buka atau tutup sesuai waktu uji (TestTime) dan jam buka toko, yaitu setiap hari 08.00–20.00 WIB kecuali Jumat yang buka mulai 13.00.

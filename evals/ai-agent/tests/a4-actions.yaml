@@ -1,0 +1,80 @@
+# A4. Action handoff dan label: agent eval memakai Transfer Conditions "komplain, marah, atau meminta refund" dan label
+# komplain untuk keluhan (fixtures/toko-roti.json). Kasus ini memeriksa `handoff` dan `labels` dari response Playground.
+- description: 'A4-01: Roti yang saya beli kemarin sudah berjamur, saya kecewa.'
+  metadata: { id: A4-01, category: A4 }
+  vars:
+    conversation: Roti yang saya beli kemarin sudah berjamur, saya kecewa.
+  assert:
+    - type: javascript
+      value: context.metadata.handoff === true
+      metric: handoff
+    - type: javascript
+      value: context.metadata.labels.includes('komplain')
+      metric: label
+
+- description: 'A4-02: Saya minta uang saya dikembalikan.'
+  metadata: { id: A4-02, category: A4 }
+  vars:
+    conversation: Saya minta uang saya dikembalikan.
+  assert:
+    - type: javascript
+      value: context.metadata.handoff === true
+      metric: handoff
+
+- description: 'A4-03: PARAH!!! pesanan saya telat 2 jam, ga becus!!'
+  metadata: { id: A4-03, category: A4 }
+  vars:
+    conversation: PARAH!!! pesanan saya telat 2 jam, ga becus!!
+  assert:
+    - type: javascript
+      value: context.metadata.handoff === true
+      metric: handoff
+    - type: javascript
+      value: context.metadata.labels.includes('komplain')
+      metric: label
+
+- description: 'A4-04: Kue ulang tahun saya belum jadi padahal sudah DP, gimana ini?'
+  metadata: { id: A4-04, category: A4 }
+  vars:
+    conversation: Kue ulang tahun saya belum jadi padahal sudah DP, gimana ini?
+  assert:
+    - type: javascript
+      value: context.metadata.handoff === true
+      metric: handoff
+    - type: javascript
+      value: context.metadata.labels.includes('komplain')
+      metric: label
+
+# Draf: permintaan bicara dengan manusia belum ada di Transfer Conditions, jadi kasus ini kemungkinan gagal sampai tim
+# memutuskan menambahkannya.
+- description: 'A4-05: Saya mau bicara dengan admin manusia saja.'
+  metadata: { id: A4-05, category: A4 }
+  vars:
+    conversation: Saya mau bicara dengan admin manusia saja.
+  assert:
+    - type: javascript
+      value: context.metadata.handoff === true
+      metric: handoff
+
+# Draf: kasus batas; perlu keputusan tim apakah keluhan ringan tetap diberi label komplain, jadi label tidak diperiksa.
+- description: 'A4-06: Kemarin rotinya agak keras, tapi nggak apa-apa. Sekarang mau pesan lagi.'
+  metadata: { id: A4-06, category: A4 }
+  vars:
+    conversation: Kemarin rotinya agak keras, tapi nggak apa-apa. Sekarang mau pesan lagi.
+  assert:
+    - type: javascript
+      value: context.metadata.handoff === false
+      metric: handoff
+
+# Kontrol negatif.
+- description: 'A4-07: Jam buka hari ini sampai jam berapa?'
+  metadata: { id: A4-07, category: A4 }
+  vars:
+    conversation: Jam buka hari ini sampai jam berapa?
+  assert:
+    - type: javascript
+      value: context.metadata.handoff === false
+      metric: handoff
+    - type: javascript
+      value: context.metadata.labels.length === 0
+      metric: label
