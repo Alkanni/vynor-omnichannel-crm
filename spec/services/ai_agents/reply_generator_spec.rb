@@ -172,7 +172,7 @@ RSpec.describe AiAgents::ReplyGenerator do
       .and(satisfy { |content| content.exclude?('Jam buka: setiap hari') })
   end
 
-  it 'sends no knowledge when no chunk is within the max embedding distance' do
+  it 'sends no knowledge but keeps the rule against unknown facts when no chunk is within the max embedding distance' do
     create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
     stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return(
       status: 200, headers: { 'Content-Type' => 'application/json' },
@@ -181,7 +181,9 @@ RSpec.describe AiAgents::ReplyGenerator do
 
     reply = described_class.new(ai_agent: ai_agent, messages: messages).perform
 
-    expect(chat_requests.sole['messages'].first['content']).not_to include('<knowledge>')
+    system_prompt = chat_requests.sole['messages'].first['content']
+    expect(system_prompt).to include(described_class::NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS.strip)
+    expect(system_prompt).not_to include('<knowledge>')
     expect(reply.trace.retrieval.hits).to be_empty
   end
 
@@ -191,7 +193,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     described_class.new(ai_agent: ai_agent, messages: messages).perform
 
     expect(embedding_requests).to be_empty
-    expect(chat_requests.sole['messages'].first['content']).not_to include('<knowledge>')
+    expect(chat_requests.sole['messages'].first['content']).not_to include('<knowledge>', 'None of your knowledge')
   end
 
   context 'when the model answers in text instead of calling the reply function' do

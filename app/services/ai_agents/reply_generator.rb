@@ -26,6 +26,10 @@ class AiAgents::ReplyGenerator
     Use the knowledge below to answer. State facts such as prices, stock, schedules, and policies only when they appear
     in the knowledge or in the conversation. If the knowledge does not cover the question, say that you do not know.
   TEXT
+  NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS = <<~TEXT.freeze
+    None of your knowledge is relevant to this message. State facts such as prices, stock, schedules, and policies only
+    when they appear in the conversation; otherwise say that you do not know.
+  TEXT
   RESPONSE_INSTRUCTIONS = <<~TEXT.freeze
     Put your reply in the "messages" array. Each item is sent to the customer as a separate chat bubble,
     so use more than one item only when separate bubbles help, and never more than #{MAX_REPLY_MESSAGES}.
@@ -66,11 +70,14 @@ class AiAgents::ReplyGenerator
     "Current date and time: #{Time.current.in_time_zone(ai_agent.timezone).strftime('%A, %-d %B %Y %H:%M')} (#{ai_agent.timezone})"
   end
 
+  # An agent with knowledge but none relevant to the message still gets the rule against stating facts it was not given.
   def knowledge
-    return if retrieval.hits.empty?
-
-    entries = retrieval.hits.map { |hit| "[#{hit.rank}] #{hit.chunk.content}" }
-    "#{KNOWLEDGE_INSTRUCTIONS}\n<knowledge>\n#{entries.join("\n\n")}\n</knowledge>"
+    if retrieval.hits.empty?
+      NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS if ai_agent.knowledge_chunks.exists?
+    else
+      entries = retrieval.hits.map { |hit| "[#{hit.rank}] #{hit.chunk.content}" }
+      "#{KNOWLEDGE_INSTRUCTIONS}\n<knowledge>\n#{entries.join("\n\n")}\n</knowledge>"
+    end
   end
 
   def retrieval
