@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# AI Agent retrieval eval (issue #80): ranks of the expected sources in the Retrieval Test of the "large" eval agent.
+# Run from this directory with `-c promptfooconfig.retrieval.yaml`; see README.md.
+description: AI Agent retrieval
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://retrieval-provider.mjs
+    label: ai-agent-retrieval-test
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 4
+
+defaultTest:
+  vars:
+    agent: large
+  assert:
+    - type: javascript
+      value: file://lib/retrieval.mjs
+
+tests:
+  - file://tests/retrieval.yaml

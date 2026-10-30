@@ -1,0 +1,219 @@
+# Kasus retrieval untuk agent eval "large" (fixtures/toko-roti-large.json). `expected` berisi sumber yang diterima
+# (judul knowledge source atau nama produk), satu per baris; kasus lulus bila salah satunya ada di peringkat 1-5.
+# Kasus tanpa `expected` tidak punya jawaban di knowledge dan lulus hanya bila tidak ada chunk yang diambil.
+# Draf dari agent untuk issue #80 (knowledge sintetis); tim mengoreksinya seperti dataset #71.
+
+# Langsung: pertanyaan menyebut nama produk atau topik.
+- description: 'R-L01: Berapa harga Roti Sobek Keju?'
+  metadata: { id: R-L01, category: langsung }
+  vars:
+    conversation: Berapa harga Roti Sobek Keju?
+    expected: Roti Sobek Keju
+
+- description: 'R-L02: Apakah semua produknya halal?'
+  metadata: { id: R-L02, category: langsung }
+  vars:
+    conversation: Apakah semua produknya halal?
+    expected: Apakah semua produk Toko Roti Vynor halal?
+
+- description: 'R-L03: Ada program reseller?'
+  metadata: { id: R-L03, category: langsung }
+  vars:
+    conversation: Ada program reseller?
+    expected: Apakah ada program reseller?
+
+- description: 'R-L04: Berapa harga Lapis Legit?'
+  metadata: { id: R-L04, category: langsung }
+  vars:
+    conversation: Berapa harga Lapis Legit?
+    expected: Lapis Legit
+
+- description: 'R-L05: Apakah ada tempat parkir?'
+  metadata: { id: R-L05, category: langsung }
+  vars:
+    conversation: Apakah ada tempat parkir?
+    expected: Apakah ada tempat parkir?
+
+- description: 'R-L06: Berapa harga Croissant Almond?'
+  metadata: { id: R-L06, category: langsung }
+  vars:
+    conversation: Berapa harga Croissant Almond?
+    expected: Croissant Almond
+
+- description: 'R-L07: Apakah kue tart sudah dapat lilin?'
+  metadata: { id: R-L07, category: langsung }
+  vars:
+    conversation: Apakah kue tart sudah dapat lilin?
+    expected: Apakah kue tart sudah termasuk lilin dan pisau?
+
+- description: 'R-L08: Alamat toko di mana?'
+  metadata: { id: R-L08, category: langsung }
+  vars:
+    conversation: Alamat toko di mana?
+    expected: |-
+      Profil toko
+      Apakah bisa ambil pesanan langsung di toko?
+
+# Parafrase: sinonim atau deskripsi, bukan kata yang ada di knowledge.
+- description: 'R-P01: Kalau mau order cake ultah desain sendiri gimana caranya?'
+  metadata: { id: R-P01, category: parafrase }
+  vars:
+    conversation: Kalau mau order cake ultah desain sendiri gimana caranya?
+    expected: Apakah bisa pesan kue ulang tahun custom?
+
+- description: 'R-P02: Roti yang coklat sobek-sobek itu berapaan?'
+  metadata: { id: R-P02, category: parafrase }
+  vars:
+    conversation: Roti yang coklat sobek-sobek itu berapaan?
+    expected: Roti Sobek Coklat
+
+- description: 'R-P03: Ada roti buat orang yang kena gula darah?'
+  metadata: { id: R-P03, category: parafrase }
+  vars:
+    conversation: Ada roti buat orang yang kena gula darah?
+    expected: |-
+      Roti Bebas Gula
+      Apakah tersedia produk untuk penderita diabetes atau tanpa gula?
+
+- description: 'R-P04: Saya alergi kacang, produk mana yang harus saya hindari?'
+  metadata: { id: R-P04, category: parafrase }
+  vars:
+    conversation: Saya alergi kacang, produk mana yang harus saya hindari?
+    expected: Apakah ada produk yang mengandung kacang?
+
+- description: 'R-P05: Bisa jadi agen jualan roti kalian?'
+  metadata: { id: R-P05, category: parafrase }
+  vars:
+    conversation: Bisa jadi agen jualan roti kalian?
+    expected: Apakah ada program reseller?
+
+- description: 'R-P06: Pas Idul Fitri tokonya libur nggak?'
+  metadata: { id: R-P06, category: parafrase }
+  vars:
+    conversation: Pas Idul Fitri tokonya libur nggak?
+    expected: Apakah toko buka saat hari libur nasional dan Lebaran?
+
+# Typo: singkatan dan salah ketik.
+- description: 'R-T01: hrg roti twr kupas brp?'
+  metadata: { id: R-T01, category: typo }
+  vars:
+    conversation: hrg roti twr kupas brp?
+    expected: Roti Tawar Kupas
+
+- description: 'R-T02: ad wifi g di toko?'
+  metadata: { id: R-T02, category: typo }
+  vars:
+    conversation: ad wifi g di toko?
+    expected: Apakah ada WiFi di toko?
+
+- description: 'R-T03: brownis panggang msh ada?'
+  metadata: { id: R-T03, category: typo }
+  vars:
+    conversation: brownis panggang msh ada?
+    expected: Brownies Panggang
+
+- description: 'R-T04: bs ambil sndiri ke toko?'
+  metadata: { id: R-T04, category: typo }
+  vars:
+    conversation: bs ambil sndiri ke toko?
+    expected: Apakah bisa ambil pesanan langsung di toko?
+
+# Struktur: jawabannya ada di baris tabel atau di bawah heading teks panjang.
+- description: 'R-S01: Berapa harga kue tart keju diameter 24 cm?'
+  metadata: { id: R-S01, category: struktur }
+  vars:
+    conversation: Berapa harga kue tart keju diameter 24 cm?
+    expected: Daftar harga paket
+
+- description: 'R-S02: Paket pernikahan 100 snack box harganya berapa?'
+  metadata: { id: R-S02, category: struktur }
+  vars:
+    conversation: Paket pernikahan 100 snack box harganya berapa?
+    expected: Daftar harga paket
+
+- description: 'R-S03: Komplain roti rusak paling lambat berapa jam?'
+  metadata: { id: R-S03, category: struktur }
+  vars:
+    conversation: Komplain roti rusak paling lambat berapa jam?
+    expected: Kebijakan toko
+
+- description: 'R-S04: Bisa bayar di tempat (COD)?'
+  metadata: { id: R-S04, category: struktur }
+  vars:
+    conversation: Bisa bayar di tempat (COD)?
+    expected: Kebijakan toko
+
+- description: 'R-S05: Cheesecake tahan berapa hari di kulkas?'
+  metadata: { id: R-S05, category: struktur }
+  vars:
+    conversation: Cheesecake tahan berapa hari di kulkas?
+    expected: Kebijakan toko
+
+- description: 'R-S06: Hampers Lebaran isi 12 toples berapa?'
+  metadata: { id: R-S06, category: struktur }
+  vars:
+    conversation: Hampers Lebaran isi 12 toples berapa?
+    expected: Daftar harga paket
+
+# Multi-turn: pesan terakhir pelanggan bergantung pada giliran sebelumnya. Query disusun seperti balasan runtime saat
+# ini (pesan pelanggan setelah baris "AI:" terakhir).
+- description: 'R-M01: Kalau beli 3 totalnya berapa? (lanjutan Roti Sobek Pandan)'
+  metadata: { id: R-M01, category: multi-turn }
+  vars:
+    conversation: |-
+      Ada Roti Sobek Pandan?
+      AI: Ada, harganya Rp26.000.
+      Kalau beli 3 totalnya berapa?
+    expected: Roti Sobek Pandan
+
+- description: 'R-M02: Bisa dikirim ke Jakarta? (lanjutan hampers Imlek)'
+  metadata: { id: R-M02, category: multi-turn }
+  vars:
+    conversation: |-
+      Saya mau pesan hampers Imlek.
+      AI: Hampers Imlek isi 8 toples kue kering harganya Rp480.000.
+      Bisa dikirim ke Jakarta?
+    expected: |-
+      Kebijakan toko
+      Apakah bisa kirim ke luar kota?
+
+- description: 'R-M03: Ini mengandung kacang nggak? (lanjutan Croissant Almond)'
+  metadata: { id: R-M03, category: multi-turn }
+  vars:
+    conversation: |-
+      Croissant almond ada?
+      AI: Ada, harganya Rp23.000.
+      Ini mengandung kacang nggak?
+    expected: |-
+      Apakah ada produk yang mengandung kacang?
+      Croissant Almond
+
+- description: 'R-M04: Stoknya masih ada? (lanjutan Bolu Pandan)'
+  metadata: { id: R-M04, category: multi-turn }
+  vars:
+    conversation: |-
+      Berapa harga Bolu Pandan?
+      AI: Bolu Pandan Rp55.000 per loyang 20 cm.
+      Stoknya masih ada?
+    expected: Bolu Pandan
+
+# Tanpa jawaban: tidak ada knowledge yang menjawab pertanyaan.
+- description: 'R-N01: Apakah ada cabang di Surabaya?'
+  metadata: { id: R-N01, category: tanpa-jawaban }
+  vars:
+    conversation: Apakah ada cabang di Surabaya?
+
+- description: 'R-N02: Siapa nama pemilik toko?'
+  metadata: { id: R-N02, category: tanpa-jawaban }
+  vars:
+    conversation: Siapa nama pemilik toko?
+
+- description: 'R-N03: Jual pulsa dan token listrik?'
+  metadata: { id: R-N03, category: tanpa-jawaban }
+  vars:
+    conversation: Jual pulsa dan token listrik?
+
+- description: 'R-N04: Bagaimana cuaca di Bandung hari ini?'
+  metadata: { id: R-N04, category: tanpa-jawaban }
+  vars:
+    conversation: Bagaimana cuaca di Bandung hari ini?

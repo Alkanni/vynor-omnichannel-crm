@@ -3,23 +3,7 @@
 // The reply text is the output; handoff, labels, retrieval, model and latency go to metadata for assertions.
 import { readFileSync } from 'node:fs';
 import { AGENTS_FILE, appApi } from './lib/app-api.mjs';
-
-const ASSISTANT_PREFIX = 'AI:';
-
-function toMessages(conversation) {
-  return conversation
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line =>
-      line.startsWith(ASSISTANT_PREFIX)
-        ? {
-            role: 'assistant',
-            content: line.slice(ASSISTANT_PREFIX.length).trim(),
-          }
-        : { role: 'user', content: line }
-    );
-}
+import { toMessages } from './lib/conversation.mjs';
 
 export default class AiAgentPlaygroundProvider {
   id() {
