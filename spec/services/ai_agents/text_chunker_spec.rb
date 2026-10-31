@@ -32,11 +32,35 @@ RSpec.describe AiAgents::TextChunker do
     expect(chunks.map(&:length).max).to be <= described_class::CHUNK_SIZE
   end
 
-  it 'limits a very long heading path' do
-    chunks = described_class.split("# #{'a' * 2_000}\n\nIsi.")
+  it 'keeps a heading with nothing under it as its own chunk' do
+    expect(described_class.split("# Cabang\n\nIsi cabang.\n\n## Kopo\n\nIsi Kopo.\n\n## Kontak WA 0812-1111\n\n# Jam buka 08.00\n"))
+      .to eq(["Cabang\n\nIsi cabang.", "Cabang > Kopo\n\nIsi Kopo.", 'Cabang > Kontak WA 0812-1111', 'Jam buka 08.00'])
+  end
 
-    expect(chunks.sole.length).to be < 300
-    expect(chunks.sole).to end_with("\n\nIsi.")
+  it 'keeps a document of only headings' do
+    expect(described_class.split("# Jam buka 08.00-20.00\n\n# Alamat Jl. Merdeka 1")).to eq(['Jam buka 08.00-20.00', 'Alamat Jl. Merdeka 1'])
+  end
+
+  it 'adds no chunk for a heading that the path of the next, deeper heading carries' do
+    expect(described_class.split("# Cabang\n\n## Kopo\n\n### Kontak\n\nTelepon 1.")).to eq(["Cabang > Kopo > Kontak\n\nTelepon 1."])
+  end
+
+  it 'shortens a very long heading path on every chunk and keeps its text in full once' do
+    heading = (['kata'] * 500).join(' ')
+
+    chunks = described_class.split("# #{heading}\n\nIsi.")
+
+    expect(chunks.map(&:length).max).to be <= described_class::CHUNK_SIZE
+    expect(chunks).to all(start_with(heading.truncate(described_class::MAX_HEADING_PATH)))
+    expect(chunks.map { |chunk| chunk.split("\n\n", 2).last }.join(' ').delete(" \n")).to eq("#{heading}Isi.".delete(" \n"))
+  end
+
+  it 'keeps a very long parent heading that has nothing under it' do
+    parent = (['induk'] * 100).join(' ')
+
+    chunks = described_class.split("# #{parent}\n\n## Kontak\n\nTelepon 1.")
+
+    expect(chunks.sole).to end_with("#{parent} > Kontak\n\nTelepon 1.")
   end
 
   it 'does not read a hashtag or a number sign as a heading' do

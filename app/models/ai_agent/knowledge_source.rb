@@ -61,6 +61,11 @@ class AiAgent::KnowledgeSource < ApplicationRecord
     enqueue_processing
   end
 
+  def store_extracted!(content, title: self.title)
+    update!(title: title, content: content.first(MAX_EXTRACTED_CHARACTERS), status: :ready,
+            metadata: metadata.merge('truncated' => content.length > MAX_EXTRACTED_CHARACTERS))
+  end
+
   # nil until the source has chunks (see AiAgent::KnowledgeChunk.index_summaries).
   def index_summary
     ai_agent.knowledge_chunks.where(chunkable: self).index_summaries(AiAgents::LlmClient.embedding_model)[id]
