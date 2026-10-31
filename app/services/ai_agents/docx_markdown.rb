@@ -20,8 +20,11 @@ class AiAgents::DocxMarkdown
     level && content.present? ? "#{'#' * level} #{content}" : content
   end
 
+  # Rows and cells can sit inside content controls, so they are not always direct children. A nested table stays in its cell.
   def table(node)
-    header, *rows = node.xpath('w:tr', NAMESPACE).map { |row| row.xpath('w:tc', NAMESPACE).map { |cell| cell_text(cell) } }
+    header, *rows = node.xpath('.//w:tr[count(ancestor::w:tbl) = 1]', NAMESPACE).map do |row|
+      row.xpath('.//w:tc[count(ancestor::w:tbl) = 1]', NAMESPACE).map { |cell| cell_text(cell) }
+    end
     return if header.nil?
 
     [header, header.map { '---' }, *rows].map { |cells| "| #{cells.join(' | ')} |" }.join("\n")

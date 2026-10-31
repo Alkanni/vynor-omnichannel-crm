@@ -15,13 +15,22 @@ class AiAgents::TextChunker
   # [heading path, lines] of each stretch of text between headings; the text before the first heading has no path.
   def self.sections(text)
     headings = []
-    text.lines(chomp: true).slice_before(HEADING_PATTERN).map do |lines|
+    [*text.lines(chomp: true).slice_before(HEADING_PATTERN), nil].each_cons(2).filter_map do |lines, following|
       marks, title = lines.first.match(HEADING_PATTERN)&.captures
       next ['', lines] unless marks
 
       headings = headings.select { |level, _title| level < marks.length } << [marks.length, title]
-      [headings.map(&:last).join(' > ').truncate(MAX_HEADING_PATH), lines.drop(1)]
+      section(headings.map(&:last).join(' > '), lines.drop(1), following && following.first[HEADING_PATTERN, 1].length > marks.length)
     end
+  end
+
+  # Heading text has to reach a chunk too. A heading with nothing under it becomes the text of its section, unless the deeper
+  # heading after it carries it in its path, and a path too long to repeat on every chunk is kept in full once.
+  def self.section(path, body, parent)
+    return (parent ? nil : ['', [path]]) if body.all?(&:blank?)
+    return [path, body] if path.length <= MAX_HEADING_PATH
+
+    [path.truncate(MAX_HEADING_PATH), [path, '', *body]]
   end
 
   def self.section_chunks(path, lines)
@@ -66,5 +75,5 @@ class AiAgents::TextChunker
     text.scan(/.{1,#{limit}}(?:\s+|\z)|.{#{limit}}/m).map(&:strip).compact_blank
   end
 
-  private_class_method :sections, :section_chunks, :pack, :pieces, :table?, :table_pieces, :cut
+  private_class_method :sections, :section, :section_chunks, :pack, :pieces, :table?, :table_pieces, :cut
 end
