@@ -23,7 +23,7 @@ uses real tokens: one run makes 47 agent calls plus 38 judge calls.
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
 | `report.mjs` | Markdown summary: pass rate per category, tokens, latency, failures, and results that changed between two runs |
-| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 50 cases (direct, paraphrase, typo, table/heading, multi-turn, exact word, word form, no answer) |
+| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 67 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, no answer) |
 | `retrieval-provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/retrieval_test` |
 | `retrieval-report.mjs` | Markdown summary: hit@1, hit@5, MRR per category, chunks retrieved, score distribution of relevant vs irrelevant chunks, and request latency |
 | `lib/` | API client, conversation parsing (shared by both providers), retrieval assertion |
@@ -90,11 +90,12 @@ node retrieval-report.mjs output/retrieval-vector.json
 - `expected` in `tests/retrieval.yaml` lists the acceptable sources (knowledge source title or product name), one per
   line. A case passes when one of them ranks in the top 5. A case without `expected` has no answer in the knowledge
   and passes only when nothing is retrieved.
-- Multi-turn cases search with the query a reply builds today: the customer messages after the last `AI:` line.
+- Multi-turn and topic change cases send the messages up to the last `AI:` line as the Retrieval Test `history`, and
+  the customer messages after it as `query`, so they search with the queries a reply builds.
 - The mode follows `AI_AGENT_EMBEDDING_MODEL` in Super Admin: hybrid when it is set, keyword when it is blank. To
   measure keyword mode, blank it, run the eval, and set it back. This affects every agent of the installation while it
-  is blank, but no re-index is needed. Hybrid scores are Reciprocal Rank Fusion scores and keyword scores are `ts_rank`;
-  in both, higher is closer. Hybrid scores come from ranks, so they say nothing about how relevant a chunk is on its own.
+  is blank, but no re-index is needed. Scores are Reciprocal Rank Fusion scores in both modes: higher is closer, but they
+  come from ranks, so they say nothing about how relevant a chunk is on its own.
   The report's score distribution uses each hit's cosine `distance` instead, which is what
   `AI_AGENT_EMBEDDING_MAX_DISTANCE` compares (`null` for a chunk found only by keywords).
 - Each case costs one embedding call in hybrid mode and no LLM call in keyword mode. Results are deterministic for the

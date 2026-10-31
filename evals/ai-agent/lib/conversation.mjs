@@ -16,15 +16,18 @@ export function toMessages(conversation) {
     );
 }
 
-// The retrieval query a reply uses today: the customer messages since the last agent reply
-// (AiAgents::ReplyGenerator#latest_customer_text).
-export function runtimeQuery(conversation) {
+// What the Retrieval Test takes: the customer messages since the last agent reply as the question, and the messages
+// before them as history.
+export function toRetrievalTest(conversation) {
   const messages = toMessages(conversation);
   const lastReply = messages.findLastIndex(
     message => message.role === 'assistant'
   );
-  return messages
-    .slice(lastReply + 1)
-    .map(message => message.content)
-    .join('\n');
+  return {
+    history: messages.slice(0, lastReply + 1),
+    query: messages
+      .slice(lastReply + 1)
+      .map(message => message.content)
+      .join('\n'),
+  };
 }

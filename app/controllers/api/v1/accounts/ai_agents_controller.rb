@@ -49,7 +49,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   end
 
   def playground
-    messages = playground_messages
+    messages = conversation_messages(params.require(:messages))
     return render_could_not_create_error('Invalid messages') if messages.nil?
 
     @reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages.last(@ai_agent.history_limit)).perform
@@ -57,14 +57,18 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     render_could_not_create_error(e.message)
   end
 
-  # Searches the knowledge for a customer question exactly as a reply would (see AiAgents::KnowledgeRetriever).
+  # Searches the knowledge for a customer question exactly as a reply would (see AiAgents::KnowledgeRetriever), after the
+  # optional history of earlier messages, in the format of the playground.
   def retrieval_test
     query = params[:query]
-    unless query.is_a?(String) && query.strip.present? && query.length <= AiAgents::ReplyGenerator::MAX_QUERY_CHARACTERS
+    history = conversation_messages(params.fetch(:history, []))
+    unless query.is_a?(String) && query.strip.present? && query.length <= AiAgents::KnowledgeRetriever::MAX_QUERY_CHARACTERS
       return render_could_not_create_error('Invalid query')
     end
+    return render_could_not_create_error('Invalid history') if history.nil?
 
-    @retrieval = AiAgents::KnowledgeRetriever.new(ai_agent: @ai_agent, query: query).perform
+    messages = [*history, { role: :user, content: query }].last(@ai_agent.history_limit)
+    @retrieval = AiAgents::KnowledgeRetriever.new(ai_agent: @ai_agent, messages: messages).perform
   rescue AiAgents::LlmError => e
     render_could_not_create_error(e.message)
   end
@@ -90,14 +94,13 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   end
 
   # Returns nil unless every message is a non-empty user or assistant text within the playground limits.
-  def playground_messages
-    messages = params.require(:messages)
-    return unless messages.is_a?(Array) && messages.size <= MAX_PLAYGROUND_MESSAGES && messages.all? { |message| playground_message?(message) }
+  def conversation_messages(messages)
+    return unless messages.is_a?(Array) && messages.size <= MAX_PLAYGROUND_MESSAGES && messages.all? { |message| conversation_message?(message) }
 
     messages.map { |message| { role: message[:role].to_sym, content: message[:content] } }
   end
 
-  def playground_message?(message)
+  def conversation_message?(message)
     message.is_a?(ActionController::Parameters) && PLAYGROUND_ROLES.include?(message[:role]) && message[:content].is_a?(String) &&
       message[:content].strip.present? && message[:content].length <= MAX_PLAYGROUND_MESSAGE_LENGTH
   end

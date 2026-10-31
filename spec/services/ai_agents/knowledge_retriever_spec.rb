@@ -16,8 +16,9 @@ RSpec.describe AiAgents::KnowledgeRetriever do
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
     stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
-      embedding_requests << JSON.parse(request.body)
-      { status: 200, headers: { 'Content-Type' => 'application/json' }, body: { data: [{ embedding: query_vector }] }.to_json }
+      body = JSON.parse(request.body)
+      embedding_requests << body
+      { status: 200, headers: { 'Content-Type' => 'application/json' }, body: { data: body['input'].map { { embedding: query_vector } } }.to_json }
     end
   end
 
@@ -33,7 +34,7 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       next_closest = create_chunk('Harga cuci', embedding: Array.new(1536) { |index| index < 3 ? 1.0 : 0.0 },
                                                 embedding_model: 'text-embedding-3-small')
 
-      result = described_class.new(ai_agent: ai_agent, query: 'Jam buka?').perform
+      result = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform
 
       expect(result).to have_attributes(mode: 'hybrid', embedding_model: 'text-embedding-3-small')
       expect(result.hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[both, 1], [closest, 2], [next_closest, 3]])
@@ -47,7 +48,7 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       closest = create_chunk('Alamat toko', embedding: query_vector, embedding_model: 'text-embedding-3-small')
       create_chunk('Harga cuci', embedding: far_vector, embedding_model: 'text-embedding-3-small')
 
-      result = described_class.new(ai_agent: ai_agent, query: 'Jam buka?').perform
+      result = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform
 
       expect(result.hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[closest, 1], [keyword_match, 2]])
     end
@@ -56,25 +57,35 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
       create_chunk('Alamat toko', embedding: far_vector, embedding_model: 'text-embedding-3-small')
 
-      expect(described_class.new(ai_agent: ai_agent, query: 'Jam buka?').perform.hits).to be_empty
+      expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform.hits).to be_empty
+    end
+
+    it 'embeds both queries of a follow-up in one request and scores a chunk for each list it is in' do
+      chunk = create_chunk('Alamat toko', embedding: query_vector, embedding_model: 'text-embedding-3-small')
+      messages = [{ role: :user, content: 'Ada Roti Keju?' }, { role: :assistant, content: 'Ada.' }, { role: :user, content: 'Kalau beli 4?' }]
+
+      result = described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+      expect(embedding_requests.sole['input']).to eq(['query: Kalau beli 4?', "query: Ada Roti Keju?\nKalau beli 4?"])
+      expect(result.hits.sole).to have_attributes(chunk: chunk, rank: 1, score: be_within(1e-9).of(5 / 21.0))
     end
 
     it 'does not embed the query when no chunk uses the current embedding model' do
       create_chunk('Model lama', embedding: query_vector, embedding_model: 'old-model')
 
-      expect(described_class.new(ai_agent: ai_agent, query: 'Jam buka?').perform.hits).to be_empty
+      expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform.hits).to be_empty
       expect(embedding_requests).to be_empty
     end
   end
 
   context 'without an embedding model' do
-    it 'ranks chunks by the words they share with the query, with their ts_rank' do
+    it 'ranks chunks by the words they share with the query' do
       partial = create_chunk('Harga detailing mobil')
       create_chunk('Jam buka setiap hari')
       full = create_chunk('Harga detailing interior Rp750.000')
       create_chunk('Harga cuci')
 
-      result = described_class.new(ai_agent: ai_agent, query: 'harga detailing interior').perform
+      result = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'harga detailing interior' }]).perform
 
       expect(result).to have_attributes(mode: 'keyword', embedding_model: nil)
       expect(result.hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[full, 1], [partial, 2]])
@@ -87,20 +98,73 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       match = create_chunk('Pemesanan dibuat 3 hari sebelumnya')
       create_chunk('Jam buka setiap hari')
 
-      expect(described_class.new(ai_agent: ai_agent, query: 'pesan').perform.hits.map(&:chunk)).to eq([match])
+      expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'pesan' }]).perform.hits.map(&:chunk)).to eq([match])
     end
 
     it 'leaves out chunks that share no word with the query' do
       match = create_chunk('Harga detailing mobil')
       create_chunk('Jam buka setiap hari')
 
-      expect(described_class.new(ai_agent: ai_agent, query: 'harga cuci').perform.hits.map(&:chunk)).to eq([match])
+      expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'harga cuci' }]).perform.hits.map(&:chunk)).to eq([match])
+    end
+  end
+
+  describe 'queries' do
+    let(:reply) { { role: :assistant, content: 'Ada, Rp27.000.' } }
+
+    it 'searches a first message on its own' do
+      result = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform
+
+      expect(result.queries).to eq(['Jam buka?'])
+    end
+
+    it 'searches a burst of messages as one question, without a welcome message' do
+      messages = [reply, { role: :user, content: 'Jam buka?' }, { role: :user, content: 'Hari Minggu juga?' }]
+
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.queries).to eq(["Jam buka?\nHari Minggu juga?"])
+    end
+
+    it 'adds a query with the earlier customer turns after a reply, without the reply' do
+      messages = [{ role: :user, content: 'Ada Roti Keju?' }, reply, { role: :user, content: 'Kalau beli 4?' }]
+
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.queries).to eq(['Kalau beli 4?', "Ada Roti Keju?\nKalau beli 4?"])
+    end
+
+    it 'keeps two earlier turns' do
+      messages = %w[Satu Dua Tiga Empat].flat_map { |content| [{ role: :user, content: content }, reply] }.tap(&:pop)
+
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.queries).to eq(%W[Empat Dua\nTiga\nEmpat])
+    end
+
+    it 'limits the earlier turns and each query' do
+      messages = [{ role: :user, content: 'a' * 5_000 }, reply, { role: :user, content: 'Kalau beli 4?' }]
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.queries.last).to eq("#{'a' * 1_000}\nKalau beli 4?")
+
+      messages = [{ role: :user, content: 'Ada Roti Keju?' }, reply, { role: :user, content: 'b' * 5_000 }]
+      queries = described_class.new(ai_agent: ai_agent, messages: messages).perform.queries
+      expect(queries.map(&:length)).to eq([4_000, 4_000])
+    end
+
+    it 'finds what a follow-up refers to through the earlier turn' do
+      subject_chunk = create_chunk('Roti Keju lembut')
+      follow_up = create_chunk('Harga total termasuk kemasan')
+      messages = [{ role: :user, content: 'Ada Roti Keju?' }, reply, { role: :user, content: 'Harga total?' }]
+
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.hits.map(&:chunk)).to contain_exactly(subject_chunk, follow_up)
+    end
+
+    it 'keeps a chunk matching a new topic above one matching only the earlier turn' do
+      create_chunk('Roti Keju lembut')
+      new_topic = create_chunk('Tempat parkir luas')
+      messages = [{ role: :user, content: 'Ada Roti Keju?' }, reply, { role: :user, content: 'Tempat parkir?' }]
+
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.hits.first.chunk).to eq(new_topic)
     end
   end
 
   it 'returns no chunks for a blank query' do
     create_chunk('Jam buka')
 
-    expect(described_class.new(ai_agent: ai_agent, query: ' ').perform.hits).to be_empty
+    expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: ' ' }]).perform.hits).to be_empty
   end
 end

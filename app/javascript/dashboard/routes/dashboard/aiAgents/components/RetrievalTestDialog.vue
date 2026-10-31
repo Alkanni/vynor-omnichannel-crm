@@ -9,6 +9,7 @@ import { parseAPIErrorResponse } from 'dashboard/store/utils/api';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 const props = defineProps({
   agentId: {
@@ -17,17 +18,35 @@ const props = defineProps({
   },
 });
 
-// Same limit as AiAgents::ReplyGenerator::MAX_QUERY_CHARACTERS.
+// Same limit as AiAgents::KnowledgeRetriever::MAX_QUERY_CHARACTERS.
 const MAX_QUERY_LENGTH = 4000;
+const MAX_CONVERSATION_LENGTH = 10000;
+const AGENT_REPLY_PREFIX = 'AI:';
 
 const { t, locale } = useI18n();
 const { run, abort, isPending } = useAbortableRequest();
 
 const dialogRef = ref(null);
 const query = ref('');
+const conversation = ref('');
 const result = ref(null);
 
 const trimmedQuery = computed(() => query.value.trim());
+const history = computed(() =>
+  conversation.value
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line =>
+      line.startsWith(AGENT_REPLY_PREFIX)
+        ? {
+            role: 'assistant',
+            content: line.slice(AGENT_REPLY_PREFIX.length).trim(),
+          }
+        : { role: 'user', content: line }
+    )
+    .filter(message => message.content)
+);
 const sourceTypeLabels = computed(() => ({
   text: t('AI_AGENTS.KNOWLEDGE.TABS.TEXT'),
   website: t('AI_AGENTS.KNOWLEDGE.TABS.WEBSITE'),
@@ -55,6 +74,7 @@ const runTest = async () => {
       const response = await AiAgentKnowledgeAPI.testRetrieval(
         props.agentId,
         trimmedQuery.value,
+        history.value,
         { signal }
       );
       return response.data;
@@ -87,6 +107,12 @@ defineExpose({ open });
     @confirm="runTest"
     @close="abort"
   >
+    <TextArea
+      v-model="conversation"
+      :label="t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.HISTORY_LABEL')"
+      :placeholder="t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.HISTORY_PLACEHOLDER')"
+      :max-length="MAX_CONVERSATION_LENGTH"
+    />
     <div class="flex flex-col gap-2">
       <label for="ai-agent-retrieval-query" class="text-label text-n-slate-12">
         {{ t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.LABEL') }}
@@ -112,6 +138,16 @@ defineExpose({ open });
     <div v-if="result" class="flex flex-col gap-3">
       <div class="flex flex-col gap-1 text-body-main text-n-slate-11">
         <p>{{ modeDescription }}</p>
+        <p>{{ t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.QUERIES') }}</p>
+        <ul class="flex flex-col gap-1 ps-4 list-disc">
+          <li
+            v-for="searched in result.queries"
+            :key="searched"
+            class="break-words whitespace-pre-wrap"
+          >
+            {{ searched }}
+          </li>
+        </ul>
         <p>
           {{
             t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.LIMIT', {

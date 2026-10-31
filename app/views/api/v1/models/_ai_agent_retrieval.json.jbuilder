@@ -1,5 +1,6 @@
 json.mode retrieval.mode
 json.embedding_model retrieval.embedding_model
+json.queries retrieval.queries
 json.chunks retrieval.hits do |hit|
   source = hit.chunk.chunkable
   json.rank hit.rank
