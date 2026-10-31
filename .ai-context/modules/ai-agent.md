@@ -1,6 +1,6 @@
 # Module: AI Agent (fork feature, CE)
 
-Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
+Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
 
 ## Where things live
 
@@ -9,7 +9,7 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83. Status: **VER
 | Models | `app/models/ai_agent.rb`, `app/models/ai_agent/{knowledge_source,product,knowledge_chunk,integration,reply_trace}.rb`, `app/models/ai_agent_inbox.rb` |
 | API | `Api::V1::Accounts::AiAgentsController` (CRUD, `models`, `duplicate`, `train`, `playground`, `retrieval_test`), `Api::V1::Accounts::AiAgents::{KnowledgeSources,Products,GoogleSheets}Controller`; admin-only via `AiAgentPolicy` |
 | Runtime | `AiAgentListener` → `AiAgents::ReplyJob` → `AiAgents::ReplyGenerator` (+ `KnowledgeRetriever`, `ActionSchema`, `LlmClient`) → `AiAgents::ConversationSession` |
-| Knowledge pipeline | `ProcessKnowledgeSourceJob` (website via `WebPageFetcher`/`WebsiteContentExtractor`, file via `FileTextExtractor`) → `IndexKnowledgeJob` → `KnowledgeIndexer` + `TextChunker` |
+| Knowledge pipeline | `ProcessKnowledgeSourceJob` (website via `WebPageFetcher`/`WebsiteContentExtractor`, file via `FileTextExtractor`, DOCX through `DocxMarkdown`) → `IndexKnowledgeJob` → `KnowledgeIndexer` + `TextChunker` |
 | Follow-up jobs | `WatchJob` (`Watcher`, second LLM look for missed handoff/labels), `AppendSheetRowJob` (Google Sheets) |
 | Frontend | `app/javascript/dashboard/routes/dashboard/aiAgents/`, API clients `api/aiAgents.js`, `api/aiAgentKnowledge.js`, `api/aiAgentGoogleSheets.js`, i18n `i18n/locale/en/aiAgents.json` |
 
@@ -27,7 +27,8 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83. Status: **VER
 - Keyword mode otherwise: `KnowledgeChunk.keyword_ranked` lists alone, through the same fusion.
 - `keyword_ranked` is `ts_rank` with `TEXT_SEARCH_CONFIG` (`indonesian`, which stems word forms and has no stop words) and OR-joined terms, not BM25. It computes `to_tsvector` per chunk of the agent at query time, about 50 ms per 1,000 chunks; there is no text search index, because a GIN index would need an `@@` filter and `ts_rank` would still recompute the vector.
 - Only relevant chunks enter a list (#81): the keyword list drops chunks with `keyword_rank` 0, the vector list drops chunks farther than `AI_AGENT_EMBEDDING_MAX_DISTANCE` (blank keeps all). A chunk past the distance limit still comes back through the keyword list when it shares a word with the query. With no chunk left the prompt has no `<knowledge>` block; an agent that has knowledge still gets `NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS` (state facts only from the conversation, otherwise say it does not know).
-- Chunking (`TextChunker`): paragraphs packed up to 1,500 characters, title prefixed; Q&A and products are one chunk each.
+- Chunking (`TextChunker`, #84): at most 1,500 characters plus the source title prefix. A Markdown heading starts a chunk and every chunk opens with its heading path (`Panduan > Cabang Dago > Kontak`). A table longer than a chunk is split between rows with its header repeated. Paragraphs of a section are packed, and anything longer is cut at whitespace. Q&A and products are one chunk each. Website content is Markdown from `WebsiteContentExtractor`; DOCX becomes Markdown in `DocxMarkdown`, which finds headings by style name because style ids are localized (`Judul1`). PDF has no structure to use.
+- A change to chunking does not reach existing chunks by itself, because `KnowledgeIndexer` skips records whose version matches. `Migration::RechunkAiAgentsJob` shows the pattern: it marks chunks as made from an older version, so they are replaced source by source and stay searchable until then (Knowledge Health shows them as `outdated`).
 
 ## Reply traces (`ai_agent_reply_traces`)
 

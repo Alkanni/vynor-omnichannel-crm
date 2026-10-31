@@ -19,11 +19,12 @@ uses real tokens: one run makes 47 agent calls plus 38 judge calls.
 | `promptfooconfig.yaml` | Provider, judge model, judge prompt, and the test files |
 | `tests/*.yaml` | 47 cases in five categories: A1 grounding, A2 security, A3 multi-turn, A4 actions (handoff/labels), B knowledge facts |
 | `fixtures/toko-roti.json` | Settings, knowledge, product, and label of the eval agents (the "CS Toko Roti Vynor" UAT agent, temperature `precise`) |
-| `fixtures/toko-roti-large.json` | Synthetic larger knowledge for the retrieval eval (44 chunks: policy text with headings, a price table longer than one chunk, 16 Q&A, 22 products) |
+| `fixtures/toko-roti-large.json` | Synthetic larger knowledge for the retrieval eval (policy text with headings, a price table longer than one chunk, 16 Q&A, 22 products) |
+| `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
 | `report.mjs` | Markdown summary: pass rate per category, tokens, latency, failures, and results that changed between two runs |
-| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 67 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, no answer) |
+| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 107 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, long document, no answer) |
 | `retrieval-provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/retrieval_test` |
 | `retrieval-report.mjs` | Markdown summary: hit@1, hit@5, MRR per category, chunks retrieved, score distribution of relevant vs irrelevant chunks, and request latency |
 | `lib/` | API client, conversation parsing (shared by both providers), retrieval assertion |
@@ -54,7 +55,7 @@ node report.mjs output/run-1.json
 `node --env-file=.env setup.mjs toko-roti-large.json`). It deletes and recreates only the agents named in those
 fixtures, creates the `komplain` label if it is missing, and merges the agent ids into `.eval-agents.json`. Run it
 again after changing a fixture. The `injection` agent has an extra knowledge source with an embedded instruction and
-is used only by A2-09; the `large` agent is used by the retrieval eval.
+is used only by A2-09; the `large` and `dokumen` agents are used by the retrieval eval.
 
 `npx promptfoo@0.124.1 view` opens the results in the browser, including each judge reason.
 
@@ -90,6 +91,9 @@ node retrieval-report.mjs output/retrieval-vector.json
 - `expected` in `tests/retrieval.yaml` lists the acceptable sources (knowledge source title or product name), one per
   line. A case passes when one of them ranks in the top 5. A case without `expected` has no answer in the knowledge
   and passes only when nothing is retrieved.
+- `answer` is for sources split into several chunks: the case passes only when the chunk in the top 5 also contains one
+  of these texts, because finding the right source says little when the answer sits in another of its chunks.
+- A case runs against the `large` agent unless it sets `agent`.
 - Multi-turn and topic change cases send the messages up to the last `AI:` line as the Retrieval Test `history`, and
   the customer messages after it as `query`, so they search with the queries a reply builds.
 - The mode follows `AI_AGENT_EMBEDDING_MODEL` in Super Admin: hybrid when it is set, keyword when it is blank. To
