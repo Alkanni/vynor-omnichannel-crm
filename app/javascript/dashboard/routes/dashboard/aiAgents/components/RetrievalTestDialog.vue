@@ -36,8 +36,8 @@ const sourceTypeLabels = computed(() => ({
   product: t('AI_AGENTS.KNOWLEDGE.TABS.PRODUCT'),
 }));
 const modeDescription = computed(() =>
-  result.value.mode === 'vector'
-    ? t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.MODE_VECTOR', {
+  result.value.mode === 'hybrid'
+    ? t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.MODE_HYBRID', {
         model: result.value.embedding_model,
       })
     : t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.MODE_KEYWORD')

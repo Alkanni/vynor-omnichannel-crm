@@ -46,10 +46,14 @@ class AiAgent::KnowledgeChunk < ApplicationRecord
                                Arel.sql(other_model)).to_h { |id, *summary| [id, IndexSummary.new(*summary)] }
   end
 
-  # Keyword search for installations without an embedding model: chunks that share more words with the query rank first.
-  # plainto_tsquery joins the query words with AND, so they are joined with OR instead to rank partial matches too.
-  # Each chunk carries its rank as keyword_rank.
-  KEYWORD_RANK = "ts_rank(to_tsvector('simple', content), replace(plainto_tsquery('simple', ?)::text, ' & ', ' | ')::tsquery)".freeze
+  # Text search configuration of keyword search. Its stemmer matches Indonesian word forms ("pemesanan" and "pesan").
+  TEXT_SEARCH_CONFIG = 'indonesian'.freeze
+
+  # Keyword search, on its own without an embedding model and next to vector search with one: chunks that share more words
+  # with the query rank first. plainto_tsquery joins the query words with AND, so they are joined with OR instead to rank
+  # partial matches too. Each chunk carries its rank as keyword_rank.
+  KEYWORD_RANK = "ts_rank(to_tsvector('#{TEXT_SEARCH_CONFIG}', content), " \
+                 "replace(plainto_tsquery('#{TEXT_SEARCH_CONFIG}', ?)::text, ' & ', ' | ')::tsquery)".freeze
   scope :keyword_ranked, lambda { |query|
     select(arel_table[Arel.star], sanitize_sql_array(["#{KEYWORD_RANK} AS keyword_rank", query])).order(Arel.sql('keyword_rank DESC, id'))
   }

@@ -8,7 +8,7 @@ RSpec.describe AiAgents::ReplyJob do
   let(:message_attributes) { { account: account, inbox: inbox, conversation: conversation } }
   let(:trace) do
     chunk = AiAgent::KnowledgeChunk.new(id: 7, chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: 3)
-    retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'vector', embedding_model: 'text-embedding-3-small',
+    retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'hybrid', embedding_model: 'text-embedding-3-small',
                                                          hits: [AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: 1, score: 0.12)])
     AiAgents::ReplyGenerator::Trace.new(retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
   end
@@ -40,7 +40,7 @@ RSpec.describe AiAgents::ReplyJob do
 
     expect(traces.sole).to have_attributes(
       account_id: account.id, ai_agent_id: ai_agent.id, message_id: message.id, status: 'replied', model: ai_agent.model,
-      retrieval_mode: 'vector', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, latency_ms: 850,
+      retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, latency_ms: 850,
       labels: [], error_class: nil,
       retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12 }]
     )
@@ -130,7 +130,7 @@ RSpec.describe AiAgents::ReplyJob do
       expect(handoff_activities.sole.content).to eq("#{ai_agent.name} handed the conversation over to a human agent (transfer conditions met)")
       expect(Rails.configuration.dispatcher).to have_received(:dispatch)
         .with(Events::Types::CONVERSATION_BOT_HANDOFF, anything, hash_including(conversation: conversation))
-      expect(traces.sole).to have_attributes(status: 'handoff', message_id: message.id, retrieval_mode: 'vector')
+      expect(traces.sole).to have_attributes(status: 'handoff', message_id: message.id, retrieval_mode: 'hybrid')
     end
 
     it 'sends no AI message on a silent handoff' do
@@ -257,7 +257,7 @@ RSpec.describe AiAgents::ReplyJob do
           .to eq([['assistant', 'Halo! Ada yang bisa kami bantu?'], ['user', 'Halo, toko buka jam berapa?']])
         expect(ai_replies.where("additional_attributes ->> 'ai_agent_reply_to' = ?", message.id.to_s).pluck(:content))
           .to eq(['Kami buka Senin sampai Sabtu, 09.00-21.00.'])
-        expect(traces.sole).to have_attributes(status: 'replied', retrieval_mode: 'vector', input_tokens: 10, output_tokens: 5,
+        expect(traces.sole).to have_attributes(status: 'replied', retrieval_mode: 'hybrid', input_tokens: 10, output_tokens: 5,
                                                latency_ms: be >= 0)
         expect(traces.sole.retrieved).to match([hash_including('chunk_id' => ai_agent.knowledge_chunks.sole.id, 'rank' => 1)])
       end

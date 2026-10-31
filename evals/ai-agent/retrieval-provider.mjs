@@ -1,6 +1,6 @@
 // Promptfoo provider for retrieval cases: sends the query a reply would search with (lib/conversation.mjs) to the
 // agent's Retrieval Test, which runs AiAgents::KnowledgeRetriever exactly as a reply does, and returns the ranked
-// sources. No chat model is called; in vector mode only the query is embedded.
+// sources. No chat model is called; in hybrid mode only the query is embedded.
 import { readFileSync } from 'node:fs';
 import { AGENTS_FILE, appApi } from './lib/app-api.mjs';
 import { runtimeQuery } from './lib/conversation.mjs';
@@ -18,16 +18,21 @@ export default class RetrievalTestProvider {
     ];
     const query = runtimeQuery(vars.conversation);
     try {
+      const startedAt = performance.now();
       const retrieval = await appApi(`/ai_agents/${agentId}/retrieval_test`, {
         method: 'POST',
         body: { query },
       });
-      const hits = retrieval.chunks.map(({ rank, score, source }) => ({
-        rank,
-        score,
-        sourceType: source.type,
-        title: source.title,
-      }));
+      const latencyMs = Math.round(performance.now() - startedAt);
+      const hits = retrieval.chunks.map(
+        ({ rank, score, distance, source }) => ({
+          rank,
+          score,
+          distance,
+          sourceType: source.type,
+          title: source.title,
+        })
+      );
       return {
         output: hits
           .slice(0, SHOWN_HITS)
@@ -38,6 +43,7 @@ export default class RetrievalTestProvider {
           mode: retrieval.mode,
           embeddingModel: retrieval.embedding_model,
           contextLimit: retrieval.context_limit,
+          latencyMs,
           hits,
         },
       };

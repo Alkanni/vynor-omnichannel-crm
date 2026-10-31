@@ -1,6 +1,6 @@
 # Module: AI Agent (fork feature, CE)
 
-Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
+Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
 
 ## Where things live
 
@@ -23,9 +23,10 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85. Status: **VERIFIED** fr
 ## Retrieval (`AiAgents::KnowledgeRetriever`)
 
 - Query: the customer messages since the last reply (`ReplyGenerator#latest_customer_text`, max 4,000 characters). No conversation context yet.
-- Vector mode when `AI_AGENT_EMBEDDING_MODEL` is set: pgvector cosine `nearest_neighbors`, only chunks with the current `embedding_model` (`KnowledgeChunk.searchable`); score = cosine distance (lower is closer).
-- Keyword mode otherwise: `KnowledgeChunk.keyword_ranked`, `ts_rank` with the `simple` text search config and OR-joined terms (not BM25); score = `keyword_rank` (higher is closer).
-- Candidates are the top `context_limit` (default 40) chunks; only relevant ones are kept (#81): keyword mode drops chunks with `keyword_rank` 0, vector mode drops chunks farther than `AI_AGENT_EMBEDDING_MAX_DISTANCE` (blank keeps all). With no chunk left the prompt has no `<knowledge>` block; an agent that has knowledge still gets `NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS` (state facts only from the conversation, otherwise say it does not know). No hybrid fusion yet (#82).
+- Hybrid mode when `AI_AGENT_EMBEDDING_MODEL` is set (#82): two lists, each the top `context_limit` (default 40) chunks with the current `embedding_model` (`KnowledgeChunk.searchable`), are fused with weighted Reciprocal Rank Fusion. The vector list is pgvector cosine `nearest_neighbors`, weight 1; the keyword list is `KnowledgeChunk.keyword_ranked`, weight `KEYWORD_WEIGHT` (0.5). A chunk scores `weight / (RRF_K + rank)` per list (`RRF_K` 20), the result is cut to `context_limit`. Score = RRF score (higher is closer, a rank measure rather than a relevance measure).
+- Keyword mode otherwise: `KnowledgeChunk.keyword_ranked` alone. Score = `keyword_rank` (higher is closer).
+- `keyword_ranked` is `ts_rank` with `TEXT_SEARCH_CONFIG` (`indonesian`, which stems word forms and has no stop words) and OR-joined terms, not BM25. It computes `to_tsvector` per chunk of the agent at query time, about 50 ms per 1,000 chunks; there is no text search index, because a GIN index would need an `@@` filter and `ts_rank` would still recompute the vector.
+- Only relevant chunks enter a list (#81): the keyword list drops chunks with `keyword_rank` 0, the vector list drops chunks farther than `AI_AGENT_EMBEDDING_MAX_DISTANCE` (blank keeps all). A chunk past the distance limit still comes back through the keyword list when it shares a word with the query. With no chunk left the prompt has no `<knowledge>` block; an agent that has knowledge still gets `NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS` (state facts only from the conversation, otherwise say it does not know).
 - Chunking (`TextChunker`): paragraphs packed up to 1,500 characters, title prefixed; Q&A and products are one chunk each.
 
 ## Reply traces (`ai_agent_reply_traces`)
@@ -44,11 +45,11 @@ One row per answered customer message: `status` (`replied`, `handoff`, `message_
 
 ## Playground
 
-`POST /api/v1/accounts/:account_id/ai_agents/:id/playground` with `messages` (user/assistant, max 100, 10,000 characters each) returns `messages`, `handoff`, `labels`, `sheet_row`, `model`, `retrieval` (`mode`, `embedding_model`, `chunks` with `rank`, `score`, `content`, `source {id, type, title}`), `tokens {input, output}`, `latency_ms`. It writes no trace.
+`POST /api/v1/accounts/:account_id/ai_agents/:id/playground` with `messages` (user/assistant, max 100, 10,000 characters each) returns `messages`, `handoff`, `labels`, `sheet_row`, `model`, `retrieval` (`mode`, `embedding_model`, `chunks` with `rank`, `score`, `distance` (cosine distance for calibrating `AI_AGENT_EMBEDDING_MAX_DISTANCE`, null for a chunk found only by keywords), `content`, `source {id, type, title}`), `tokens {input, output}`, `latency_ms`. It writes no trace.
 
 ## Evaluation
 
-`evals/ai-agent/` (issue #71) is a Promptfoo regression eval against the playground, outside the app bundle (`npx promptfoo@0.124.1`). `setup.mjs` recreates eval agents from `fixtures/toko-roti.json` through the API; `provider.mjs` sends each case's conversation (lines starting with `AI:` become assistant messages) and exposes `handoff`, `labels`, and retrieval as metadata for assertions; `llm-rubric` cases use a judge model from `.env`. A second config (`promptfooconfig.retrieval.yaml`, issue #80) runs questions through `retrieval_test` for an agent with a larger synthetic knowledge base (`fixtures/toko-roti-large.json`) and reports hit@1, hit@5, MRR, and the score distribution of relevant vs irrelevant chunks per mode. See its README for running and comparing baselines.
+`evals/ai-agent/` (issue #71) is a Promptfoo regression eval against the playground, outside the app bundle (`npx promptfoo@0.124.1`). `setup.mjs` recreates eval agents from `fixtures/toko-roti.json` through the API; `provider.mjs` sends each case's conversation (lines starting with `AI:` become assistant messages) and exposes `handoff`, `labels`, and retrieval as metadata for assertions; `llm-rubric` cases use a judge model from `.env`. A second config (`promptfooconfig.retrieval.yaml`, issue #80) runs questions through `retrieval_test` for an agent with a larger synthetic knowledge base (`fixtures/toko-roti-large.json`) and reports hit@1, hit@5, MRR, the score distribution of relevant vs irrelevant chunks, and latency per mode. See its README for running and comparing baselines.
 
 ## Configuration
 

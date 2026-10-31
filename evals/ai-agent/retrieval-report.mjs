@@ -1,6 +1,6 @@
 // Summarizes retrieval eval outputs as Markdown: hit@1, hit@5 and MRR per category, chunks retrieved, the score
-// distribution of relevant vs irrelevant chunks (for choosing a relevance threshold), and, given two runs, the cases
-// whose hit@5 result changed.
+// distribution of relevant vs irrelevant chunks (for choosing a relevance threshold), request latency, and, given two
+// runs, the cases whose hit@5 result changed.
 // Usage: node retrieval-report.mjs output/retrieval-vector.json [output/retrieval-keyword.json]
 import { readFileSync } from 'node:fs';
 import {
@@ -10,6 +10,13 @@ import {
 } from './lib/retrieval.mjs';
 
 const NO_ANSWER = 'tanpa-jawaban';
+
+// The cosine distance of the closest hit, which is what AI_AGENT_EMBEDDING_MAX_DISTANCE compares. Keyword runs have
+// none, and runs from before hybrid search carry it as their score, so those fall back to the top score.
+function closest(hits) {
+  const distances = hits.map(hit => hit.distance).filter(Number.isFinite);
+  return distances.length ? Math.min(...distances) : hits[0]?.score;
+}
 
 function loadRun(file) {
   const { results } = JSON.parse(readFileSync(file, 'utf8'));
@@ -28,8 +35,9 @@ function loadRun(file) {
       answerable: expected.length > 0,
       rank: firstExpectedRank(hits, expected),
       retrieved: hits.length,
-      bestRelevant: relevant[0]?.score,
-      bestIrrelevant: irrelevant[0]?.score,
+      latencyMs: result.response?.metadata?.latencyMs,
+      bestRelevant: closest(relevant),
+      bestIrrelevant: closest(irrelevant),
     };
   });
 }
@@ -44,6 +52,14 @@ function stats(values) {
 
   const middle = sorted[Math.floor(sorted.length / 2)];
   return `min ${round(sorted[0])}, p50 ${round(middle)}, max ${round(sorted[sorted.length - 1])} (n=${sorted.length})`;
+}
+
+function latency(values) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (sorted.length === 0) return 'n/a';
+
+  const at = share => sorted[Math.ceil(sorted.length * share) - 1];
+  return `p50 ${at(0.5)} ms, p95 ${at(0.95)} ms, max ${sorted[sorted.length - 1]} ms (n=${sorted.length})`;
 }
 
 function percent(part, total) {
@@ -89,10 +105,12 @@ function report(file, cases) {
     '',
     `Tanpa jawaban: ${noAnswer.filter(testCase => testCase.retrieved === 0).length}/${noAnswer.length} tidak mengambil chunk apa pun.`,
     '',
-    `Sebaran skor (${mode === 'vector' ? 'cosine distance, makin kecil makin dekat' : 'skor, makin besar makin dekat'}):`,
+    `Sebaran skor (${mode === 'keyword' ? 'ts_rank, makin besar makin dekat' : 'cosine distance, makin kecil makin dekat'}):`,
     `- Chunk relevan terbaik per kasus: ${stats(answerable.map(testCase => testCase.bestRelevant))}`,
     `- Chunk tidak relevan terbaik per kasus: ${stats(answerable.map(testCase => testCase.bestIrrelevant))}`,
     `- Chunk teratas pada kasus tanpa jawaban: ${stats(noAnswer.map(testCase => testCase.bestIrrelevant))}`,
+    '',
+    `Latency Retrieval Test: ${latency(cases.map(testCase => testCase.latencyMs))}`,
     '',
     `Tidak masuk top ${HIT_RANK}:`
   );

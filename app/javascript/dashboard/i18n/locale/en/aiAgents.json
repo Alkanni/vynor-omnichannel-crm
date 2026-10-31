@@ -388,7 +388,7 @@
         "RUN": "Test",
         "CLOSE": "Close",
         "ERROR": "Could not test the retrieval. Please try again.",
-        "MODE_VECTOR": "Searched by meaning with {model}. The score is the distance to the question: lower is closer.",
+        "MODE_HYBRID": "Searched by meaning with {model} and by keywords, then combined. The score is the combined rank: higher is closer.",
         "MODE_KEYWORD": "Searched by keywords. The score is the keyword match: higher is closer.",
         "LIMIT": "Up to {count} chunks are sent with a reply (Context Limit).",
         "NO_RESULTS": "No knowledge was found. The AI agent would answer this question without knowledge.",
