@@ -27,6 +27,27 @@ RSpec.describe 'AI Agent knowledge sources API', type: :request do
       expect(response.parsed_body['payload'].pluck('id')).to eq([text_source.id, second_text.id])
     end
 
+    it 'shows how each source is indexed: chunk count, outdated after a change, and chunks of another embedding model' do
+      create(:installation_config, name: 'AI_AGENT_EMBEDDING_MODEL', value: 'text-embedding-3-small')
+      changed_text = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
+      new_text = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
+      [[text_source, 'text-embedding-3-small'], [text_source, 'old-model'], [changed_text, 'text-embedding-3-small']].each do |source, model|
+        ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at,
+                                          content: 'Bagian', embedding_model: model)
+      end
+      changed_text.update!(content: 'Isi baru')
+
+      get base_url, params: { source_type: 'text' }, headers: admin.create_new_auth_token, as: :json
+
+      indexes = response.parsed_body['payload'].to_h { |source| [source['id'], source['index'].except('indexed_at')] }
+      expect(indexes).to eq(
+        text_source.id => { 'status' => 'indexed', 'chunks' => 2, 'other_model_chunks' => 1 },
+        changed_text.id => { 'status' => 'outdated', 'chunks' => 1, 'other_model_chunks' => 0 },
+        new_text.id => { 'status' => 'not_indexed', 'chunks' => 0, 'other_model_chunks' => 0 }
+      )
+      expect(response.parsed_body['payload'].first['index']['indexed_at']).to be_a(Integer)
+    end
+
     it 'rejects a missing or unknown source type' do
       get base_url, headers: admin.create_new_auth_token, as: :json
       expect(response).to have_http_status(:unprocessable_entity)
@@ -90,6 +111,14 @@ RSpec.describe 'AI Agent knowledge sources API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(source.reload).to have_attributes(title: 'Derek', content: 'Layanan derek 24 jam', source_type: 'text')
+    end
+
+    it 'returns the source as outdated until it is indexed again' do
+      ai_agent.knowledge_chunks.create!(account: account, chunkable: source, chunkable_updated_at: source.updated_at, content: 'Lama')
+
+      patch "#{base_url}/#{source.id}", params: { content: 'Baru' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['index']).to include('status' => 'outdated', 'chunks' => 1, 'other_model_chunks' => 0)
     end
 
     it 'returns not found for a source of another AI agent' do

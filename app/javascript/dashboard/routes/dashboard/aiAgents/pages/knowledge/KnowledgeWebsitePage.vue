@@ -12,6 +12,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog.vue';
+import SourceIndexStatus from '../../components/SourceIndexStatus.vue';
 import SourceStatusBadge from '../../components/SourceStatusBadge.vue';
 import { useProcessingPoll } from '../../composables/useProcessingPoll';
 
@@ -405,6 +406,10 @@ watch(
               })
             }}
           </span>
+          <SourceIndexStatus
+            v-if="source.status === 'ready'"
+            :index="source.index"
+          />
           <Button
             v-if="source.status === 'ready'"
             v-tooltip.top="

@@ -8,6 +8,7 @@ class Api::V1::Accounts::AiAgents::KnowledgeSourcesController < Api::V1::Account
     return render_could_not_create_error('Invalid source_type') unless AiAgent::KnowledgeSource.source_types.key?(source_type)
 
     @knowledge_sources = @ai_agent.knowledge_sources.where(source_type: source_type).order(id: source_type == 'text' ? :asc : :desc)
+    load_index_summaries
   end
 
   def create
@@ -50,6 +51,7 @@ class Api::V1::Accounts::AiAgents::KnowledgeSourcesController < Api::V1::Account
         @ai_agent.knowledge_sources.create!(source_type: :website, external_url: url)
       end
     end
+    load_index_summaries
     render :index
   end
 
@@ -70,6 +72,11 @@ class Api::V1::Accounts::AiAgents::KnowledgeSourcesController < Api::V1::Account
   end
 
   private
+
+  def load_index_summaries
+    @index_summaries = @ai_agent.knowledge_chunks.where(chunkable_type: AiAgent::KnowledgeSource.name, chunkable_id: @knowledge_sources.map(&:id))
+                                .index_summaries(AiAgents::LlmClient.embedding_model)
+  end
 
   def fetch_knowledge_source
     @knowledge_source = @ai_agent.knowledge_sources.find(params[:id])

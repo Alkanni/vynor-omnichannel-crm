@@ -373,6 +373,12 @@
         "NOT_SEARCHED": "Not searched",
         "UNSEARCHABLE": "{count} chunk was embedded with another model and is not searched until the AI agent is trained with {model}. | {count} chunks were embedded with another model and are not searched until the AI agent is trained with {model}."
       },
+      "INDEX": {
+        "NOT_INDEXED": "Not indexed yet. The AI agent does not use this source until indexing finishes.",
+        "OUTDATED": "Changed after the last indexing. The AI agent uses the previous version until indexing finishes.",
+        "OTHER_MODEL": "{count} chunk was embedded with another model and is not searched until the AI agent is trained again. | {count} chunks were embedded with another model and are not searched until the AI agent is trained again."
+      },
+      "TRAINING_ERROR": "Knowledge indexing failed {time}: {error}. The AI agent answers with the knowledge indexed before. Check the AI settings in Super Admin, then train the AI agent again from the General tab.",
       "RETRIEVAL_TEST": {
         "OPEN": "Test retrieval",
         "TITLE": "Retrieval test",

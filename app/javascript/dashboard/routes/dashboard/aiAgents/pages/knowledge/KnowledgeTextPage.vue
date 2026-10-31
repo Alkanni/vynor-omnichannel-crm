@@ -8,6 +8,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog.vue';
+import SourceIndexStatus from '../../components/SourceIndexStatus.vue';
 import TextSourceTitleDialog from '../../components/TextSourceTitleDialog.vue';
 
 const props = defineProps({
@@ -235,6 +236,7 @@ watch(() => props.agent.id, fetchSources, { immediate: true });
               role="img"
               class="rounded-full size-1.5 shrink-0 bg-n-amber-9"
             />
+            <SourceIndexStatus :index="source.index" />
             <Button
               v-tooltip.top="
                 t('AI_AGENTS.KNOWLEDGE.CHUNKS.VIEW', { title: source.title })
