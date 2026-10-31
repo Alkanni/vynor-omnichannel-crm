@@ -1,5 +1,6 @@
-# Kasus retrieval untuk agent eval "large" (fixtures/toko-roti-large.json). `expected` berisi sumber yang diterima
+# Kasus retrieval untuk agent eval "large" (fixtures/toko-roti-large.json), kecuali kategori dokumen. `expected` berisi sumber yang diterima
 # (judul knowledge source atau nama produk), satu per baris; kasus lulus bila salah satunya ada di peringkat 1-5.
+# `answer` (kategori struktur) berisi teks yang harus ada di chunk tersebut, karena sumbernya terpecah ke banyak chunk.
 # Kasus tanpa `expected` tidak punya jawaban di knowledge dan lulus hanya bila tidak ada chunk yang diambil.
 # Draf dari agent untuk issue #80 (knowledge sintetis); tim mengoreksinya seperti dataset #71.
 
@@ -124,36 +125,112 @@
   vars:
     conversation: Berapa harga kue tart keju diameter 24 cm?
     expected: Daftar harga paket
+    answer: Rp300.000
 
 - description: 'R-S02: Paket pernikahan 100 snack box harganya berapa?'
   metadata: { id: R-S02, category: struktur }
   vars:
     conversation: Paket pernikahan 100 snack box harganya berapa?
     expected: Daftar harga paket
+    answer: Rp3.000.000
 
 - description: 'R-S03: Komplain roti rusak paling lambat berapa jam?'
   metadata: { id: R-S03, category: struktur }
   vars:
     conversation: Komplain roti rusak paling lambat berapa jam?
     expected: Kebijakan toko
+    answer: paling lambat 24 jam
 
 - description: 'R-S04: Bisa bayar di tempat (COD)?'
   metadata: { id: R-S04, category: struktur }
   vars:
     conversation: Bisa bayar di tempat (COD)?
     expected: Kebijakan toko
+    answer: Bayar di tempat (COD)
 
 - description: 'R-S05: Cheesecake tahan berapa hari di kulkas?'
   metadata: { id: R-S05, category: struktur }
   vars:
     conversation: Cheesecake tahan berapa hari di kulkas?
     expected: Kebijakan toko
+    answer: Kue tart dan cheesecake harus disimpan
 
 - description: 'R-S06: Hampers Lebaran isi 12 toples berapa?'
   metadata: { id: R-S06, category: struktur }
   vars:
     conversation: Hampers Lebaran isi 12 toples berapa?
     expected: Daftar harga paket
+    answer: Rp650.000
+
+- description: 'R-S07: Paket rapat kantor 50 snack box berapa?'
+  metadata: { id: R-S07, category: struktur }
+  vars:
+    conversation: Paket rapat kantor 50 snack box berapa?
+    expected: Daftar harga paket
+    answer: Rp1.050.000
+
+- description: 'R-S08: Hampers Natal isi 6 toples berapa?'
+  metadata: { id: R-S08, category: struktur }
+  vars:
+    conversation: Hampers Natal isi 6 toples berapa?
+    expected: Daftar harga paket
+    answer: Rp360.000
+
+- description: 'R-S09: Paket snack box C isinya apa?'
+  metadata: { id: R-S09, category: struktur }
+  vars:
+    conversation: Paket snack box C isinya apa?
+    expected: Daftar harga paket
+    answer: 4 roti + 2 kue + 1 jus
+
+- description: 'R-S10: Kue tart buah diameter 20 cm berapa?'
+  metadata: { id: R-S10, category: struktur }
+  vars:
+    conversation: Kue tart buah diameter 20 cm berapa?
+    expected: Daftar harga paket
+    answer: Rp250.000
+
+- description: 'R-S11: Paket ulang tahun anak isinya apa?'
+  metadata: { id: R-S11, category: struktur }
+  vars:
+    conversation: Paket ulang tahun anak isinya apa?
+    expected: Daftar harga paket
+    answer: 20 snack box A
+
+- description: 'R-S12: Pembelian di bawah Rp100.000 di Bandung kena ongkir berapa?'
+  metadata: { id: R-S12, category: struktur }
+  vars:
+    conversation: Pembelian di bawah Rp100.000 di Bandung kena ongkir berapa?
+    expected: Kebijakan toko
+    answer: dikenakan ongkir Rp10.000
+
+- description: 'R-S13: Kalau batal pesan kue custom DP-nya gimana?'
+  metadata: { id: R-S13, category: struktur }
+  vars:
+    conversation: Kalau batal pesan kue custom DP-nya gimana?
+    expected: Kebijakan toko
+    answer: DP tidak dapat dikembalikan
+
+- description: 'R-S14: Uang refund masuk berapa hari?'
+  metadata: { id: R-S14, category: struktur }
+  vars:
+    conversation: Uang refund masuk berapa hari?
+    expected: Kebijakan toko
+    answer: dalam 3 hari kerja
+
+- description: 'R-S15: Kue kering tahan berapa lama?'
+  metadata: { id: R-S15, category: struktur }
+  vars:
+    conversation: Kue kering tahan berapa lama?
+    expected: Kebijakan toko
+    answer: tahan 1 bulan
+
+- description: 'R-S16: Pesanan masuk jam berapa supaya dikirim hari yang sama?'
+  metadata: { id: R-S16, category: struktur }
+  vars:
+    conversation: Pesanan masuk jam berapa supaya dikirim hari yang sama?
+    expected: Kebijakan toko
+    answer: sebelum pukul 14.00
 
 # Multi-turn: pesan terakhir pelanggan bergantung pada giliran sebelumnya. Baris sebelum "AI:" terakhir dikirim sebagai
 # riwayat Retrieval Test.
@@ -480,6 +557,248 @@
   vars:
     conversation: Pendaftaran jadi reseller gimana?
     expected: Apakah ada program reseller?
+
+# Dokumen panjang: agent "dokumen" (fixtures/toko-roti-dokumen.json). Isi tiap subbagian cabang tidak menyebut nama
+# cabangnya, dan baris tabel harga bermakna lewat header-nya. Ditulis sebelum pengukuran (issue #84).
+- description: 'R-D01: Cabang Dago hari Sabtu buka jam berapa?'
+  metadata: { id: R-D01, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Cabang Dago hari Sabtu buka jam berapa?
+    expected: Panduan cabang
+    answer: 07.00-21.55
+
+- description: 'R-D02: Nomor WhatsApp cabang Kopo berapa?'
+  metadata: { id: R-D02, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Nomor WhatsApp cabang Kopo berapa?
+    expected: Panduan cabang
+    answer: 0812-3015-1685
+
+- description: 'R-D03: Parkir mobil di cabang Pasteur ada berapa slot?'
+  metadata: { id: R-D03, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Parkir mobil di cabang Pasteur ada berapa slot?
+    expected: Panduan cabang
+    answer: Tersedia 38 slot mobil
+
+- description: 'R-D04: Ongkir antar dari cabang Setiabudi berapa?'
+  metadata: { id: R-D04, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Ongkir antar dari cabang Setiabudi berapa?
+    expected: Panduan cabang
+    answer: Rp8.750
+
+- description: 'R-D05: Cabang Jatinangor punya berapa kursi?'
+  metadata: { id: R-D05, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Cabang Jatinangor punya berapa kursi?
+    expected: Panduan cabang
+    answer: memuat 48 kursi
+
+- description: 'R-D06: Apa produk khas cabang Buah Batu?'
+  metadata: { id: R-D06, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Apa produk khas cabang Buah Batu?
+    expected: Panduan cabang
+    answer: Bika Pandan Keju
+
+- description: 'R-D07: Cabang Cimahi hari Sabtu buka jam berapa?'
+  metadata: { id: R-D07, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Cabang Cimahi hari Sabtu buka jam berapa?
+    expected: Panduan cabang
+    answer: 07.30-21.25
+
+- description: 'R-D08: Nomor WhatsApp cabang Arcamanik berapa?'
+  metadata: { id: R-D08, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Nomor WhatsApp cabang Arcamanik berapa?
+    expected: Panduan cabang
+    answer: 0812-3021-2507
+
+- description: 'R-D09: Parkir mobil di cabang Antapani ada berapa slot?'
+  metadata: { id: R-D09, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Parkir mobil di cabang Antapani ada berapa slot?
+    expected: Panduan cabang
+    answer: Tersedia 20 slot mobil
+
+- description: 'R-D10: Ongkir antar dari cabang Ujungberung berapa?'
+  metadata: { id: R-D10, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Ongkir antar dari cabang Ujungberung berapa?
+    expected: Panduan cabang
+    answer: Rp8.250
+
+- description: 'R-D11: Cabang Cihampelas punya berapa kursi?'
+  metadata: { id: R-D11, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Cabang Cihampelas punya berapa kursi?
+    expected: Panduan cabang
+    answer: memuat 24 kursi
+
+- description: 'R-D12: Apa produk khas cabang Lembang?'
+  metadata: { id: R-D12, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Apa produk khas cabang Lembang?
+    expected: Panduan cabang
+    answer: Roti Susu Lembang
+
+- description: 'R-D13: Cabang Dago hari Sabtu buka jam berapa?'
+  metadata: { id: R-D13, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Cabang Dago hari Sabtu buka jam berapa?
+    expected: Panduan cabang
+    answer: 07.00-21.55
+
+- description: 'R-D14: Nomor WhatsApp cabang Kopo berapa?'
+  metadata: { id: R-D14, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Nomor WhatsApp cabang Kopo berapa?
+    expected: Panduan cabang
+    answer: 0812-3015-1685
+
+- description: 'R-D15: Parkir mobil di cabang Pasteur ada berapa slot?'
+  metadata: { id: R-D15, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Parkir mobil di cabang Pasteur ada berapa slot?
+    expected: Panduan cabang
+    answer: Tersedia 38 slot mobil
+
+- description: 'R-D16: Ongkir antar dari cabang Setiabudi berapa?'
+  metadata: { id: R-D16, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Ongkir antar dari cabang Setiabudi berapa?
+    expected: Panduan cabang
+    answer: Rp8.750
+
+- description: 'R-D17: Cabang Jatinangor punya berapa kursi?'
+  metadata: { id: R-D17, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Cabang Jatinangor punya berapa kursi?
+    expected: Panduan cabang
+    answer: memuat 48 kursi
+
+- description: 'R-D18: Apa produk khas cabang Buah Batu?'
+  metadata: { id: R-D18, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Apa produk khas cabang Buah Batu?
+    expected: Panduan cabang
+    answer: Bika Pandan Keju
+
+- description: 'R-D19: Harga grosir Roti Sobek Keju isi 12 berapa?'
+  metadata: { id: R-D19, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Harga grosir Roti Sobek Keju isi 12 berapa?
+    expected: Daftar harga grosir
+    answer: '| GR-006 |'
+
+- description: 'R-D20: Minimal order kode GR-013 berapa dus?'
+  metadata: { id: R-D20, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Minimal order kode GR-013 berapa dus?
+    expected: Daftar harga grosir
+    answer: '| GR-013 |'
+
+- description: 'R-D21: Harga grosir Roti Tawar Gandum Utuh isi 48 berapa?'
+  metadata: { id: R-D21, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Harga grosir Roti Tawar Gandum Utuh isi 48 berapa?
+    expected: Daftar harga grosir
+    answer: '| GR-020 |'
+
+- description: 'R-D22: Minimal order kode GR-027 berapa dus?'
+  metadata: { id: R-D22, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Minimal order kode GR-027 berapa dus?
+    expected: Daftar harga grosir
+    answer: '| GR-027 |'
+
+- description: 'R-D23: Harga grosir Donat Gula isi 12 berapa?'
+  metadata: { id: R-D23, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Harga grosir Donat Gula isi 12 berapa?
+    expected: Daftar harga grosir
+    answer: '| GR-034 |'
+
+- description: 'R-D24: Minimal order kode GR-041 berapa dus?'
+  metadata: { id: R-D24, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Minimal order kode GR-041 berapa dus?
+    expected: Daftar harga grosir
+    answer: '| GR-041 |'
+
+- description: 'R-D25: Harga grosir Bolu Gulung Keju isi 48 berapa?'
+  metadata: { id: R-D25, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Harga grosir Bolu Gulung Keju isi 48 berapa?
+    expected: Daftar harga grosir
+    answer: '| GR-048 |'
+
+- description: 'R-D26: Minimal order kode GR-055 berapa dus?'
+  metadata: { id: R-D26, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Minimal order kode GR-055 berapa dus?
+    expected: Daftar harga grosir
+    answer: '| GR-055 |'
+
+- description: 'R-D27: Harga grosir Lapis Legit isi 12 berapa?'
+  metadata: { id: R-D27, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Harga grosir Lapis Legit isi 12 berapa?
+    expected: Daftar harga grosir
+    answer: '| GR-062 |'
+
+- description: 'R-D28: Minimal order kode GR-069 berapa dus?'
+  metadata: { id: R-D28, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Minimal order kode GR-069 berapa dus?
+    expected: Daftar harga grosir
+    answer: '| GR-069 |'
+
+- description: 'R-D29: Harga grosir Baguette isi 48 berapa?'
+  metadata: { id: R-D29, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Harga grosir Baguette isi 48 berapa?
+    expected: Daftar harga grosir
+    answer: '| GR-076 |'
+
+- description: 'R-D30: Minimal order kode GR-083 berapa dus?'
+  metadata: { id: R-D30, category: dokumen }
+  vars:
+    agent: dokumen
+    conversation: Minimal order kode GR-083 berapa dus?
+    expected: Daftar harga grosir
+    answer: '| GR-083 |'
 
 # Tanpa jawaban: tidak ada knowledge yang menjawab pertanyaan.
 - description: 'R-N01: Apakah ada cabang di Surabaya?'

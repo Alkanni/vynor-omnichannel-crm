@@ -35,7 +35,16 @@ RSpec.describe AiAgents::FileTextExtractor do
   it 'extracts paragraphs from a DOCX document' do
     source = source_with('spec/assets/ai_agents/sample.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
-    expect(described_class.new(source.file).perform).to eq("Grand Sehat buka setiap hari\npukul 07.30 - 18.00")
+    expect(described_class.new(source.file).perform).to eq("Grand Sehat buka setiap hari\n\npukul 07.30 - 18.00")
+  end
+
+  it 'keeps the headings and tables of a DOCX document, whatever the language of the style ids' do
+    source = source_with('spec/assets/ai_agents/structured.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+    expect(described_class.new(source.file).perform).to eq(
+      "# Kebijakan toko\n\nBerlaku untuk semua cabang.\n\n## Harga\n\n| Produk | Harga |\n| --- | --- |\n| Roti \\| keju | Rp25.000 baru |\n\n" \
+      'Catatan dalam content control.'
+    )
   end
 
   it 'extracts text from a Word 97-2003 document with antiword' do

@@ -24,10 +24,11 @@ export default class RetrievalTestProvider {
       });
       const latencyMs = Math.round(performance.now() - startedAt);
       const hits = retrieval.chunks.map(
-        ({ rank, score, distance, source }) => ({
+        ({ rank, score, distance, content, source }) => ({
           rank,
           score,
           distance,
+          content,
           sourceType: source.type,
           title: source.title,
         })

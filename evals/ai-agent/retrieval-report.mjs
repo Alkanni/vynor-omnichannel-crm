@@ -4,6 +4,7 @@
 // Usage: node retrieval-report.mjs output/retrieval-vector.json [output/retrieval-keyword.json]
 import { readFileSync } from 'node:fs';
 import {
+  expectedAnswers,
   expectedTitles,
   firstExpectedRank,
   HIT_RANK,
@@ -33,7 +34,11 @@ function loadRun(file) {
       error: result.response?.error,
       pass: result.success,
       answerable: expected.length > 0,
-      rank: firstExpectedRank(hits, expected),
+      rank: firstExpectedRank(
+        hits,
+        expected,
+        expectedAnswers(result.testCase.vars)
+      ),
       retrieved: hits.length,
       latencyMs: result.response?.metadata?.latencyMs,
       bestRelevant: closest(relevant),

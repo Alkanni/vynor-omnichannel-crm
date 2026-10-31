@@ -1,6 +1,6 @@
 class AiAgents::FileTextExtractor
   DOCX_DOCUMENT_ENTRY = 'word/document.xml'.freeze
-  DOCX_NAMESPACE = { 'w' => 'http://schemas.openxmlformats.org/wordprocessingml/2006/main' }.freeze
+  DOCX_STYLES_ENTRY = 'word/styles.xml'.freeze
   MAX_DOCX_XML_SIZE = 50.megabytes
   MAX_PDF_PAGES = 2_000
   # UTF-8 uses at most 4 bytes per character, so this is enough bytes for the character limit.
@@ -42,14 +42,21 @@ class AiAgents::FileTextExtractor
 
   def docx_text(path)
     Zip::File.open(path) do |zip|
-      entry = zip.find_entry(DOCX_DOCUMENT_ENTRY)
-      raise AiAgents::ExtractionError, I18n.t('ai_agents.knowledge.errors.unreadable_file') if entry.nil? || entry.size > MAX_DOCX_XML_SIZE
+      document = docx_xml(zip, DOCX_DOCUMENT_ENTRY)
+      raise AiAgents::ExtractionError, I18n.t('ai_agents.knowledge.errors.unreadable_file') if document.nil?
 
-      document = Nokogiri::XML(entry.get_input_stream.read)
-      document.xpath('//w:body//w:p', DOCX_NAMESPACE).map { |paragraph| paragraph.xpath('.//w:t', DOCX_NAMESPACE).map(&:text).join }.join("\n")
+      AiAgents::DocxMarkdown.new(document, docx_xml(zip, DOCX_STYLES_ENTRY)).text
     end
   rescue Zip::Error
     raise AiAgents::ExtractionError, I18n.t('ai_agents.knowledge.errors.unreadable_file')
+  end
+
+  def docx_xml(zip, name)
+    entry = zip.find_entry(name)
+    return if entry.nil?
+    raise AiAgents::ExtractionError, I18n.t('ai_agents.knowledge.errors.unreadable_file') if entry.size > MAX_DOCX_XML_SIZE
+
+    Nokogiri::XML(entry.get_input_stream.read)
   end
 
   def doc_text(path)
