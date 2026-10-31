@@ -197,6 +197,124 @@
       Stoknya masih ada?
     expected: Bolu Pandan
 
+# Kata persis: nama, angka, atau istilah yang hanya muncul di satu sumber (issue #82). Ditulis sebelum pengukuran.
+- description: 'R-E01: Parkir di Masjid Al-Ikhlas boleh?'
+  metadata: { id: R-E01, category: kata-persis }
+  vars:
+    conversation: Parkir di Masjid Al-Ikhlas boleh?
+    expected: Apakah ada tempat parkir?
+
+- description: 'R-E02: Yang pakai stevia apa?'
+  metadata: { id: R-E02, category: kata-persis }
+  vars:
+    conversation: Yang pakai stevia apa?
+    expected: |-
+      Roti Bebas Gula
+      Apakah tersedia produk untuk penderita diabetes atau tanpa gula?
+
+- description: 'R-E03: Yang isinya srikaya ada?'
+  metadata: { id: R-E03, category: kata-persis }
+  vars:
+    conversation: Yang isinya srikaya ada?
+    expected: Roti Sobek Pandan
+
+- description: 'R-E04: Keju cheddar ada di roti apa?'
+  metadata: { id: R-E04, category: kata-persis }
+  vars:
+    conversation: Keju cheddar ada di roti apa?
+    expected: Roti Sobek Keju
+
+- description: 'R-E05: Ada sertifikat MUI?'
+  metadata: { id: R-E05, category: kata-persis }
+  vars:
+    conversation: Ada sertifikat MUI?
+    expected: Apakah semua produk Toko Roti Vynor halal?
+
+- description: 'R-E06: Bisa transfer BCA?'
+  metadata: { id: R-E06, category: kata-persis }
+  vars:
+    conversation: Bisa transfer BCA?
+    expected: Kebijakan toko
+
+- description: 'R-E07: Voucher Rp25.000 cara dapatnya gimana?'
+  metadata: { id: R-E07, category: kata-persis }
+  vars:
+    conversation: Voucher Rp25.000 cara dapatnya gimana?
+    expected: Apakah ada kartu member atau poin?
+
+- description: 'R-E08: Gift card Rp200.000 berlaku berapa lama?'
+  metadata: { id: R-E08, category: kata-persis }
+  vars:
+    conversation: Gift card Rp200.000 berlaku berapa lama?
+    expected: Apakah ada voucher atau gift card?
+
+- description: 'R-E09: Yang pakai kacang mede apa?'
+  metadata: { id: R-E09, category: kata-persis }
+  vars:
+    conversation: Yang pakai kacang mede apa?
+    expected: |-
+      Lapis Legit
+      Apakah ada produk yang mengandung kacang?
+
+- description: 'R-E10: Paket tumpeng roti 30 porsi berapa?'
+  metadata: { id: R-E10, category: kata-persis }
+  vars:
+    conversation: Paket tumpeng roti 30 porsi berapa?
+    expected: Daftar harga paket
+
+# Imbuhan: bentuk kata di pertanyaan berbeda dengan di knowledge, kata dasarnya sama (issue #82). Ditulis sebelum pengukuran.
+- description: 'R-I01: Pemesanan kue ulang tahun paling lambat kapan?'
+  metadata: { id: R-I01, category: imbuhan }
+  vars:
+    conversation: Pemesanan kue ulang tahun paling lambat kapan?
+    expected: |-
+      Apakah bisa pesan kue ulang tahun custom?
+      Kebijakan toko
+
+- description: 'R-I02: Kalau mau mengembalikan produk bagaimana?'
+  metadata: { id: R-I02, category: imbuhan }
+  vars:
+    conversation: Kalau mau mengembalikan produk bagaimana?
+    expected: Kebijakan toko
+
+- description: 'R-I03: Pembekuan roti bisa berapa lama?'
+  metadata: { id: R-I03, category: imbuhan }
+  vars:
+    conversation: Pembekuan roti bisa berapa lama?
+    expected: Apakah roti bisa dibekukan?
+
+- description: 'R-I04: Poin bisa saya tukarkan?'
+  metadata: { id: R-I04, category: imbuhan }
+  vars:
+    conversation: Poin bisa saya tukarkan?
+    expected: Apakah ada kartu member atau poin?
+
+- description: 'R-I05: Sisa pembayaran harus dilunasi kapan?'
+  metadata: { id: R-I05, category: imbuhan }
+  vars:
+    conversation: Sisa pembayaran harus dilunasi kapan?
+    expected: Kebijakan toko
+
+- description: 'R-I06: Pengambilan pesanan bisa langsung?'
+  metadata: { id: R-I06, category: imbuhan }
+  vars:
+    conversation: Pengambilan pesanan bisa langsung?
+    expected: Apakah bisa ambil pesanan langsung di toko?
+
+- description: 'R-I07: Rotinya diawetkan nggak?'
+  metadata: { id: R-I07, category: imbuhan }
+  vars:
+    conversation: Rotinya diawetkan nggak?
+    expected: |-
+      Profil toko
+      Kebijakan toko
+
+- description: 'R-I08: Pendaftaran jadi reseller gimana?'
+  metadata: { id: R-I08, category: imbuhan }
+  vars:
+    conversation: Pendaftaran jadi reseller gimana?
+    expected: Apakah ada program reseller?
+
 # Tanpa jawaban: tidak ada knowledge yang menjawab pertanyaan.
 - description: 'R-N01: Apakah ada cabang di Surabaya?'
   metadata: { id: R-N01, category: tanpa-jawaban }

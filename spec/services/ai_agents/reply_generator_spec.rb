@@ -65,12 +65,12 @@ RSpec.describe AiAgents::ReplyGenerator do
     trace = described_class.new(ai_agent: ai_agent, messages: messages).perform.trace
 
     expect(trace).to have_attributes(input_tokens: 10, output_tokens: 5, latency_ms: be >= 0)
-    expect(trace.retrieval).to have_attributes(mode: 'vector', embedding_model: 'text-embedding-3-small')
+    expect(trace.retrieval).to have_attributes(mode: 'hybrid', embedding_model: 'text-embedding-3-small')
     expect(trace.retrieval.hits.map { |hit| [hit.chunk.content, hit.rank] }).to eq([['Jam buka: setiap hari 07.30 - 18.00', 1]])
-    expect(trace.attributes).to include(retrieval_mode: 'vector', embedding_model: 'text-embedding-3-small', input_tokens: 10, output_tokens: 5,
+    expect(trace.attributes).to include(retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 10, output_tokens: 5,
                                         retrieved: [{ chunk_id: ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').id,
                                                       chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: source.id, rank: 1,
-                                                      score: be_within(1e-6).of(0) }])
+                                                      score: be_within(1e-9).of(1.5 / 21) }])
   end
 
   it 'asks only for messages when the agent has no transfer conditions or allowed labels' do
@@ -172,14 +172,14 @@ RSpec.describe AiAgents::ReplyGenerator do
       .and(satisfy { |content| content.exclude?('Jam buka: setiap hari') })
   end
 
-  it 'sends no knowledge but keeps the rule against unknown facts when no chunk is within the max embedding distance' do
+  it 'sends no knowledge but keeps the rule against unknown facts when no chunk is relevant' do
     create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
     stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return(
       status: 200, headers: { 'Content-Type' => 'application/json' },
       body: { data: [{ embedding: Array.new(1536) { |index| index == 2 ? 1.0 : 0.0 } }] }.to_json
     )
 
-    reply = described_class.new(ai_agent: ai_agent, messages: messages).perform
+    reply = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Ada promo?' }]).perform
 
     system_prompt = chat_requests.sole['messages'].first['content']
     expect(system_prompt).to include(described_class::NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS.strip)
