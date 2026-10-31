@@ -4,7 +4,6 @@
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
   MAX_REPLY_MESSAGES = 5
-  MAX_QUERY_CHARACTERS = 4_000
   MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
   Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :trace) do
     def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil)
@@ -81,12 +80,7 @@ class AiAgents::ReplyGenerator
   end
 
   def retrieval
-    @retrieval ||= AiAgents::KnowledgeRetriever.new(ai_agent: ai_agent, query: latest_customer_text).perform
-  end
-
-  # The customer messages since the last reply, so a burst of short messages is searched as one question.
-  def latest_customer_text
-    messages.reverse.take_while { |message| message[:role] == :user }.reverse.pluck(:content).join("\n").last(MAX_QUERY_CHARACTERS)
+    @retrieval ||= AiAgents::KnowledgeRetriever.new(ai_agent: ai_agent, messages: messages).perform
   end
 
   def llm_messages

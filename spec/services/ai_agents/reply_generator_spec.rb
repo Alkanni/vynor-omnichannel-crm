@@ -34,7 +34,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
       embedding_requests << JSON.parse(request.body)
       { status: 200, headers: { 'Content-Type' => 'application/json' },
-        body: { data: [{ embedding: opening_hours }], usage: { prompt_tokens: 4 } }.to_json }
+        body: { data: JSON.parse(request.body)['input'].map { { embedding: opening_hours } }, usage: { prompt_tokens: 4 } }.to_json }
     end
     stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
       chat_requests << JSON.parse(request.body)
@@ -49,7 +49,8 @@ RSpec.describe AiAgents::ReplyGenerator do
 
     expect(reply).to have_attributes(messages: ['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'],
                                      handoff: false, labels: [], sheet_row: nil)
-    expect(embedding_requests.sole).to eq('model' => 'text-embedding-3-small', 'input' => ["query: Jam buka?\nHari Minggu juga?"])
+    expect(embedding_requests.sole).to eq('model' => 'text-embedding-3-small',
+                                          'input' => ["query: Jam buka?\nHari Minggu juga?", "query: Halo\nJam buka?\nHari Minggu juga?"])
     request = chat_requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0.2,
                                'tool_choice' => { 'type' => 'function', 'function' => { 'name' => 'ai_agent_reply' } })
@@ -70,7 +71,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     expect(trace.attributes).to include(retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 10, output_tokens: 5,
                                         retrieved: [{ chunk_id: ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').id,
                                                       chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: source.id, rank: 1,
-                                                      score: be_within(1e-9).of(1.5 / 21) }])
+                                                      score: be_within(1e-9).of(7.5 / 21) }])
   end
 
   it 'asks only for messages when the agent has no transfer conditions or allowed labels' do

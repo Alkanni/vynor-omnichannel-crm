@@ -155,8 +155,8 @@
     conversation: Hampers Lebaran isi 12 toples berapa?
     expected: Daftar harga paket
 
-# Multi-turn: pesan terakhir pelanggan bergantung pada giliran sebelumnya. Query disusun seperti balasan runtime saat
-# ini (pesan pelanggan setelah baris "AI:" terakhir).
+# Multi-turn: pesan terakhir pelanggan bergantung pada giliran sebelumnya. Baris sebelum "AI:" terakhir dikirim sebagai
+# riwayat Retrieval Test.
 - description: 'R-M01: Kalau beli 3 totalnya berapa? (lanjutan Roti Sobek Pandan)'
   metadata: { id: R-M01, category: multi-turn }
   vars:
@@ -196,6 +196,172 @@
       AI: Bolu Pandan Rp55.000 per loyang 20 cm.
       Stoknya masih ada?
     expected: Bolu Pandan
+
+- description: 'R-M05: Kalau beli 4, totalnya berapa? (lanjutan Roti Sobek Coklat)'
+  metadata: { id: R-M05, category: multi-turn }
+  vars:
+    conversation: |-
+      Ada Roti Sobek Coklat?
+      AI: Ada, harganya Rp25.000.
+      Kalau beli 4, totalnya berapa?
+    expected: Roti Sobek Coklat
+
+- description: 'R-M06: Beratnya berapa gram? (lanjutan Bolu Gulung Keju)'
+  metadata: { id: R-M06, category: multi-turn }
+  vars:
+    conversation: |-
+      Bolu Gulung Keju berapa?
+      AI: Bolu Gulung Keju Rp60.000.
+      Beratnya berapa gram?
+    expected: Bolu Gulung Keju
+
+- description: 'R-M07: Yang itu isinya apa aja? (lanjutan Brownies Kukus Pandan)'
+  metadata: { id: R-M07, category: multi-turn }
+  vars:
+    conversation: |-
+      Brownies Kukus Pandan masih ada?
+      AI: Masih ada ya, Kak.
+      Yang itu isinya apa aja?
+    expected: Brownies Kukus Pandan
+
+- description: 'R-M08: Jumatnya juga? (lanjutan jam buka)'
+  metadata: { id: R-M08, category: multi-turn }
+  vars:
+    conversation: |-
+      Toko buka jam berapa?
+      AI: Toko buka setiap hari pukul 08.00-20.00 WIB.
+      Jumatnya juga?
+    expected: Profil toko
+
+- description: 'R-M09: Harganya berapa? (subjek hanya ada di balasan AI)'
+  metadata: { id: R-M09, category: multi-turn }
+  vars:
+    conversation: |-
+      Roti yang tanpa gula ada?
+      AI: Ada, Roti Bebas Gula yang memakai pemanis stevia.
+      Harganya berapa?
+    expected: Roti Bebas Gula
+
+- description: 'R-M10: Isinya berapa? Terus harganya? (burst, lanjutan Pisang Bolen)'
+  metadata: { id: R-M10, category: multi-turn }
+  vars:
+    conversation: |-
+      Mau tanya soal Pisang Bolen
+      AI: Boleh, Kak. Ada yang bisa dibantu?
+      Isinya berapa?
+      Terus harganya?
+    expected: Pisang Bolen
+
+- description: 'R-M11: Beratnya berapa? (subjek dua giliran sebelumnya)'
+  metadata: { id: R-M11, category: multi-turn }
+  vars:
+    conversation: |-
+      Ada Croissant Mentega?
+      AI: Ada, harganya Rp18.000.
+      Stoknya banyak?
+      AI: Masih tersedia, Kak.
+      Beratnya berapa?
+    expected: Croissant Mentega
+
+- description: 'R-M12: Kenapa begitu? (lanjutan pengiriman kue tart)'
+  metadata: { id: R-M12, category: multi-turn }
+  vars:
+    conversation: |-
+      Kue tart bisa dikirim ke luar kota?
+      AI: Kue tart hanya dikirim di dalam Kota Bandung.
+      Kenapa begitu?
+    expected: |-
+      Kebijakan toko
+      Apakah bisa kirim ke luar kota?
+
+- description: 'R-M13: Passwordnya gimana? (lanjutan WiFi, setelah Lapis Legit)'
+  metadata: { id: R-M13, category: multi-turn }
+  vars:
+    conversation: |-
+      Ada Lapis Legit?
+      AI: Ada, harganya Rp180.000.
+      Ada WiFi di toko?
+      AI: Ada WiFi gratis untuk pelanggan.
+      Passwordnya gimana?
+    expected: Apakah ada WiFi di toko?
+
+# Ganti topik: pelanggan beralih ke topik lain, jadi konteks giliran sebelumnya tidak boleh menggeser jawabannya
+# (issue #83). Ditulis sebelum pengukuran.
+- description: 'R-G01: Oh iya, ada tempat parkir? (setelah Roti Sobek Coklat)'
+  metadata: { id: R-G01, category: ganti-topik }
+  vars:
+    conversation: |-
+      Ada Roti Sobek Coklat?
+      AI: Ada, harganya Rp25.000.
+      Oh iya, ada tempat parkir?
+    expected: Apakah ada tempat parkir?
+
+- description: 'R-G02: Kalau pembayaran pakai QRIS bisa? (setelah Lapis Legit)'
+  metadata: { id: R-G02, category: ganti-topik }
+  vars:
+    conversation: |-
+      Berapa harga Lapis Legit?
+      AI: Lapis Legit Rp180.000.
+      Kalau pembayaran pakai QRIS bisa?
+    expected: Kebijakan toko
+
+- description: 'R-G03: Ada WiFi di toko? (setelah kue tart)'
+  metadata: { id: R-G03, category: ganti-topik }
+  vars:
+    conversation: |-
+      Kue tart coklat 20 cm berapa?
+      AI: Rp210.000, pesan minimal 3 hari sebelumnya.
+      Ada WiFi di toko?
+    expected: Apakah ada WiFi di toko?
+
+- description: 'R-G04: Ada program reseller nggak? (setelah hampers Lebaran)'
+  metadata: { id: R-G04, category: ganti-topik }
+  vars:
+    conversation: |-
+      Bisa pesan hampers Lebaran?
+      AI: Bisa, Kak. Isi 6 toples Rp350.000.
+      Ada program reseller nggak?
+    expected: Apakah ada program reseller?
+
+- description: 'R-G05: Roti bisa dibekukan? (setelah Donat Gula)'
+  metadata: { id: R-G05, category: ganti-topik }
+  vars:
+    conversation: |-
+      Donat Gula ada?
+      AI: Ada, harganya Rp6.000.
+      Roti bisa dibekukan?
+    expected: Apakah roti bisa dibekukan?
+
+- description: 'R-G06: Berapa harga Croissant Almond? (setelah komplain)'
+  metadata: { id: R-G06, category: ganti-topik }
+  vars:
+    conversation: |-
+      Kalau komplain roti rusak gimana?
+      AI: Komplain diterima paling lambat 24 jam dengan foto produk dan nomor pesanan.
+      Berapa harga Croissant Almond?
+    expected: Croissant Almond
+
+- description: 'R-G07: Toko tutup jam berapa? (setelah dua giliran Roti Sobek Coklat)'
+  metadata: { id: R-G07, category: ganti-topik }
+  vars:
+    conversation: |-
+      Ada Roti Sobek Coklat?
+      AI: Ada, harganya Rp25.000.
+      Stoknya banyak?
+      AI: Masih 12, Kak.
+      Toko tutup jam berapa?
+    expected: Profil toko
+
+- description: 'R-G08: Ada kartu member? (setelah dua giliran Bolu Pandan)'
+  metadata: { id: R-G08, category: ganti-topik }
+  vars:
+    conversation: |-
+      Berapa harga Bolu Pandan?
+      AI: Bolu Pandan Rp55.000.
+      Bisa dikirim hari ini?
+      AI: Bisa bila pesan sebelum pukul 14.00.
+      Ada kartu member?
+    expected: Apakah ada kartu member atau poin?
 
 # Kata persis: nama, angka, atau istilah yang hanya muncul di satu sumber (issue #82). Ditulis sebelum pengukuran.
 - description: 'R-E01: Parkir di Masjid Al-Ikhlas boleh?'

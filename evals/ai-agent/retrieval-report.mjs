@@ -105,7 +105,7 @@ function report(file, cases) {
     '',
     `Tanpa jawaban: ${noAnswer.filter(testCase => testCase.retrieved === 0).length}/${noAnswer.length} tidak mengambil chunk apa pun.`,
     '',
-    `Sebaran skor (${mode === 'keyword' ? 'ts_rank, makin besar makin dekat' : 'cosine distance, makin kecil makin dekat'}):`,
+    `Sebaran skor (${mode === 'keyword' ? 'skor RRF, makin besar makin dekat' : 'cosine distance, makin kecil makin dekat'}):`,
     `- Chunk relevan terbaik per kasus: ${stats(answerable.map(testCase => testCase.bestRelevant))}`,
     `- Chunk tidak relevan terbaik per kasus: ${stats(answerable.map(testCase => testCase.bestIrrelevant))}`,
     `- Chunk teratas pada kasus tanpa jawaban: ${stats(noAnswer.map(testCase => testCase.bestIrrelevant))}`,

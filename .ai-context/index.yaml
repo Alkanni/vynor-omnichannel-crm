@@ -89,7 +89,7 @@ documents:
     purpose: Fork AI Agent feature; reply flow, retrieval, reply traces, knowledge health, playground, evaluation, configuration
     related_modules: [conversations, frontend]
     source_refs: [app/models/ai_agent.rb, app/models/ai_agent/, app/services/ai_agents/, app/jobs/ai_agents/, app/listeners/ai_agent_listener.rb, app/controllers/api/v1/accounts/ai_agents_controller.rb, app/controllers/api/v1/accounts/ai_agents/, app/javascript/dashboard/routes/dashboard/aiAgents/, evals/ai-agent/]
-    last_analyzed_commit: a9068db61e (+ issues #70, #72, #71, #80, #81, #85, #82)
+    last_analyzed_commit: a9068db61e (+ issues #70, #72, #71, #80, #81, #85, #82, #83)
     verification: VERIFIED
 
   - id: flow-event-bus

@@ -52,10 +52,10 @@ class AiAgentKnowledgeAPI extends ApiClient {
     return axios.get(`${this.sourcesUrl(agentId)}/${id}/chunks`, { signal });
   }
 
-  testRetrieval(agentId, query, { signal } = {}) {
+  testRetrieval(agentId, query, history, { signal } = {}) {
     return axios.post(
       `${this.url}/${agentId}/retrieval_test`,
-      { query },
+      { query, history },
       { signal }
     );
   }

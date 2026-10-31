@@ -1,53 +1,88 @@
-# Finds the knowledge chunks an AI Agent sends to the model for a question, up to its Context Limit (see
+# Finds the knowledge chunks an AI Agent sends to the model for a conversation, up to its Context Limit (see
 # AiAgent::KnowledgeChunk.searchable for the chunks compared). With an embedding model the search is hybrid: the nearest
 # chunks by embedding and the chunks sharing the most words with the question are combined with Reciprocal Rank Fusion,
 # so vector search finds what means the same and keywords find exact names and numbers. Without one only the words count.
 # Chunks that are not relevant enough are left out of their list: those sharing no word with the question, and those
 # farther than AI_AGENT_EMBEDDING_MAX_DISTANCE when it is set. No chunk at all means the model answers without knowledge.
+#
+# A follow-up question often leaves out its subject ("How much for 4?"), so a conversation with earlier customer turns
+# is searched twice: with the latest turn, and with that turn joined to the ones before it. The first keeps a change of
+# topic from being outweighed by the earlier turns. Agent replies stay out of the search, because they added noise.
 class AiAgents::KnowledgeRetriever
-  # Fusion settings, chosen with evals/ai-agent: k evens out how much a top rank counts against a lower one, and keywords
-  # count half as much as embeddings because they match on any shared word, however common.
+  MAX_QUERY_CHARACTERS = 4_000
+  CONTEXT_TURNS = 2
+  MAX_CONTEXT_CHARACTERS = 1_000
+
+  # Fusion settings, chosen with evals/ai-agent: k evens out how much a top rank counts against a lower one, keywords
+  # count half as much as embeddings because they match on any shared word, however common, and the query with earlier
+  # turns counts most because a follow-up is hardly searchable on its own.
   RRF_K = 20
   KEYWORD_WEIGHT = 0.5
+  QUERY_WEIGHTS = [1.0, 4.0].freeze
 
-  # rank starts at 1. score is the RRF score in hybrid mode and the ts_rank in keyword mode; in both, higher is closer.
+  # rank starts at 1. score is the RRF score: higher is closer, and it says nothing about relevance on its own.
   Hit = Data.define(:chunk, :rank, :score)
-  Result = Data.define(:mode, :embedding_model, :hits)
+  # queries: the latest customer turn, then that turn with the earlier ones when there are any.
+  Result = Data.define(:mode, :embedding_model, :queries, :hits)
 
-  pattr_initialize [:ai_agent!, :query!]
+  # messages: { role: :user | :assistant, content: }, oldest first.
+  pattr_initialize [:ai_agent!, :messages!]
 
   def perform
     embedding_model = AiAgents::LlmClient.embedding_model
-    Result.new(mode: embedding_model ? 'hybrid' : 'keyword', embedding_model: embedding_model, hits: hits(embedding_model))
+    queries = search_queries
+    Result.new(mode: embedding_model ? 'hybrid' : 'keyword', embedding_model: embedding_model, queries: queries,
+               hits: hits(embedding_model, queries))
   end
 
   private
 
-  def hits(embedding_model)
-    chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
-    return [] if query.blank? || !chunks.exists?
+  def search_queries
+    *earlier, latest = customer_turns.last(CONTEXT_TURNS + 1)
+    return [] if latest.blank?
 
-    scored = embedding_model ? fused(chunks) : keyword_matches(chunks).map { |chunk| [chunk, chunk.keyword_rank] }
-    scored.first(ai_agent.context_limit).map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) }
+    latest_query = latest.last(MAX_QUERY_CHARACTERS)
+    return [latest_query] if earlier.empty?
+
+    [latest_query, "#{earlier.join("\n").last(MAX_CONTEXT_CHARACTERS)}\n#{latest}".last(MAX_QUERY_CHARACTERS)]
   end
 
-  # A chunk scores weight / (RRF_K + rank) for each list it is in, so one found by both searches ranks above one found by either.
-  def fused(chunks)
+  # The messages between two replies are one turn, so a burst of short messages is searched as one question.
+  def customer_turns
+    messages.slice_when { |before, after| before[:role] != after[:role] }.select { |turn| turn.first[:role] == :user }
+            .map { |turn| turn.pluck(:content).join("\n") }
+  end
+
+  def hits(embedding_model, queries)
+    chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
+    return [] if queries.empty? || !chunks.exists?
+
+    vectors = embedding_model ? AiAgents::LlmClient.new.embed(queries, input_type: :query) : []
+    scores = fused(chunks, queries, vectors).first(ai_agent.context_limit)
+    scores.map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) }
+  end
+
+  # A chunk scores weight / (RRF_K + rank) for each list it is in, so one found by several searches ranks above one found
+  # by a single search. The vector list goes first so that a chunk it found keeps its distance.
+  def fused(chunks, queries, vectors)
     scores = Hash.new(0.0)
-    [[nearest_chunks(chunks), 1.0], [keyword_matches(chunks), KEYWORD_WEIGHT]].each do |list, weight|
-      list.each.with_index(1) { |chunk, rank| scores[chunk] += weight / (RRF_K + rank) }
+    queries.zip(vectors, QUERY_WEIGHTS) do |query, vector, query_weight|
+      lists = [[keyword_matches(chunks, query), KEYWORD_WEIGHT]]
+      lists.unshift([nearest_chunks(chunks, vector), 1.0]) if vector
+      lists.each do |list, list_weight|
+        list.each.with_index(1) { |chunk, rank| scores[chunk] += query_weight * list_weight / (RRF_K + rank) }
+      end
     end
     scores.sort_by { |chunk, score| [-score, chunk.id] }
   end
 
-  def nearest_chunks(chunks)
-    vector = AiAgents::LlmClient.new.embed([query], input_type: :query).first
+  def nearest_chunks(chunks, vector)
     nearest = chunks.nearest_neighbors(:embedding, vector, distance: 'cosine').limit(ai_agent.context_limit)
     max_distance = AiAgents::LlmClient.embedding_max_distance
     max_distance ? nearest.select { |chunk| chunk.neighbor_distance <= max_distance } : nearest
   end
 
-  def keyword_matches(chunks)
+  def keyword_matches(chunks, query)
     chunks.keyword_ranked(query).limit(ai_agent.context_limit).select { |chunk| chunk.keyword_rank.positive? }
   end
 end
