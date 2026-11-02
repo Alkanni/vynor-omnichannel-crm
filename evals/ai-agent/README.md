@@ -61,7 +61,7 @@ node report.mjs output/run-1.json
 fixtures, creates the `komplain` label if it is missing, and merges the agent ids into `.eval-agents.json`. Run it
 again after changing a fixture. The `injection` agent has an extra knowledge source with an embedded instruction and
 is used only by A2-09; the `large` and `dokumen` agents are used by the retrieval eval; the `scope-prompt` agent is
-`main` with a scope rule appended to its behavior, for the Scope Compliance eval.
+`main` with a strict Business Scope Policy (`settings` in the fixture), for the Scope Compliance eval.
 
 `npx promptfoo@0.124.1 view` opens the results in the browser, including each judge reason.
 

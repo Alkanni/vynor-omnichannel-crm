@@ -11,7 +11,7 @@ RSpec.describe AiAgent do
         stop_ai_after_handoff: true, silent_handoff: false, history_limit: 30, read_file_limit: 3,
         context_limit: 40, temperature: 'balanced', message_await: 10, message_limit: 10,
         watcher_enabled: false, timezone: 'Asia/Jakarta', session_only_memory: false,
-        ignore_team_handoff: false, allowed_label_ids: []
+        ignore_team_handoff: false, allowed_label_ids: [], scope_mode: 'off', scope_policy_version: 0
       )
       expect(ai_agent).to be_valid
     end
@@ -26,13 +26,15 @@ RSpec.describe AiAgent do
     it 'enforces text length limits' do
       ai_agent.assign_attributes(
         behavior: 'a' * 15_001, welcome_message: 'a' * 5_001, transfer_conditions: 'a' * 3_001,
-        label_conditions: 'a' * 3_001, pending_assigned_message: 'a' * 201, pending_unassigned_message: 'a' * 201
+        label_conditions: 'a' * 3_001, pending_assigned_message: 'a' * 201, pending_unassigned_message: 'a' * 201,
+        business_description: 'a' * 3_001, allowed_topics: 'a' * 3_001, disallowed_topics: 'a' * 3_001
       )
 
       expect(ai_agent).not_to be_valid
       expect(ai_agent.errors.attribute_names).to contain_exactly(
         :behavior, :welcome_message, :transfer_conditions, :label_conditions,
-        :pending_assigned_message, :pending_unassigned_message
+        :pending_assigned_message, :pending_unassigned_message,
+        :business_description, :allowed_topics, :disallowed_topics
       )
     end
 
@@ -50,11 +52,24 @@ RSpec.describe AiAgent do
       )
     end
 
-    it 'rejects unknown temperature and timezone values' do
-      ai_agent.assign_attributes(temperature: 'wild', timezone: 'Mars/Olympus')
+    it 'rejects unknown temperature, timezone, and scope mode values' do
+      ai_agent.assign_attributes(temperature: 'wild', timezone: 'Mars/Olympus', scope_mode: 'loose')
 
       expect(ai_agent).not_to be_valid
-      expect(ai_agent.errors.attribute_names).to contain_exactly(:temperature, :timezone)
+      expect(ai_agent.errors.attribute_names).to contain_exactly(:temperature, :timezone, :scope_mode)
+    end
+
+    it 'requires a business description and allowed topics in strict mode only' do
+      ai_agent.assign_attributes(scope_mode: 'strict', business_description: "  \n", allowed_topics: '')
+
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.attribute_names).to contain_exactly(:business_description, :allowed_topics)
+
+      ai_agent.assign_attributes(business_description: 'Toko roti', allowed_topics: 'Harga')
+      expect(ai_agent).to be_valid
+
+      ai_agent.assign_attributes(scope_mode: 'off', business_description: nil, allowed_topics: nil)
+      expect(ai_agent).to be_valid
     end
 
     it 'rejects models outside the assistant feature' do
@@ -118,6 +133,33 @@ RSpec.describe AiAgent do
     end
   end
 
+  describe 'scope policy version' do
+    before { ai_agent.save! }
+
+    it 'goes up by one when a policy attribute changes' do
+      { business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik', scope_mode: 'strict' }.each do |attribute, value|
+        expect { ai_agent.update!(attribute => value) }.to change(ai_agent, :scope_policy_version).by(1)
+      end
+    end
+
+    it 'goes up once when a save changes several policy attributes' do
+      expect { ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga') }
+        .to change(ai_agent, :scope_policy_version).by(1)
+    end
+
+    it 'stays when other settings change' do
+      expect { ai_agent.update!(behavior: 'Jawab singkat.', message_limit: 20) }.not_to change(ai_agent, :scope_policy_version)
+    end
+
+    it 'stays when the settings form sends unset or padded policy fields' do
+      ai_agent.update!(business_description: 'Toko roti')
+
+      expect { ai_agent.update!(business_description: " Toko roti\n", allowed_topics: '', disallowed_topics: ' ', name: 'Baru') }
+        .not_to change(ai_agent, :scope_policy_version)
+      expect(ai_agent.reload).to have_attributes(business_description: 'Toko roti', allowed_topics: nil, disallowed_topics: nil)
+    end
+  end
+
   describe '#duplicate!' do
     it 'copies knowledge sources and products including images' do
       ai_agent.save!
@@ -144,7 +186,8 @@ RSpec.describe AiAgent do
 
     it 'copies the settings under a new name' do
       label = create(:label, account: account)
-      ai_agent.update!(welcome_message: 'Halo', allowed_label_ids: [label.id], history_limit: 12, temperature: 'creative')
+      ai_agent.update!(welcome_message: 'Halo', allowed_label_ids: [label.id], history_limit: 12, temperature: 'creative', scope_mode: 'strict',
+                       business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik')
 
       copy = ai_agent.duplicate!
 

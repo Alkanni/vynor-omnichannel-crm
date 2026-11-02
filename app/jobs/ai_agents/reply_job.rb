@@ -42,7 +42,7 @@ class AiAgents::ReplyJob < ApplicationJob
 
   def record_trace(ai_agent, message, status, details = {})
     ai_agent.reply_traces.create!(account_id: ai_agent.account_id, conversation_id: message.conversation_id, message: message,
-                                  model: ai_agent.model, status: status, **details)
+                                  model: ai_agent.model, scope_policy_version: ai_agent.scope_policy_version, status: status, **details)
   end
 
   # The Watcher only has something to check when the agent has transfer conditions or allowed labels.

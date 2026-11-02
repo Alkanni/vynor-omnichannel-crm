@@ -35,6 +35,7 @@ const TEXT_LIMITS = {
   transferConditions: 3000,
   pendingMessage: 200,
   labelConditions: 3000,
+  scopePolicy: 3000,
 };
 
 const { t } = useI18n();
@@ -66,6 +67,10 @@ const toForm = agent => ({
   timezone: agent.timezone,
   session_only_memory: agent.session_only_memory,
   ignore_team_handoff: agent.ignore_team_handoff,
+  scope_mode: agent.scope_mode,
+  business_description: agent.business_description || '',
+  allowed_topics: agent.allowed_topics || '',
+  disallowed_topics: agent.disallowed_topics || '',
 });
 
 const form = reactive(toForm(props.agent));
@@ -119,6 +124,16 @@ const temperatureOptions = computed(() => [
     label: t(
       'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.TEMPERATURE.OPTIONS.CREATIVE'
     ),
+  },
+]);
+const scopeModeOptions = computed(() => [
+  {
+    value: 'off',
+    label: t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.MODE.OPTIONS.OFF'),
+  },
+  {
+    value: 'strict',
+    label: t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.MODE.OPTIONS.STRICT'),
   },
 ]);
 const memoryFields = computed(() => [
@@ -403,6 +418,98 @@ onMounted(async () => {
               min-height="5rem"
             />
           </SettingsField>
+
+          <CollapsiblePanel
+            icon="i-lucide-shield-check"
+            :title="t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.TITLE')"
+            :description="t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.DESCRIPTION')"
+          >
+            <SettingsField
+              :title="t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.MODE.TITLE')"
+              :description="
+                t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.MODE.DESCRIPTION')
+              "
+            >
+              <ComboBox
+                :model-value="form.scope_mode"
+                :options="scopeModeOptions"
+                @update:model-value="setRequired('scope_mode', $event)"
+              />
+            </SettingsField>
+            <SettingsField
+              :title="
+                t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.BUSINESS_DESCRIPTION.TITLE')
+              "
+              :description="
+                t(
+                  'AI_AGENTS.GENERAL.BUSINESS_SCOPE.BUSINESS_DESCRIPTION.DESCRIPTION'
+                )
+              "
+            >
+              <TextArea
+                id="ai-agent-business-description"
+                v-model="form.business_description"
+                :placeholder="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.BUSINESS_DESCRIPTION.PLACEHOLDER'
+                  )
+                "
+                :max-length="TEXT_LIMITS.scopePolicy"
+                show-character-count
+                auto-height
+                resize
+                min-height="5rem"
+              />
+            </SettingsField>
+            <SettingsField
+              :title="
+                t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.ALLOWED_TOPICS.TITLE')
+              "
+              :description="
+                t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.ALLOWED_TOPICS.DESCRIPTION')
+              "
+            >
+              <TextArea
+                id="ai-agent-allowed-topics"
+                v-model="form.allowed_topics"
+                :placeholder="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.ALLOWED_TOPICS.PLACEHOLDER'
+                  )
+                "
+                :max-length="TEXT_LIMITS.scopePolicy"
+                show-character-count
+                auto-height
+                resize
+                min-height="5rem"
+              />
+            </SettingsField>
+            <SettingsField
+              :title="
+                t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.DISALLOWED_TOPICS.TITLE')
+              "
+              :description="
+                t(
+                  'AI_AGENTS.GENERAL.BUSINESS_SCOPE.DISALLOWED_TOPICS.DESCRIPTION'
+                )
+              "
+            >
+              <TextArea
+                id="ai-agent-disallowed-topics"
+                v-model="form.disallowed_topics"
+                :placeholder="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.DISALLOWED_TOPICS.PLACEHOLDER'
+                  )
+                "
+                :max-length="TEXT_LIMITS.scopePolicy"
+                show-character-count
+                auto-height
+                resize
+                min-height="5rem"
+              />
+            </SettingsField>
+          </CollapsiblePanel>
 
           <div class="flex flex-col gap-5">
             <ToggleField

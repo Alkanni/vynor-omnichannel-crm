@@ -1,6 +1,6 @@
 # Module: AI Agent (fork feature, CE)
 
-Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
+Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94, #95. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
 
 ## Where things live
 
@@ -17,8 +17,14 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94. Sta
 
 1. `AiAgentListener#message_created`: for an incoming message in an inbox connected to an agent, while `ConversationSession#ai_active?`, queue `ReplyJob` after `message_await` seconds; otherwise send the pending message.
 2. `ReplyJob#perform`: only the job for the newest incoming message answers (bursts get one reply). If the session reached `message_limit`, hand off (`:message_limit`).
-3. `ReplyGenerator#perform`: instructions = behavior + local time + `<knowledge>` + action instructions; history from `ConversationSession#history` (`history_limit`, images per `read_file_limit`). One LLM call with a forced function call (`ReplyTool`), because some gateways drop `response_format`.
+3. `ReplyGenerator#perform`: instructions = behavior + Business Scope Policy (strict agents) + local time + `<knowledge>` + action instructions; history from `ConversationSession#history` (`history_limit`, images per `read_file_limit`). One LLM call with a forced function call (`ReplyTool`), because some gateways drop `response_format`.
 4. `ReplyJob#deliver`: send bubbles (unless silent handoff), apply labels/sheet row/handoff, queue `WatchJob`, then write an `AiAgent::ReplyTrace`. Any error hands off (`:error`) and writes an `error` trace.
+
+## Business Scope Policy
+
+Per-agent columns, edited in the Business Scope panel of the General tab (#95): `scope_mode` (`off`, the default, or `strict`), `business_description`, `allowed_topics`, `disallowed_topics`. Strict requires the first two; text fields are at most 3,000 characters and blank means nil. `off` adds nothing to the prompt, even when the text fields are filled. For `strict`, `ReplyGenerator#scope_policy` puts `SCOPE_INSTRUCTIONS` (rules in code, shared by replies and the playground) and a `<business_scope>` block right after the behavior. This is a prompt rule, so it asks for compliance and does not guarantee it; the Scope Compliance eval measures it.
+
+`scope_policy_version` starts at 0 and goes up by one on each update that changes a policy column. A copy keeps the version of its original. The API returns it but does not accept it, and each reply trace stores the version in force, which tells replies before and after a change apart. The policy text itself has no history.
 
 ## Retrieval (`AiAgents::KnowledgeRetriever`)
 
@@ -32,7 +38,7 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94. Sta
 
 ## Reply traces (`ai_agent_reply_traces`)
 
-One row per answered customer message: `status` (`replied`, `handoff`, `message_limit`, `error`), `model`, `retrieval_mode`, `embedding_model`, `retrieved` (jsonb list of `chunk_id`, `chunkable_type`, `chunkable_id`, `rank`, `score`), `labels`, `input_tokens`/`output_tokens` (nil when the gateway sends no `usage`), `latency_ms` (retrieval + model call), `error_class`. No message or chunk content is stored, so the search queries are not stored either; they follow from the conversation. Rows are deleted with their agent or conversation (`dependent: :delete_all`); no time-based retention. Not written for the Watcher call, for the playground, or when a reply is dropped because the customer wrote again.
+One row per answered customer message: `status` (`replied`, `handoff`, `message_limit`, `error`), `model`, `scope_policy_version`, `retrieval_mode`, `embedding_model`, `retrieved` (jsonb list of `chunk_id`, `chunkable_type`, `chunkable_id`, `rank`, `score`), `labels`, `input_tokens`/`output_tokens` (nil when the gateway sends no `usage`), `latency_ms` (retrieval + model call), `error_class`. No message or chunk content is stored, so the search queries are not stored either; they follow from the conversation. Rows are deleted with their agent or conversation (`dependent: :delete_all`); no time-based retention. Not written for the Watcher call, for the playground, or when a reply is dropped because the customer wrote again.
 
 ## Knowledge Health
 

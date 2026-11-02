@@ -69,6 +69,33 @@
         "TITLE": "Silent Agent Handoff",
         "DESCRIPTION": "AI transfers the conversation to an agent without a transition message and sends no further messages."
       },
+      "BUSINESS_SCOPE": {
+        "TITLE": "Business Scope",
+        "DESCRIPTION": "Limit what the AI talks about to your business",
+        "MODE": {
+          "TITLE": "Scope Mode",
+          "DESCRIPTION": "In Strict mode the AI politely refuses anything outside the business below. When off, only the AI Agent Behavior limits it.",
+          "OPTIONS": {
+            "OFF": "Off",
+            "STRICT": "Strict"
+          }
+        },
+        "BUSINESS_DESCRIPTION": {
+          "TITLE": "Business Description",
+          "DESCRIPTION": "What the business does. Required in Strict mode.",
+          "PLACEHOLDER": "e.g. A bakery in Bandung that sells bread and cakes, including custom cakes and delivery."
+        },
+        "ALLOWED_TOPICS": {
+          "TITLE": "Allowed Topics",
+          "DESCRIPTION": "What customers can ask about. Required in Strict mode.",
+          "PLACEHOLDER": "e.g. Products and prices, stock, opening hours, location, orders, payment, delivery, order complaints"
+        },
+        "DISALLOWED_TOPICS": {
+          "TITLE": "Disallowed Topics",
+          "DESCRIPTION": "Topics the AI must refuse, even when they seem related to the business. Optional.",
+          "PLACEHOLDER": "e.g. Politics, sports, entertainment, general knowledge, homework, programming, personal chat"
+        }
+      },
       "PENDING_MESSAGES": {
         "TITLE": "Pending status messages",
         "DESCRIPTION": "Set messages customers receive while they wait for a human agent after a handoff",

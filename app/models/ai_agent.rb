@@ -4,8 +4,11 @@
 #
 #  id                         :bigint           not null, primary key
 #  allowed_label_ids          :jsonb            not null
+#  allowed_topics             :text
 #  behavior                   :text
+#  business_description       :text
 #  context_limit              :integer          default(40), not null
+#  disallowed_topics          :text
 #  history_limit              :integer          default(30), not null
 #  ignore_team_handoff        :boolean          default(FALSE), not null
 #  label_conditions           :text
@@ -16,6 +19,8 @@
 #  pending_assigned_message   :string
 #  pending_unassigned_message :string
 #  read_file_limit            :integer          default(3), not null
+#  scope_mode                 :string           default("off"), not null
+#  scope_policy_version       :integer          default(0), not null
 #  session_only_memory        :boolean          default(FALSE), not null
 #  silent_handoff             :boolean          default(FALSE), not null
 #  stop_ai_after_handoff      :boolean          default(TRUE), not null
@@ -38,6 +43,8 @@
 class AiAgent < ApplicationRecord
   LLM_FEATURE = 'assistant'.freeze
   TEMPERATURES = %w[precise balanced creative].freeze
+  SCOPE_MODES = %w[off strict].freeze
+  SCOPE_POLICY_ATTRIBUTES = %w[scope_mode business_description allowed_topics disallowed_topics].freeze
   TRAINING_DELAY = 10.seconds
 
   belongs_to :account
@@ -58,6 +65,9 @@ class AiAgent < ApplicationRecord
 
   attribute :model, :string, default: -> { default_model }
 
+  # A blank field is nil, because the settings form sends unset fields as empty strings and that is no policy change.
+  normalizes :business_description, :allowed_topics, :disallowed_topics, with: ->(text) { text.strip.presence }
+
   validates :name, presence: true, length: { maximum: 255 }
   validates :behavior, length: { maximum: 15_000 }
   validates :welcome_message, length: { maximum: 5_000 }
@@ -70,8 +80,13 @@ class AiAgent < ApplicationRecord
   validates :message_limit, numericality: { only_integer: true, in: 1..1000 }
   validates :temperature, inclusion: { in: TEMPERATURES }
   validates :timezone, inclusion: { in: TZInfo::Timezone.all_identifiers }
+  validates :scope_mode, inclusion: { in: SCOPE_MODES }
+  validates :business_description, :allowed_topics, :disallowed_topics, length: { maximum: 3_000 }
+  validates :business_description, :allowed_topics, presence: true, if: :scope_strict?
   validate :model_supported
   validate :allowed_labels_belong_to_account
+
+  before_update -> { self.scope_policy_version += 1 }, if: -> { changed.intersect?(SCOPE_POLICY_ATTRIBUTES) }
 
   # Gateway model IDs from Super Admin (AI_AGENT_MODELS, e.g. for 9router or OpenRouter) replace the built-in OpenAI models.
   def self.available_models
@@ -89,6 +104,10 @@ class AiAgent < ApplicationRecord
     InstallationConfig.find_by(name: 'AI_AGENT_MODELS')&.value.to_s.split(',').map(&:strip).compact_blank.uniq
   end
   private_class_method :gateway_models
+
+  def scope_strict?
+    scope_mode == 'strict'
+  end
 
   def duplicate!
     transaction do
