@@ -26,17 +26,15 @@ async function labelIds(titles) {
   );
 }
 
-// An agent of a fixture has its name, extra knowledge, and optionally a behavior appended to the fixture's.
-async function createAgent(fixture, { name, knowledge, behavior }) {
+// An agent of a fixture has its name, extra knowledge, and optionally settings on top of the fixture's.
+async function createAgent(fixture, { name, knowledge, settings }) {
   const agent = await appApi('/ai_agents', {
     method: 'POST',
     body: {
       ai_agent: {
         ...fixture.settings,
+        ...settings,
         name,
-        behavior: [fixture.settings.behavior, behavior]
-          .filter(Boolean)
-          .join('\n\n'),
         allowed_label_ids: await labelIds(fixture.labels),
       },
     },

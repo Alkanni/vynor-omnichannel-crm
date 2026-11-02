@@ -62,6 +62,35 @@ RSpec.describe AiAgents::ReplyGenerator do
     expect(request['messages'].drop(1).pluck('role', 'content')).to eq(messages.map { |message| [message[:role].to_s, message[:content]] })
   end
 
+  describe 'business scope' do
+    let(:system_prompt) do
+      described_class.new(ai_agent: ai_agent, messages: messages).perform
+      chat_requests.sole['messages'].first['content']
+    end
+
+    it 'adds nothing when the scope is off, whatever the policy fields hold' do
+      ai_agent.update!(business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik')
+
+      expect(system_prompt).to start_with("Kamu adalah asisten Grand Sehat.\n\nCurrent date and time: ")
+      expect(system_prompt).not_to include('business_scope', 'Toko roti', 'Politik')
+    end
+
+    it 'puts the rules and the policy of a strict agent after the behavior and before the knowledge' do
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik')
+
+      expect(system_prompt).to include("Business: Toko roti\nAllowed topics: Harga\nDisallowed topics: Politik\n</business_scope>")
+      expect(system_prompt.index('Kamu adalah asisten Grand Sehat.')).to be < system_prompt.index(described_class::SCOPE_INSTRUCTIONS)
+      expect(system_prompt.index('</business_scope>')).to be < system_prompt.index('<knowledge>')
+    end
+
+    it 'leaves out the disallowed topics when there are none' do
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga')
+
+      expect(system_prompt).to include("Allowed topics: Harga\n</business_scope>")
+      expect(system_prompt).not_to include('Disallowed topics')
+    end
+  end
+
   it 'traces the knowledge it retrieved, the tokens the model reported, and the time it took' do
     trace = described_class.new(ai_agent: ai_agent, messages: messages).perform.trace
 

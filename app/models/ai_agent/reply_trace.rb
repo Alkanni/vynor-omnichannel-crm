@@ -2,23 +2,24 @@
 #
 # Table name: ai_agent_reply_traces
 #
-#  id              :bigint           not null, primary key
-#  embedding_model :string
-#  error_class     :string
-#  input_tokens    :integer
-#  labels          :jsonb            not null
-#  latency_ms      :integer
-#  model           :string           not null
-#  output_tokens   :integer
-#  retrieval_mode  :string
-#  retrieved       :jsonb            not null
-#  status          :integer          not null
-#  created_at      :datetime         not null
-#  updated_at      :datetime         not null
-#  account_id      :bigint           not null
-#  ai_agent_id     :bigint           not null
-#  conversation_id :bigint           not null
-#  message_id      :bigint           not null
+#  id                   :bigint           not null, primary key
+#  embedding_model      :string
+#  error_class          :string
+#  input_tokens         :integer
+#  labels               :jsonb            not null
+#  latency_ms           :integer
+#  model                :string           not null
+#  output_tokens        :integer
+#  retrieval_mode       :string
+#  retrieved            :jsonb            not null
+#  scope_policy_version :integer          default(0), not null
+#  status               :integer          not null
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  account_id           :bigint           not null
+#  ai_agent_id          :bigint           not null
+#  conversation_id      :bigint           not null
+#  message_id           :bigint           not null
 #
 # Indexes
 #

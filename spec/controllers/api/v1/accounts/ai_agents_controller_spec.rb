@@ -110,7 +110,8 @@ RSpec.describe 'AI Agents API', type: :request do
         pending_unassigned_message: 'Sedang dicarikan CS', allowed_label_ids: [label.id], label_conditions: 'Label booking',
         model: 'gpt-4.1-mini', history_limit: 20, read_file_limit: 2, context_limit: 50, temperature: 'precise',
         message_await: 5, message_limit: 25, watcher_enabled: true, timezone: 'Asia/Makassar',
-        session_only_memory: true, ignore_team_handoff: true
+        session_only_memory: true, ignore_team_handoff: true, scope_mode: 'strict', business_description: 'Toko roti di Bandung',
+        allowed_topics: 'Harga dan stok', disallowed_topics: 'Politik'
       }
     end
 
@@ -119,6 +120,33 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(ai_agent.reload).to have_attributes(params)
+      expect(response.parsed_body).to include(params.slice(:scope_mode, :business_description, :allowed_topics, :disallowed_topics).stringify_keys)
+      expect(response.parsed_body['scope_policy_version']).to eq(1)
+    end
+
+    it 'keeps the scope policy version out of the writable settings' do
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { scope_policy_version: 9 }, headers: admin.create_new_auth_token, as: :json
+
+      expect(ai_agent.reload.scope_policy_version).to eq(0)
+    end
+
+    it 'returns unprocessable entity for a strict scope without its business description and allowed topics' do
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { scope_mode: 'strict', business_description: '', allowed_topics: ' ', disallowed_topics: 'Politik' },
+            headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['attributes']).to contain_exactly('business_description', 'allowed_topics')
+      expect(ai_agent.reload).to have_attributes(scope_mode: 'off', scope_policy_version: 0)
+    end
+
+    it 'returns unprocessable entity for an unknown scope mode and for a policy over the length limit' do
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { scope_mode: 'loose', allowed_topics: 'a' * 3_001 }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['attributes']).to contain_exactly('scope_mode', 'allowed_topics')
     end
 
     it 'clears the allowed labels with an empty list' do

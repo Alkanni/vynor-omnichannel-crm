@@ -21,6 +21,11 @@ json.watcher_enabled ai_agent.watcher_enabled
 json.timezone ai_agent.timezone
 json.session_only_memory ai_agent.session_only_memory
 json.ignore_team_handoff ai_agent.ignore_team_handoff
+json.scope_mode ai_agent.scope_mode
+json.business_description ai_agent.business_description
+json.allowed_topics ai_agent.allowed_topics
+json.disallowed_topics ai_agent.disallowed_topics
+json.scope_policy_version ai_agent.scope_policy_version
 json.inbox_ids ai_agent.inbox_ids
 json.trained_at ai_agent.trained_at&.to_i
 json.training_error ai_agent.training_error

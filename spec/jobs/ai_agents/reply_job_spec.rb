@@ -46,6 +46,15 @@ RSpec.describe AiAgents::ReplyJob do
     )
   end
 
+  it 'records the version of the scope policy the reply was made under' do
+    ai_agent.update!(business_description: 'Toko roti')
+    ai_agent.update!(allowed_topics: 'Harga')
+
+    described_class.perform_now(create(:message, **message_attributes, content: 'Halo'))
+
+    expect(traces.sole.scope_policy_version).to eq(2)
+  end
+
   it 'answers a burst of messages once, from the job of the latest message' do
     messages = ['Halo', 'Mau tanya', 'Harga detailing?'].map { |content| create(:message, **message_attributes, content: content) }
 
