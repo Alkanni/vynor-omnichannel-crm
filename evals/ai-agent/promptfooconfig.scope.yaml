@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Scope Compliance eval (issue #94): every case runs once per provider, and each provider is an agent variant. Run from
+# this directory; see README.md.
+description: AI Agent Scope Compliance
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://provider.mjs
+    label: main
+    config:
+      agent: main
+  - id: file://provider.mjs
+    label: scope-prompt
+    config:
+      agent: scope-prompt
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 2
+
+defaultTest: file://judge.yaml
+
+tests:
+  - file://tests/s-scope.yaml
