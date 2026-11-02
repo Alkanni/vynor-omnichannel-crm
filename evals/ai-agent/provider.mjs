@@ -6,13 +6,18 @@ import { AGENTS_FILE, appApi } from './lib/app-api.mjs';
 import { toMessages } from './lib/conversation.mjs';
 
 export default class AiAgentPlaygroundProvider {
+  // `config.agent` fixes the agent, so one config can run the same cases against several agent variants.
+  constructor({ config = {} } = {}) {
+    this.agent = config.agent;
+  }
+
   id() {
     return 'ai-agent-playground';
   }
 
   async callApi(_prompt, { vars }) {
     const agentId = JSON.parse(readFileSync(AGENTS_FILE, 'utf8'))[
-      vars.agent || 'main'
+      this.agent || vars.agent
     ];
     try {
       const reply = await appApi(`/ai_agents/${agentId}/playground`, {

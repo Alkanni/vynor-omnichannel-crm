@@ -26,18 +26,22 @@ async function labelIds(titles) {
   );
 }
 
-async function createAgent(fixture, name, extraKnowledge) {
+// An agent of a fixture has its name, extra knowledge, and optionally a behavior appended to the fixture's.
+async function createAgent(fixture, { name, knowledge, behavior }) {
   const agent = await appApi('/ai_agents', {
     method: 'POST',
     body: {
       ai_agent: {
         ...fixture.settings,
         name,
+        behavior: [fixture.settings.behavior, behavior]
+          .filter(Boolean)
+          .join('\n\n'),
         allowed_label_ids: await labelIds(fixture.labels),
       },
     },
   });
-  for (const source of [...fixture.knowledge, ...extraKnowledge]) {
+  for (const source of [...fixture.knowledge, ...knowledge]) {
     await appApi(`/ai_agents/${agent.id}/knowledge_sources`, {
       method: 'POST',
       body: source,
@@ -89,10 +93,10 @@ const ids = existsSync(AGENTS_FILE)
   : {};
 const created = [];
 for (const fixture of fixtures) {
-  for (const [key, { name, knowledge }] of Object.entries(fixture.agents)) {
-    ids[key] = await createAgent(fixture, name, knowledge);
+  for (const [key, agent] of Object.entries(fixture.agents)) {
+    ids[key] = await createAgent(fixture, agent);
     created.push(ids[key]);
-    console.log(`Created ${key} agent ${ids[key]} (${name})`);
+    console.log(`Created ${key} agent ${ids[key]} (${agent.name})`);
   }
 }
 
