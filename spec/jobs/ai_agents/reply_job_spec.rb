@@ -10,7 +10,8 @@ RSpec.describe AiAgents::ReplyJob do
     chunk = AiAgent::KnowledgeChunk.new(id: 7, chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: 3)
     retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'hybrid', embedding_model: 'text-embedding-3-small', queries: ['Jam buka?'],
                                                          hits: [AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: 1, score: 0.12)])
-    AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, validation: nil, input_tokens: 120, output_tokens: 30, latency_ms: 850)
+    AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, validation: nil, input_tokens: 120, output_tokens: 30,
+                                        cached_input_tokens: 64, latency_ms: 850)
   end
   let(:traces) { AiAgent::ReplyTrace.where(conversation: conversation) }
   let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Halo!', 'Ada yang bisa dibantu?'], handoff: false, labels: [], trace: trace) }
@@ -40,8 +41,10 @@ RSpec.describe AiAgents::ReplyJob do
 
     expect(traces.sole).to have_attributes(
       account_id: account.id, ai_agent_id: ai_agent.id, message_id: message.id, status: 'replied', model: ai_agent.model,
-      retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, latency_ms: 850,
-      labels: [], error_class: nil, scope_decision: nil, scope_latency_ms: nil, reply_decision: nil, cited_ranks: [], blocked_reason: nil,
+      retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, cached_input_tokens: 64,
+      latency_ms: 850, labels: [], error_class: nil, scope_decision: nil, scope_latency_ms: nil, scope_input_tokens: nil, scope_output_tokens: nil,
+      reply_decision: nil, cited_ranks: [], blocked_reason: nil, watcher_input_tokens: nil, watcher_output_tokens: nil,
+      watcher_cached_input_tokens: nil,
       retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12 }]
     )
   end
@@ -202,8 +205,10 @@ RSpec.describe AiAgents::ReplyJob do
 
     before { ai_agent.update!(watcher_enabled: true, transfer_conditions: 'Transfer when the customer complains.') }
 
-    it 'is queued after a reply when it is enabled and the agent has actions' do
-      expect { described_class.perform_now(message) }.to have_enqueued_job(AiAgents::WatchJob).with(conversation)
+    it 'is queued with the trace of the reply when it is enabled and the agent has actions' do
+      described_class.perform_now(message)
+
+      expect(AiAgents::WatchJob).to have_been_enqueued.with(conversation, traces.sole)
     end
 
     it 'is not queued when it is disabled, the agent has no actions, or the reply handed off' do
@@ -220,9 +225,10 @@ RSpec.describe AiAgents::ReplyJob do
     end
 
     it 'is not queued after a reply of the scope check' do
-      scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', input_tokens: 900, output_tokens: 5, latency_ms: 700)
+      scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', input_tokens: 900, output_tokens: 5, cached_input_tokens: nil,
+                                               latency_ms: 700)
       scope_trace = AiAgents::ReplyGenerator::Trace.new(scope: scope, retrieval: nil, validation: nil, input_tokens: 900, output_tokens: 5,
-                                                        latency_ms: 700)
+                                                        cached_input_tokens: nil, latency_ms: 700)
       allow(generator).to receive(:perform)
         .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Maaf.'], handoff: false, labels: [], trace: scope_trace))
 
@@ -260,7 +266,8 @@ RSpec.describe AiAgents::ReplyJob do
       expect(AiAgents::ConversationSession.new(conversation: conversation, ai_agent: ai_agent).reply_count).to eq(1)
       expect(conversation.reload).to be_pending
       expect(traces.sole).to have_attributes(status: 'replied', scope_decision: 'OUT_OF_SCOPE', scope_latency_ms: be >= 0, retrieval_mode: nil,
-                                             retrieved: [], input_tokens: 900, output_tokens: 5, scope_policy_version: ai_agent.scope_policy_version)
+                                             retrieved: [], input_tokens: 900, output_tokens: 5, scope_input_tokens: 900, scope_output_tokens: 5,
+                                             cached_input_tokens: nil, scope_policy_version: ai_agent.scope_policy_version)
     end
 
     context 'when the check returns no valid decision' do

@@ -46,7 +46,8 @@ RSpec.describe AiAgents::ReplyGenerator do
       message = scope_check ? { role: 'assistant', content: nil, tool_calls: [scope_call] } : reply_message
       { status: 200, headers: { 'Content-Type' => 'application/json' },
         body: { id: 'chatcmpl-1', model: 'gpt-4.1-mini', choices: [{ message: message }],
-                usage: { prompt_tokens: scope_check ? 900 : 10, completion_tokens: 5 } }.to_json }
+                usage: { prompt_tokens: scope_check ? 1412 : 14, completion_tokens: 5,
+                         prompt_tokens_details: { cached_tokens: scope_check ? 512 : 4 } } }.to_json }
     end
   end
 
@@ -132,7 +133,8 @@ RSpec.describe AiAgents::ReplyGenerator do
             expect(chat_requests.size).to eq(1)
             expect(reply).not_to be_scope_reply
             expect(reply.trace.attributes).to include(scope_decision: decision, scope_latency_ms: be >= 0, retrieval_mode: 'hybrid',
-                                                      input_tokens: 910, output_tokens: 10, latency_ms: be >= reply.trace.scope.latency_ms)
+                                                      input_tokens: 910, output_tokens: 10, scope_input_tokens: 900, scope_output_tokens: 5,
+                                                      cached_input_tokens: 516, latency_ms: be >= reply.trace.scope.latency_ms)
           end
         end
       end
@@ -149,7 +151,8 @@ RSpec.describe AiAgents::ReplyGenerator do
             expect(embedding_requests).to be_empty
             expect(chat_requests).to be_empty
             expect(reply.trace.attributes).to include(scope_decision: decision, scope_latency_ms: be >= 0, retrieval_mode: nil, embedding_model: nil,
-                                                      retrieved: [], input_tokens: 900, output_tokens: 5)
+                                                      retrieved: [], input_tokens: 900, output_tokens: 5, scope_input_tokens: 900,
+                                                      scope_output_tokens: 5, cached_input_tokens: 512)
           end
         end
       end
@@ -279,6 +282,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     expect(trace.retrieval).to have_attributes(mode: 'hybrid', embedding_model: 'text-embedding-3-small')
     expect(trace.retrieval.hits.map { |hit| [hit.chunk.content, hit.rank] }).to eq([['Jam buka: setiap hari 07.30 - 18.00', 1]])
     expect(trace.attributes).to include(retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 10, output_tokens: 5,
+                                        cached_input_tokens: 4, scope_input_tokens: nil, scope_output_tokens: nil,
                                         retrieved: [{ chunk_id: ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').id,
                                                       chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: source.id, rank: 1,
                                                       score: be_within(1e-9).of(7.5 / 21) }])

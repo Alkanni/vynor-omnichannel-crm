@@ -5,16 +5,20 @@ class AiAgents::Watcher
     You review a conversation between a customer and an AI agent, ending with the agent's latest reply.
     Decide which of the actions below apply to the conversation now.
   TEXT
+  # actions are those of AiAgents::ActionSchema#parse. Token counts are nil when the gateway does not report usage (see
+  # AiAgents::LlmClient::Completion).
+  Result = Data.define(:actions, :input_tokens, :output_tokens, :cached_input_tokens)
 
   pattr_initialize [:ai_agent!, :messages!, :written_rows]
 
   def perform
-    content = AiAgents::LlmClient.new.chat(
+    completion = AiAgents::LlmClient.new.chat(
       model: ai_agent.model, temperature: AiAgents::ReplyGenerator::TEMPERATURES['precise'],
       instructions: "#{INSTRUCTIONS}\n#{actions.instructions}", messages: [{ role: :user, content: transcript }],
       schema: actions.json_schema('ai_agent_watch')
-    ).content
-    actions.parse(content.is_a?(Hash) ? content : {})
+    )
+    Result.new(actions: actions.parse(completion.content.is_a?(Hash) ? completion.content : {}), input_tokens: completion.input_tokens,
+               output_tokens: completion.output_tokens, cached_input_tokens: completion.cached_input_tokens)
   end
 
   private

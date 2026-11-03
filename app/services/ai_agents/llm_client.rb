@@ -5,8 +5,9 @@ class AiAgents::LlmClient
   # Retrieval models such as NVIDIA nemotron-3-embed-1b rank poorly unless queries and passages are told apart, and
   # gateways like 9router drop the input_type parameter, so the role goes into the text the way E5-style models expect.
   EMBEDDING_PREFIXES = { query: 'query: ', passage: 'passage: ' }.freeze
-  # Token counts are nil when the gateway does not report usage.
-  Completion = Data.define(:content, :input_tokens, :output_tokens)
+  # Token counts are nil when the gateway does not report usage. input_tokens leaves out cached_input_tokens, the input
+  # the provider read from its prompt cache, as RubyLLM reports them apart; together they are the whole prompt.
+  Completion = Data.define(:content, :input_tokens, :output_tokens, :cached_input_tokens)
 
   class << self
     def configured? = api_key.present?
@@ -41,15 +42,18 @@ class AiAgents::LlmClient
       chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
                     .with_instructions(instructions).with_temperature(temperature).with_tool(tool, choice: tool.name)
       messages.each { |message| chat.add_message(message) }
-      result = chat.complete
-      # The model's response is the latest assistant message, also when the function call halted the chat.
-      response = chat.messages.reverse.find { |message| message.role == :assistant }
-      Completion.new(content: result.is_a?(RubyLLM::Tool::Halt) ? result.content.deep_stringify_keys : result.content,
-                     input_tokens: response.input_tokens, output_tokens: response.output_tokens)
+      completion(chat, chat.complete)
     end
   end
 
   private
+
+  def completion(chat, result)
+    # The model's response is the latest assistant message, also when the function call halted the chat.
+    response = chat.messages.reverse.find { |message| message.role == :assistant }
+    Completion.new(content: result.is_a?(RubyLLM::Tool::Halt) ? result.content.deep_stringify_keys : result.content,
+                   input_tokens: response.input_tokens, output_tokens: response.output_tokens, cached_input_tokens: response.cached_tokens)
+  end
 
   def with_context(api_key, endpoint, &)
     raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.not_configured') if api_key.blank?
