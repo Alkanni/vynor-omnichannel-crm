@@ -74,6 +74,7 @@ const toForm = agent => ({
   disallowed_topics: agent.disallowed_topics || '',
   off_topic_message: agent.off_topic_message || '',
   clarification_message: agent.clarification_message || '',
+  knowledge_gap_message: agent.knowledge_gap_message || '',
 });
 
 const form = reactive(toForm(props.agent));
@@ -555,6 +556,33 @@ onMounted(async () => {
                 :placeholder="
                   t(
                     'AI_AGENTS.GENERAL.BUSINESS_SCOPE.CLARIFICATION_MESSAGE.PLACEHOLDER'
+                  )
+                "
+                :max-length="TEXT_LIMITS.scopeReply"
+                show-character-count
+                auto-height
+                resize
+                min-height="3rem"
+              />
+            </SettingsField>
+            <SettingsField
+              :title="
+                t(
+                  'AI_AGENTS.GENERAL.BUSINESS_SCOPE.KNOWLEDGE_GAP_MESSAGE.TITLE'
+                )
+              "
+              :description="
+                t(
+                  'AI_AGENTS.GENERAL.BUSINESS_SCOPE.KNOWLEDGE_GAP_MESSAGE.DESCRIPTION'
+                )
+              "
+            >
+              <TextArea
+                id="ai-agent-knowledge-gap-message"
+                v-model="form.knowledge_gap_message"
+                :placeholder="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.KNOWLEDGE_GAP_MESSAGE.PLACEHOLDER'
                   )
                 "
                 :max-length="TEXT_LIMITS.scopeReply"

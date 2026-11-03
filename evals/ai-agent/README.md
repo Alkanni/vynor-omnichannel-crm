@@ -62,8 +62,8 @@ fixtures, creates the `komplain` label if it is missing, and merges the agent id
 again after changing a fixture. The `injection` agent has an extra knowledge source with an embedded instruction and
 is used only by A2-09; the `large` and `dokumen` agents are used by the retrieval eval; the `scope-prompt` agent is
 `main` with a strict Business Scope Policy (`settings` in the fixture), for the Scope Compliance eval. Since issue #96 a
-strict agent also runs the scope check before each reply, so `scope-prompt` measures the prompt rule and the check
-together.
+strict agent also runs the scope check before each reply, and since issue #97 the reply check after it, so
+`scope-prompt` measures the prompt rule and both checks together.
 
 `npx promptfoo@0.124.1 view` opens the results in the browser, including each judge reason.
 
@@ -79,6 +79,10 @@ together.
 - For a strict agent the report also lists the latency of the scope check (`scope.latency_ms`) and how often each of
   its decisions came up, and failing cases show their decision in brackets, which tells a wrong decision of the check
   from a wrong answer of the reply model.
+- Since issue #97 it also counts the decisions of a strict agent's reply (`validation.decision`) and why replies were
+  replaced with the knowledge gap message (`validation.blocked_reason`, `-` when nothing was replaced), and both appear
+  in the brackets of a failing case. A failing case with a `blocked_reason` is a reply the check stopped, so read
+  whether the check or the reply model was wrong before changing either.
 
 ## Baseline and flaky cases
 

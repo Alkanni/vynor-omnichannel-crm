@@ -74,7 +74,7 @@
         "DESCRIPTION": "Limit what the AI talks about to your business",
         "MODE": {
           "TITLE": "Scope Mode",
-          "DESCRIPTION": "In Strict mode the AI checks each customer message against the business below before answering: messages outside it get the off-topic reply, unclear ones the clarification reply. When off, only the AI Agent Behavior limits it.",
+          "DESCRIPTION": "In Strict mode the AI checks each customer message against the business below before answering: messages outside it get the off-topic reply, unclear ones the clarification reply. Each answer is then checked against the knowledge it used before it is sent, and one the knowledge does not back gets the knowledge gap reply. When off, only the AI Agent Behavior limits it.",
           "OPTIONS": {
             "OFF": "Off",
             "STRICT": "Strict"
@@ -104,6 +104,11 @@
           "TITLE": "Clarification Reply",
           "DESCRIPTION": "Sent as is when a message does not say which product or order it means. Required in Strict mode.",
           "PLACEHOLDER": "e.g. Could you tell me which product or order you mean?"
+        },
+        "KNOWLEDGE_GAP_MESSAGE": {
+          "TITLE": "Knowledge Gap Reply",
+          "DESCRIPTION": "Sent as is when the knowledge has no answer to a question, or when an answer cites no knowledge or has a number that neither its knowledge nor the conversation has. Required in Strict mode.",
+          "PLACEHOLDER": "e.g. Sorry, we don't have that information yet. Is there anything else we can help with?"
         }
       },
       "PENDING_MESSAGES": {

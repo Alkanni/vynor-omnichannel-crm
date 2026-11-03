@@ -3,6 +3,8 @@
 # Table name: ai_agent_reply_traces
 #
 #  id                   :bigint           not null, primary key
+#  blocked_reason       :string
+#  cited_ranks          :jsonb            not null
 #  embedding_model      :string
 #  error_class          :string
 #  input_tokens         :integer
@@ -10,6 +12,7 @@
 #  latency_ms           :integer
 #  model                :string           not null
 #  output_tokens        :integer
+#  reply_decision       :string
 #  retrieval_mode       :string
 #  retrieved            :jsonb            not null
 #  scope_decision       :string
@@ -30,8 +33,10 @@
 #
 # What an AI Agent did for one customer message it answered (see AiAgents::ReplyJob), to explain and evaluate its replies:
 # the decision of the scope check (see AiAgents::ScopeGuard) and how long it took, the knowledge chunks it retrieved, kept
-# as references with their rank and score but never their content, the model and the tokens of all its model calls, how
-# long the reply took, and the outcome. Customer messages are not copied here either.
+# as references with their rank and score but never their content, the decision of a strict agent's reply, the ranks it
+# cited, and why the reply was replaced with the knowledge gap message (see AiAgents::ReplyValidator), the model and the
+# tokens of all its model calls, how long the reply took, and the outcome. Customer messages and replies are not copied
+# here either.
 class AiAgent::ReplyTrace < ApplicationRecord
   belongs_to :account
   belongs_to :ai_agent

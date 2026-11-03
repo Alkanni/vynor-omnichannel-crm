@@ -47,7 +47,8 @@
         "allowed_topics": "Produk dan harga, stok, jam buka, lokasi, pemesanan, pembayaran, pengiriman, komplain pesanan, informasi toko.",
         "disallowed_topics": "Politik, olahraga, hiburan, pengetahuan umum, tugas sekolah, kode program, curhat atau obrolan pribadi.",
         "off_topic_message": "Maaf, Kak, saya hanya bisa membantu seputar Toko Roti Vynor, misalnya produk, pemesanan, dan pengiriman.",
-        "clarification_message": "Boleh disebutkan produk atau pesanan yang Kakak maksud?"
+        "clarification_message": "Boleh disebutkan produk atau pesanan yang Kakak maksud?",
+        "knowledge_gap_message": "Maaf, Kak, info itu belum tersedia di kami. Kakak bisa tanyakan hal lain seputar produk, pemesanan, atau pengiriman, atau minta dihubungkan ke tim CS kami."
       }
     },
     "injection": {

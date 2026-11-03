@@ -1,7 +1,8 @@
 // Promptfoo provider that sends a dataset conversation to the AI Agent playground of the app under test.
 // Each line of `conversation` is one message; lines starting with "AI:" are earlier agent replies.
-// The reply text is the output; handoff, labels, the scope check, retrieval, model and latency go to metadata for
-// assertions. Retrieval is empty when the scope check answered the turn.
+// The reply text is the output; handoff, labels, the scope check, the reply check, retrieval, model and latency go to
+// metadata for assertions. Retrieval is empty when the scope check answered the turn, and the reply check runs only for
+// a strict agent's reply model.
 import { readFileSync } from 'node:fs';
 import { AGENTS_FILE, appApi } from './lib/app-api.mjs';
 import { toMessages } from './lib/conversation.mjs';
@@ -39,6 +40,9 @@ export default class AiAgentPlaygroundProvider {
           agentLatencyMs: reply.latency_ms,
           scopeDecision: reply.scope?.decision,
           scopeLatencyMs: reply.scope?.latency_ms,
+          replyDecision: reply.validation?.decision,
+          citedRanks: reply.validation?.sources,
+          blockedReason: reply.validation?.blocked_reason,
           retrievalMode: reply.retrieval?.mode,
           retrieved: (reply.retrieval?.chunks || []).map(
             ({ rank, score, source }) => ({ rank, score, source })

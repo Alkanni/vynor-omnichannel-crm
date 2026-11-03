@@ -1,12 +1,14 @@
 # Builds the LLM request for an AI Agent (behavior, local time, relevant knowledge, actions, history) and returns
 # the reply as chat bubbles plus the actions it takes and a trace of how it was made. A strict agent runs the scope
 # check first (see AiAgents::ScopeGuard); a turn the check answers gets the agent's own text, without the knowledge
-# search and the reply model.
+# search and the reply model. The reply of a strict agent is checked against the knowledge it cites before it is sent
+# (see AiAgents::ReplyValidator), and one that fails gets the agent's knowledge gap message.
 # Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
   MAX_REPLY_MESSAGES = 5
   MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
+  ESCAPED_MARKUP = { '<' => '&lt;', '>' => '&gt;' }.freeze
   Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :trace) do
     def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil)
       super
@@ -16,17 +18,23 @@ class AiAgents::ReplyGenerator
     def scope_reply? = trace.scope&.reply_attribute.present?
   end
   # scope is an AiAgents::ScopeGuard::Result, nil when the check did not run; retrieval is an
-  # AiAgents::KnowledgeRetriever::Result, nil for a scope reply. Tokens add up the scope check and the reply model, and
+  # AiAgents::KnowledgeRetriever::Result, nil for a scope reply; validation is an AiAgents::ReplyValidator::Result for a
+  # reply of a strict agent's reply model, nil otherwise. Tokens add up the scope check and the reply model, and
   # latency_ms covers the scope check, the knowledge search, and the model call.
-  Trace = Data.define(:scope, :retrieval, :input_tokens, :output_tokens, :latency_ms) do
+  Trace = Data.define(:scope, :retrieval, :validation, :input_tokens, :output_tokens, :latency_ms) do
     # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content.
     def attributes
-      retrieved = Array(retrieval&.hits).map do |hit|
-        { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score }
-      end
       { scope_decision: scope&.decision, scope_latency_ms: scope&.latency_ms, retrieval_mode: retrieval&.mode,
         embedding_model: retrieval&.embedding_model, retrieved: retrieved, input_tokens: input_tokens, output_tokens: output_tokens,
-        latency_ms: latency_ms }
+        latency_ms: latency_ms, **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks) }
+    end
+
+    private
+
+    def retrieved
+      Array(retrieval&.hits).map do |hit|
+        { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score }
+      end
     end
   end
   SCOPE_INSTRUCTIONS = <<~TEXT.freeze
@@ -71,19 +79,32 @@ class AiAgents::ReplyGenerator
 
   def model_reply
     completion = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
-                             messages: llm_messages, schema: actions.json_schema('ai_agent_reply', MESSAGES_PROPERTY))
+                             messages: llm_messages, schema: actions.json_schema('ai_agent_reply', reply_properties))
     content = completion.content
     content = {} unless content.is_a?(Hash)
-    Reply.new(messages: reply_messages(content), **actions.parse(content), trace: trace(completion))
+    validation = validate(content) if ai_agent.scope_strict?
+    messages = validation&.knowledge_gap? ? [ai_agent.knowledge_gap_message] : reply_messages(content)
+    # The actions still apply to a reply that failed the check, because they state nothing to the customer.
+    Reply.new(messages: messages, **actions.parse(content), trace: trace(completion, validation))
+  end
+
+  def reply_properties
+    ai_agent.scope_strict? ? AiAgents::ReplyValidator::PROPERTIES.merge(MESSAGES_PROPERTY) : MESSAGES_PROPERTY
+  end
+
+  def validate(content)
+    AiAgents::ReplyValidator.new(content: content, replies: reply_messages(content), hits: retrieval.hits, messages: messages,
+                                 current_time: current_time).perform
   end
 
   def scope_reply
-    trace = Trace.new(scope: @scope, retrieval: nil, input_tokens: @scope.input_tokens, output_tokens: @scope.output_tokens, latency_ms: elapsed_ms)
+    trace = Trace.new(scope: @scope, retrieval: nil, validation: nil, input_tokens: @scope.input_tokens, output_tokens: @scope.output_tokens,
+                      latency_ms: elapsed_ms)
     Reply.new(messages: [ai_agent.public_send(@scope.reply_attribute)], handoff: false, labels: [], trace: trace)
   end
 
-  def trace(completion)
-    Trace.new(scope: @scope, retrieval: retrieval, input_tokens: tokens(@scope&.input_tokens, completion.input_tokens),
+  def trace(completion, validation)
+    Trace.new(scope: @scope, retrieval: retrieval, validation: validation, input_tokens: tokens(@scope&.input_tokens, completion.input_tokens),
               output_tokens: tokens(@scope&.output_tokens, completion.output_tokens), latency_ms: elapsed_ms)
   end
 
@@ -101,7 +122,8 @@ class AiAgents::ReplyGenerator
   end
 
   def instructions
-    [ai_agent.behavior.presence, scope_policy, current_time, knowledge, actions.instructions, RESPONSE_INSTRUCTIONS].compact.join("\n\n")
+    [ai_agent.behavior.presence, scope_policy, current_time, knowledge, actions.instructions, reply_rules, RESPONSE_INSTRUCTIONS]
+      .compact.join("\n\n")
   end
 
   # Comes after the behavior, so the rules in code outrank whatever the behavior says.
@@ -109,16 +131,24 @@ class AiAgents::ReplyGenerator
     "#{SCOPE_INSTRUCTIONS}#{ai_agent.business_scope}" if ai_agent.scope_strict?
   end
 
+  def reply_rules
+    AiAgents::ReplyValidator::INSTRUCTIONS if ai_agent.scope_strict?
+  end
+
+  # Kept, so the check of the reply sees the time the prompt gave.
   def current_time
-    "Current date and time: #{Time.current.in_time_zone(ai_agent.timezone).strftime('%A, %-d %B %Y %H:%M')} (#{ai_agent.timezone})"
+    @current_time ||= "Current date and time: #{Time.current.in_time_zone(ai_agent.timezone).strftime('%A, %-d %B %Y %H:%M')} (#{ai_agent.timezone})"
   end
 
   # An agent with knowledge but none relevant to the message still gets the rule against stating facts it was not given.
+  # A strict agent gets its chunks with their angle brackets escaped, so no chunk can close the <knowledge> block.
   def knowledge
     if retrieval.hits.empty?
       NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS if ai_agent.knowledge_chunks.exists?
     else
-      entries = retrieval.hits.map { |hit| "[#{hit.rank}] #{hit.chunk.content}" }
+      entries = retrieval.hits.map do |hit|
+        "[#{hit.rank}] #{ai_agent.scope_strict? ? hit.chunk.content.gsub(/[<>]/, ESCAPED_MARKUP) : hit.chunk.content}"
+      end
       "#{KNOWLEDGE_INSTRUCTIONS}\n<knowledge>\n#{entries.join("\n\n")}\n</knowledge>"
     end
   end

@@ -4,6 +4,7 @@ json.labels @reply.labels
 json.sheet_row @reply.sheet_row
 json.model @ai_agent.model
 json.scope @reply.trace.scope&.to_h&.slice(:decision, :latency_ms)
+json.validation @reply.trace.validation&.to_h
 if @reply.trace.retrieval
   json.retrieval do
     json.partial! 'api/v1/models/ai_agent_retrieval', formats: [:json], retrieval: @reply.trace.retrieval
