@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_03_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_03_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -264,6 +264,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_000000) do
     t.integer "scope_policy_version", default: 0, null: false
     t.string "scope_decision"
     t.integer "scope_latency_ms"
+    t.string "reply_decision"
+    t.jsonb "cited_ranks", default: [], null: false
+    t.string "blocked_reason"
     t.index ["ai_agent_id", "created_at"], name: "index_ai_agent_reply_traces_on_ai_agent_id_and_created_at"
     t.index ["conversation_id"], name: "index_ai_agent_reply_traces_on_conversation_id"
   end
@@ -303,6 +306,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_000000) do
     t.integer "scope_policy_version", default: 0, null: false
     t.text "off_topic_message"
     t.text "clarification_message"
+    t.text "knowledge_gap_message"
     t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 

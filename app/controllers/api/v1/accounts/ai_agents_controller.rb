@@ -3,7 +3,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     name behavior welcome_message transfer_conditions stop_ai_after_handoff silent_handoff pending_assigned_message
     pending_unassigned_message label_conditions model history_limit read_file_limit context_limit temperature
     message_await message_limit watcher_enabled timezone session_only_memory ignore_team_handoff
-    scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message
+    scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message knowledge_gap_message
   ].freeze
   LIST_SETTINGS = %w[allowed_label_ids inbox_ids].freeze
   MAX_PLAYGROUND_MESSAGES = 100

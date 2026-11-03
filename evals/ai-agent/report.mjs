@@ -1,6 +1,7 @@
 // Summarizes promptfoo JSON outputs as Markdown, per agent variant (provider label): the Scope Compliance metrics, pass
-// rate per category, agent tokens and latency, the decisions of the scope check, failing cases and, given two runs, the
-// cases whose result changed between them (flaky candidates).
+// rate per category, agent tokens and latency, the decisions of the scope check and of the reply, why replies were
+// replaced with the knowledge gap message, failing cases and, given two runs, the cases whose result changed between them
+// (flaky candidates).
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
 import { readFileSync } from 'node:fs';
 
@@ -61,6 +62,8 @@ function loadRun(file) {
       agentLatencyMs: result.response?.metadata?.agentLatencyMs,
       scopeDecision: result.response?.metadata?.scopeDecision,
       scopeLatencyMs: result.response?.metadata?.scopeLatencyMs,
+      replyDecision: result.response?.metadata?.replyDecision,
+      blockedReason: result.response?.metadata?.blockedReason,
     };
   });
 }
@@ -80,16 +83,17 @@ function stats(values) {
   return `avg ${average}, p50 ${sorted[Math.floor(sorted.length / 2)]}, p90 ${p90}, max ${sorted[sorted.length - 1]} (n=${sorted.length})`;
 }
 
-// How often each decision of the scope check came up; "-" counts cases where the check did not run or the call errored.
-function decisions(cases) {
-  const counts = {};
-  for (const { scopeDecision } of cases) {
-    const decision = scopeDecision || '-';
-    counts[decision] = (counts[decision] || 0) + 1;
+// How often each value of a case field came up; "-" counts cases without one, because the check did not run, the reply
+// passed, or the call errored.
+function counts(cases, field) {
+  const totals = {};
+  for (const testCase of cases) {
+    const value = testCase[field] || '-';
+    totals[value] = (totals[value] || 0) + 1;
   }
-  return Object.entries(counts)
+  return Object.entries(totals)
     .sort()
-    .map(([decision, count]) => `${decision} ${count}`)
+    .map(([value, count]) => `${value} ${count}`)
     .join(', ');
 }
 
@@ -156,7 +160,9 @@ function report(title, cases) {
     `- Output tokens per balasan: ${stats(cases.map(testCase => testCase.outputTokens))}`,
     `- Latency agent (ms, scope check + retrieval + model): ${stats(cases.map(testCase => testCase.agentLatencyMs))}`,
     `- Latency scope check (ms): ${stats(cases.map(testCase => testCase.scopeLatencyMs))}`,
-    `- Keputusan scope check: ${decisions(cases)}`,
+    `- Keputusan scope check: ${counts(cases, 'scopeDecision')}`,
+    `- Keputusan balasan: ${counts(cases, 'replyDecision')}`,
+    `- Alasan balasan diganti pesan knowledge gap: ${counts(cases, 'blockedReason')}`,
     '',
     'Kasus tidak lulus:'
   );
@@ -165,9 +171,12 @@ function report(title, cases) {
     const reason = (testCase.error || testCase.reasons.join(' | '))
       .replace(/\s+/g, ' ')
       .slice(0, REASON_LENGTH);
-    const decision = testCase.scopeDecision
-      ? ` [${testCase.scopeDecision}]`
-      : '';
+    const decisions = [
+      testCase.scopeDecision,
+      testCase.replyDecision,
+      testCase.blockedReason,
+    ].filter(Boolean);
+    const decision = decisions.length ? ` [${decisions.join(' · ')}]` : '';
     lines.push(
       `- ${testCase.id}${testCase.flaky ? ' (flaky)' : ''}${decision}: ${reason}`
     );

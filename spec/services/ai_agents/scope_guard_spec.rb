@@ -4,7 +4,8 @@ RSpec.describe AiAgents::ScopeGuard do
   let(:ai_agent) do
     create(:ai_agent, behavior: 'Kamu adalah asisten Grand Sehat.', model: 'gpt-4.1-mini', transfer_conditions: 'Alihkan bila pelanggan komplain.',
                       scope_mode: 'strict', business_description: 'Bengkel cuci mobil di Bandung', allowed_topics: 'Harga dan jam buka',
-                      disallowed_topics: 'Politik', off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Layanan yang mana?')
+                      disallowed_topics: 'Politik', off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Layanan yang mana?',
+                      knowledge_gap_message: 'Maaf, info itu belum tersedia.')
   end
   let(:messages) do
     [

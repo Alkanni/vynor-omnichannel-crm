@@ -59,26 +59,27 @@ RSpec.describe AiAgent do
       expect(ai_agent.errors.attribute_names).to contain_exactly(:temperature, :timezone, :scope_mode)
     end
 
-    it 'requires a business description, allowed topics, and both scope replies in strict mode only' do
+    it 'requires a business description, allowed topics, and the three scope replies in strict mode only' do
       ai_agent.assign_attributes(scope_mode: 'strict', business_description: "  \n", allowed_topics: '', off_topic_message: ' ')
 
       expect(ai_agent).not_to be_valid
-      expect(ai_agent.errors.attribute_names).to contain_exactly(:business_description, :allowed_topics, :off_topic_message, :clarification_message)
+      expect(ai_agent.errors.attribute_names)
+        .to contain_exactly(:business_description, :allowed_topics, :off_topic_message, :clarification_message, :knowledge_gap_message)
 
       ai_agent.assign_attributes(business_description: 'Toko roti', allowed_topics: 'Harga', off_topic_message: 'Maaf, di luar layanan kami.',
-                                 clarification_message: 'Produk yang mana, Kak?')
+                                 clarification_message: 'Produk yang mana, Kak?', knowledge_gap_message: 'Maaf, info itu belum ada.')
       expect(ai_agent).to be_valid
 
       ai_agent.assign_attributes(scope_mode: 'off', business_description: nil, allowed_topics: nil, off_topic_message: nil,
-                                 clarification_message: nil)
+                                 clarification_message: nil, knowledge_gap_message: nil)
       expect(ai_agent).to be_valid
     end
 
     it 'limits the scope replies to 1,000 characters' do
-      ai_agent.assign_attributes(off_topic_message: 'a' * 1_001, clarification_message: 'a' * 1_000)
+      ai_agent.assign_attributes(off_topic_message: 'a' * 1_001, clarification_message: 'a' * 1_000, knowledge_gap_message: 'a' * 1_001)
 
       expect(ai_agent).not_to be_valid
-      expect(ai_agent.errors.attribute_names).to eq([:off_topic_message])
+      expect(ai_agent.errors.attribute_names).to contain_exactly(:off_topic_message, :knowledge_gap_message)
     end
 
     it 'rejects models outside the assistant feature' do
@@ -147,7 +148,7 @@ RSpec.describe AiAgent do
 
     it 'goes up by one when a policy attribute changes' do
       { business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik', off_topic_message: 'Maaf.',
-        clarification_message: 'Yang mana?', scope_mode: 'strict' }.each do |attribute, value|
+        clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.', scope_mode: 'strict' }.each do |attribute, value|
         expect { ai_agent.update!(attribute => value) }.to change(ai_agent, :scope_policy_version).by(1)
       end
     end
@@ -155,7 +156,7 @@ RSpec.describe AiAgent do
     it 'goes up once when a save changes several policy attributes' do
       expect do
         ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga', off_topic_message: 'Maaf.',
-                         clarification_message: 'Yang mana?')
+                         clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.')
       end.to change(ai_agent, :scope_policy_version).by(1)
     end
 
@@ -168,10 +169,10 @@ RSpec.describe AiAgent do
 
       expect do
         ai_agent.update!(business_description: " Toko roti\n", allowed_topics: '', disallowed_topics: ' ', off_topic_message: '',
-                         clarification_message: "\n", name: 'Baru')
+                         clarification_message: "\n", knowledge_gap_message: ' ', name: 'Baru')
       end.not_to change(ai_agent, :scope_policy_version)
       expect(ai_agent.reload).to have_attributes(business_description: 'Toko roti', allowed_topics: nil, disallowed_topics: nil,
-                                                 off_topic_message: nil, clarification_message: nil)
+                                                 off_topic_message: nil, clarification_message: nil, knowledge_gap_message: nil)
     end
   end
 
@@ -203,7 +204,7 @@ RSpec.describe AiAgent do
       label = create(:label, account: account)
       ai_agent.update!(welcome_message: 'Halo', allowed_label_ids: [label.id], history_limit: 12, temperature: 'creative', scope_mode: 'strict',
                        business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik', off_topic_message: 'Maaf.',
-                       clarification_message: 'Yang mana?')
+                       clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.')
 
       copy = ai_agent.duplicate!
 

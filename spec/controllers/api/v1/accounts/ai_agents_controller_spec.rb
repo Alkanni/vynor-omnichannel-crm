@@ -112,7 +112,7 @@ RSpec.describe 'AI Agents API', type: :request do
         message_await: 5, message_limit: 25, watcher_enabled: true, timezone: 'Asia/Makassar',
         session_only_memory: true, ignore_team_handoff: true, scope_mode: 'strict', business_description: 'Toko roti di Bandung',
         allowed_topics: 'Harga dan stok', disallowed_topics: 'Politik', off_topic_message: 'Maaf, di luar layanan kami.',
-        clarification_message: 'Produk yang mana, Kak?'
+        clarification_message: 'Produk yang mana, Kak?', knowledge_gap_message: 'Maaf, info itu belum tersedia.'
       }
     end
 
@@ -122,7 +122,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(ai_agent.reload).to have_attributes(params)
       expect(response.parsed_body).to include(params.slice(:scope_mode, :business_description, :allowed_topics, :disallowed_topics,
-                                                           :off_topic_message, :clarification_message).stringify_keys)
+                                                           :off_topic_message, :clarification_message, :knowledge_gap_message).stringify_keys)
       expect(response.parsed_body['scope_policy_version']).to eq(1)
     end
 
@@ -140,7 +140,7 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body['attributes'])
-        .to contain_exactly('business_description', 'allowed_topics', 'off_topic_message', 'clarification_message')
+        .to contain_exactly('business_description', 'allowed_topics', 'off_topic_message', 'clarification_message', 'knowledge_gap_message')
       expect(ai_agent.reload).to have_attributes(scope_mode: 'off', scope_policy_version: 0)
     end
 
@@ -301,7 +301,8 @@ RSpec.describe 'AI Agents API', type: :request do
                                                            hits: hits)
       reply = AiAgents::ReplyGenerator::Reply.new(
         messages: ['Kami buka 07.30 - 18.00.'], handoff: true, labels: ['booking'],
-        trace: AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
+        trace: AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, validation: nil, input_tokens: 120, output_tokens: 30,
+                                                   latency_ms: 850)
       )
       generator = instance_double(AiAgents::ReplyGenerator, perform: reply)
       allow(AiAgents::ReplyGenerator).to receive(:new).and_return(generator)
@@ -311,7 +312,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
         'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'model' => ai_agent.model,
-        'scope' => nil,
+        'scope' => nil, 'validation' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
@@ -330,7 +331,8 @@ RSpec.describe 'AI Agents API', type: :request do
 
     it 'returns the decision of the scope check, and no retrieval when the check answered the turn' do
       ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga',
-                       off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?')
+                       off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?',
+                       knowledge_gap_message: 'Maaf, info itu belum tersedia.')
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
       stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return(
         status: 200, headers: { 'Content-Type' => 'application/json' },
@@ -344,8 +346,31 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to include('messages' => ['Produk yang mana, Kak?'], 'handoff' => false, 'labels' => [], 'retrieval' => nil,
-                                              'scope' => { 'decision' => 'AMBIGUOUS', 'latency_ms' => be >= 0 },
+                                              'scope' => { 'decision' => 'AMBIGUOUS', 'latency_ms' => be >= 0 }, 'validation' => nil,
                                               'tokens' => { 'input' => 900, 'output' => 5 })
+    end
+
+    it 'returns the check of a strict reply, and the knowledge gap message for an answer that cites no knowledge' do
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga',
+                       off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?',
+                       knowledge_gap_message: 'Maaf, info itu belum tersedia.')
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      arguments = { 'ai_agent_scope' => { decision: 'IN_SCOPE' },
+                    'ai_agent_reply' => { decision: 'answer', sources: [], messages: ['Harganya Rp30.000.'] } }
+      stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
+        name = JSON.parse(request.body)['tools'].sole['function']['name']
+        { status: 200, headers: { 'Content-Type' => 'application/json' },
+          body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: { role: 'assistant', content: nil, tool_calls: [
+            { id: 'call_1', type: 'function', function: { name: name, arguments: arguments.fetch(name).to_json } }
+          ] } }] }.to_json }
+      end
+
+      post url, params: { messages: [{ role: 'user', content: 'Harga roti tawar?' }] }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include('messages' => ['Maaf, info itu belum tersedia.'], 'scope' => hash_including('decision' => 'IN_SCOPE'),
+                                              'validation' => { 'decision' => 'answer', 'sources' => [], 'blocked_reason' => 'missing_sources' })
+      expect(AiAgent::ReplyTrace.count).to eq(0)
     end
 
     it 'returns unprocessable entity for invalid messages' do
