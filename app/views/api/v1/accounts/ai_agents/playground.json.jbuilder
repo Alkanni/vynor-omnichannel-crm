@@ -3,7 +3,7 @@ json.handoff @reply.handoff
 json.labels @reply.labels
 json.sheet_row @reply.sheet_row
 json.model @ai_agent.model
-json.scope @reply.trace.scope&.to_h&.slice(:decision, :latency_ms)
+json.scope @reply.trace.scope&.to_h&.slice(:decision, :latency_ms, :input_tokens, :output_tokens)
 json.validation @reply.trace.validation&.to_h
 if @reply.trace.retrieval
   json.retrieval do
@@ -15,5 +15,6 @@ end
 json.tokens do
   json.input @reply.trace.input_tokens
   json.output @reply.trace.output_tokens
+  json.cached_input @reply.trace.cached_input_tokens
 end
 json.latency_ms @reply.trace.latency_ms

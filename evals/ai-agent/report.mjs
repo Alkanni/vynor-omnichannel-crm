@@ -1,5 +1,5 @@
 // Summarizes promptfoo JSON outputs as Markdown, per agent variant (provider label): the Scope Compliance metrics, pass
-// rate per category, agent tokens and latency, the decisions of the scope check and of the reply, why replies were
+// rate per category, agent tokens per model call and latency, the decisions of the scope check and of the reply, why replies were
 // replaced with the knowledge gap message, failing cases and, given two runs, the cases whose result changed between them
 // (flaky candidates).
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
@@ -62,10 +62,42 @@ function loadRun(file) {
       agentLatencyMs: result.response?.metadata?.agentLatencyMs,
       scopeDecision: result.response?.metadata?.scopeDecision,
       scopeLatencyMs: result.response?.metadata?.scopeLatencyMs,
+      scopeInputTokens: result.response?.metadata?.scopeInputTokens,
+      scopeOutputTokens: result.response?.metadata?.scopeOutputTokens,
+      cachedInputTokens: result.response?.metadata?.cachedInputTokens,
+      replyModel: result.response?.metadata?.replyModel,
       replyDecision: result.response?.metadata?.replyDecision,
       blockedReason: result.response?.metadata?.blockedReason,
     };
   });
+}
+
+// The reply model's share of each case's tokens: the total less the scope check's share, for the cases the reply model
+// answered.
+function replyModelTokens(cases, total, scopeShare) {
+  return cases
+    .filter(testCase => testCase.replyModel)
+    .map(testCase => testCase[total] - (testCase[scopeShare] ?? 0));
+}
+
+// How much of the input the provider read from its prompt cache, over the cases whose gateway reported it.
+function cachedShare(cases) {
+  const reported = cases.filter(
+    testCase =>
+      Number.isFinite(testCase.inputTokens) &&
+      Number.isFinite(testCase.cachedInputTokens)
+  );
+  if (reported.length === 0) return 'tidak dilaporkan';
+
+  const cached = reported.reduce(
+    (sum, testCase) => sum + testCase.cachedInputTokens,
+    0
+  );
+  const whole = reported.reduce(
+    (sum, testCase) => sum + testCase.inputTokens + testCase.cachedInputTokens,
+    0
+  );
+  return `${cached} dari ${whole} (${Math.round((cached / whole) * 100)}%, n=${reported.length})`;
 }
 
 function variantsOf(cases) {
@@ -158,6 +190,11 @@ function report(title, cases) {
     '',
     `- Input tokens per balasan: ${stats(cases.map(testCase => testCase.inputTokens))}`,
     `- Output tokens per balasan: ${stats(cases.map(testCase => testCase.outputTokens))}`,
+    `- Input tokens scope check: ${stats(cases.map(testCase => testCase.scopeInputTokens))}`,
+    `- Output tokens scope check: ${stats(cases.map(testCase => testCase.scopeOutputTokens))}`,
+    `- Input tokens reply model: ${stats(replyModelTokens(cases, 'inputTokens', 'scopeInputTokens'))}`,
+    `- Output tokens reply model: ${stats(replyModelTokens(cases, 'outputTokens', 'scopeOutputTokens'))}`,
+    `- Cached input tokens (di luar input tokens): ${cachedShare(cases)}`,
     `- Latency agent (ms, scope check + retrieval + model): ${stats(cases.map(testCase => testCase.agentLatencyMs))}`,
     `- Latency scope check (ms): ${stats(cases.map(testCase => testCase.scopeLatencyMs))}`,
     `- Keputusan scope check: ${counts(cases, 'scopeDecision')}`,

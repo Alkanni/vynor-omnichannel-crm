@@ -302,7 +302,7 @@ RSpec.describe 'AI Agents API', type: :request do
       reply = AiAgents::ReplyGenerator::Reply.new(
         messages: ['Kami buka 07.30 - 18.00.'], handoff: true, labels: ['booking'],
         trace: AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, validation: nil, input_tokens: 120, output_tokens: 30,
-                                                   latency_ms: 850)
+                                                   cached_input_tokens: 64, latency_ms: 850)
       )
       generator = instance_double(AiAgents::ReplyGenerator, perform: reply)
       allow(AiAgents::ReplyGenerator).to receive(:new).and_return(generator)
@@ -322,7 +322,7 @@ RSpec.describe 'AI Agents API', type: :request do
               'source' => { 'id' => product.id, 'type' => 'product', 'title' => 'Detailing interior' } }
           ]
         },
-        'tokens' => { 'input' => 120, 'output' => 30 }, 'latency_ms' => 850
+        'tokens' => { 'input' => 120, 'output' => 30, 'cached_input' => 64 }, 'latency_ms' => 850
       )
       expect(AiAgents::ReplyGenerator).to have_received(:new)
         .with(ai_agent: ai_agent, messages: [{ role: :assistant, content: 'Halo Kak' }, { role: :user, content: 'Jam buka?' }])
@@ -336,7 +336,8 @@ RSpec.describe 'AI Agents API', type: :request do
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
       stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return(
         status: 200, headers: { 'Content-Type' => 'application/json' },
-        body: { id: 'chatcmpl-1', model: ai_agent.model, usage: { prompt_tokens: 900, completion_tokens: 5 },
+        body: { id: 'chatcmpl-1', model: ai_agent.model,
+                usage: { prompt_tokens: 900, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 0 } },
                 choices: [{ message: { role: 'assistant', content: nil, tool_calls: [{ id: 'call_1', type: 'function', function: {
                   name: 'ai_agent_scope', arguments: { decision: 'AMBIGUOUS' }.to_json
                 } }] } }] }.to_json
@@ -346,8 +347,9 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to include('messages' => ['Produk yang mana, Kak?'], 'handoff' => false, 'labels' => [], 'retrieval' => nil,
-                                              'scope' => { 'decision' => 'AMBIGUOUS', 'latency_ms' => be >= 0 }, 'validation' => nil,
-                                              'tokens' => { 'input' => 900, 'output' => 5 })
+                                              'scope' => { 'decision' => 'AMBIGUOUS', 'latency_ms' => be >= 0, 'input_tokens' => 900,
+                                                           'output_tokens' => 5 },
+                                              'validation' => nil, 'tokens' => { 'input' => 900, 'output' => 5, 'cached_input' => 0 })
     end
 
     it 'returns the check of a strict reply, and the knowledge gap message for an answer that cites no knowledge' do

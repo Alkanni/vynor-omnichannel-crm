@@ -67,7 +67,7 @@ RSpec.describe AiAgents::ScopeGuard do
   end
 
   it 'answers off-topic and suspicious turns with the off-topic message, unclear ones with the clarification, and passes the rest on' do
-    expect(described_class::DECISIONS.index_with { |decision| described_class::Result.new(decision, nil, nil, 0).reply_attribute })
+    expect(described_class::DECISIONS.index_with { |decision| described_class::Result.new(decision, nil, nil, nil, 0).reply_attribute })
       .to eq('SUSPICIOUS' => :off_topic_message, 'HANDOFF_REQUEST' => nil, 'AMBIGUOUS' => :clarification_message, 'IN_SCOPE' => nil,
              'GREETING' => nil, 'OUT_OF_SCOPE' => :off_topic_message)
   end

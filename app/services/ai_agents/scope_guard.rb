@@ -36,8 +36,8 @@ class AiAgents::ScopeGuard
     name: 'ai_agent_scope',
     schema: { type: 'object', properties: { decision: { type: 'string', enum: DECISIONS } }, required: ['decision'], additionalProperties: false }
   }.freeze
-  # Token counts are nil when the gateway does not report usage.
-  Result = Data.define(:decision, :input_tokens, :output_tokens, :latency_ms) do
+  # Token counts are nil when the gateway does not report usage (see AiAgents::LlmClient::Completion).
+  Result = Data.define(:decision, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
     # The agent setting whose text answers the turn, or nil when the turn goes on to the reply model.
     def reply_attribute = REPLY_ATTRIBUTES[decision]
   end
@@ -55,6 +55,7 @@ class AiAgents::ScopeGuard
     raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.invalid_scope_decision') unless DECISIONS.include?(decision)
 
     Result.new(decision: decision, input_tokens: completion.input_tokens, output_tokens: completion.output_tokens,
+               cached_input_tokens: completion.cached_input_tokens,
                latency_ms: Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started_at)
   end
 

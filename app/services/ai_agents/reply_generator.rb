@@ -19,13 +19,15 @@ class AiAgents::ReplyGenerator
   end
   # scope is an AiAgents::ScopeGuard::Result, nil when the check did not run; retrieval is an
   # AiAgents::KnowledgeRetriever::Result, nil for a scope reply; validation is an AiAgents::ReplyValidator::Result for a
-  # reply of a strict agent's reply model, nil otherwise. Tokens add up the scope check and the reply model, and
-  # latency_ms covers the scope check, the knowledge search, and the model call.
-  Trace = Data.define(:scope, :retrieval, :validation, :input_tokens, :output_tokens, :latency_ms) do
+  # reply of a strict agent's reply model, nil otherwise. Tokens add up the scope check and the reply model (see
+  # AiAgents::LlmClient::Completion for cached_input_tokens), and latency_ms covers the scope check, the knowledge search,
+  # and the model call.
+  Trace = Data.define(:scope, :retrieval, :validation, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
     # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content.
     def attributes
-      { scope_decision: scope&.decision, scope_latency_ms: scope&.latency_ms, retrieval_mode: retrieval&.mode,
-        embedding_model: retrieval&.embedding_model, retrieved: retrieved, input_tokens: input_tokens, output_tokens: output_tokens,
+      { scope_decision: scope&.decision, scope_latency_ms: scope&.latency_ms, scope_input_tokens: scope&.input_tokens,
+        scope_output_tokens: scope&.output_tokens, retrieval_mode: retrieval&.mode, embedding_model: retrieval&.embedding_model,
+        retrieved: retrieved, input_tokens: input_tokens, output_tokens: output_tokens, cached_input_tokens: cached_input_tokens,
         latency_ms: latency_ms, **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks) }
     end
 
@@ -99,13 +101,14 @@ class AiAgents::ReplyGenerator
 
   def scope_reply
     trace = Trace.new(scope: @scope, retrieval: nil, validation: nil, input_tokens: @scope.input_tokens, output_tokens: @scope.output_tokens,
-                      latency_ms: elapsed_ms)
+                      cached_input_tokens: @scope.cached_input_tokens, latency_ms: elapsed_ms)
     Reply.new(messages: [ai_agent.public_send(@scope.reply_attribute)], handoff: false, labels: [], trace: trace)
   end
 
   def trace(completion, validation)
     Trace.new(scope: @scope, retrieval: retrieval, validation: validation, input_tokens: tokens(@scope&.input_tokens, completion.input_tokens),
-              output_tokens: tokens(@scope&.output_tokens, completion.output_tokens), latency_ms: elapsed_ms)
+              output_tokens: tokens(@scope&.output_tokens, completion.output_tokens),
+              cached_input_tokens: tokens(@scope&.cached_input_tokens, completion.cached_input_tokens), latency_ms: elapsed_ms)
   end
 
   # nil when the gateway reported no usage.

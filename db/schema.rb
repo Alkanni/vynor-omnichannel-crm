@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_03_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_03_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -267,6 +267,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_120000) do
     t.string "reply_decision"
     t.jsonb "cited_ranks", default: [], null: false
     t.string "blocked_reason"
+    t.integer "scope_input_tokens"
+    t.integer "scope_output_tokens"
+    t.integer "cached_input_tokens"
+    t.integer "watcher_input_tokens"
+    t.integer "watcher_output_tokens"
+    t.integer "watcher_cached_input_tokens"
     t.index ["ai_agent_id", "created_at"], name: "index_ai_agent_reply_traces_on_ai_agent_id_and_created_at"
     t.index ["conversation_id"], name: "index_ai_agent_reply_traces_on_conversation_id"
   end

@@ -28,7 +28,7 @@ agent calls plus 142 judge calls.
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
-| `report.mjs` | Markdown summary per agent variant: Scope Compliance metrics, pass rate per category, tokens, latency, failures, and results that changed between two runs |
+| `report.mjs` | Markdown summary per agent variant: Scope Compliance metrics, pass rate per category, tokens per model call, latency, failures, and results that changed between two runs |
 | `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 107 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, long document, no answer) |
 | `retrieval-provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/retrieval_test` |
 | `retrieval-report.mjs` | Markdown summary: hit@1, hit@5, MRR per category, chunks retrieved, score distribution of relevant vs irrelevant chunks, and request latency |
@@ -76,6 +76,12 @@ strict agent also runs the scope check before each reply, and since issue #97 th
 - A4 cases check `handoff` and `labels` from the playground response with `javascript` assertions.
 - Tokens and latency come from the playground response (`tokens`, `latency_ms`), which uses the same measurement as
   `ai_agent_reply_traces`: both cover the scope check of a strict agent too. The playground itself writes no trace.
+- Since issue #102 the report also splits the tokens by model call: the scope check (`scope.input_tokens`,
+  `scope.output_tokens`) and the reply model (the total less the scope check, for the cases the reply model answered),
+  and gives the share of input the provider read from its prompt cache (`tokens.cached_input`). Cached input is not
+  part of the input tokens, because RubyLLM reports it apart; "tidak dilaporkan" means the gateway sent no cached count.
+  Outputs from before #102 show `n/a` for these lines. The usage of real traffic comes from
+  `bundle exec rails ai_agents:usage_report` in the app instead (see `.ai-context/modules/ai-agent.md`).
 - For a strict agent the report also lists the latency of the scope check (`scope.latency_ms`) and how often each of
   its decisions came up, and failing cases show their decision in brackets, which tells a wrong decision of the check
   from a wrong answer of the reply model.

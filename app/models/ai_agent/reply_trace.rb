@@ -2,29 +2,35 @@
 #
 # Table name: ai_agent_reply_traces
 #
-#  id                   :bigint           not null, primary key
-#  blocked_reason       :string
-#  cited_ranks          :jsonb            not null
-#  embedding_model      :string
-#  error_class          :string
-#  input_tokens         :integer
-#  labels               :jsonb            not null
-#  latency_ms           :integer
-#  model                :string           not null
-#  output_tokens        :integer
-#  reply_decision       :string
-#  retrieval_mode       :string
-#  retrieved            :jsonb            not null
-#  scope_decision       :string
-#  scope_latency_ms     :integer
-#  scope_policy_version :integer          default(0), not null
-#  status               :integer          not null
-#  created_at           :datetime         not null
-#  updated_at           :datetime         not null
-#  account_id           :bigint           not null
-#  ai_agent_id          :bigint           not null
-#  conversation_id      :bigint           not null
-#  message_id           :bigint           not null
+#  id                          :bigint           not null, primary key
+#  blocked_reason              :string
+#  cached_input_tokens         :integer
+#  cited_ranks                 :jsonb            not null
+#  embedding_model             :string
+#  error_class                 :string
+#  input_tokens                :integer
+#  labels                      :jsonb            not null
+#  latency_ms                  :integer
+#  model                       :string           not null
+#  output_tokens               :integer
+#  reply_decision              :string
+#  retrieval_mode              :string
+#  retrieved                   :jsonb            not null
+#  scope_decision              :string
+#  scope_input_tokens          :integer
+#  scope_latency_ms            :integer
+#  scope_output_tokens         :integer
+#  scope_policy_version        :integer          default(0), not null
+#  status                      :integer          not null
+#  watcher_cached_input_tokens :integer
+#  watcher_input_tokens        :integer
+#  watcher_output_tokens       :integer
+#  created_at                  :datetime         not null
+#  updated_at                  :datetime         not null
+#  account_id                  :bigint           not null
+#  ai_agent_id                 :bigint           not null
+#  conversation_id             :bigint           not null
+#  message_id                  :bigint           not null
 #
 # Indexes
 #
@@ -37,6 +43,9 @@
 # cited, and why the reply was replaced with the knowledge gap message (see AiAgents::ReplyValidator), the model and the
 # tokens of all its model calls, how long the reply took, and the outcome. Customer messages and replies are not copied
 # here either.
+# input_tokens, output_tokens, and cached_input_tokens add up the scope check and the reply model, of which the scope_*
+# tokens are the scope check's share. The Watcher run after the reply (see AiAgents::WatchJob) adds its own watcher_*
+# tokens. See AiAgents::LlmClient::Completion for cached input, and AiAgents::UsageReport for a summary of a period.
 class AiAgent::ReplyTrace < ApplicationRecord
   belongs_to :account
   belongs_to :ai_agent
