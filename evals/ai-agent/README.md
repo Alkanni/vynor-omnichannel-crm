@@ -61,7 +61,9 @@ node report.mjs output/run-1.json
 fixtures, creates the `komplain` label if it is missing, and merges the agent ids into `.eval-agents.json`. Run it
 again after changing a fixture. The `injection` agent has an extra knowledge source with an embedded instruction and
 is used only by A2-09; the `large` and `dokumen` agents are used by the retrieval eval; the `scope-prompt` agent is
-`main` with a strict Business Scope Policy (`settings` in the fixture), for the Scope Compliance eval.
+`main` with a strict Business Scope Policy (`settings` in the fixture), for the Scope Compliance eval. Since issue #96 a
+strict agent also runs the scope check before each reply, so `scope-prompt` measures the prompt rule and the check
+together.
 
 `npx promptfoo@0.124.1 view` opens the results in the browser, including each judge reason.
 
@@ -73,7 +75,10 @@ is used only by A2-09; the `large` and `dokumen` agents are used by the retrieva
   time (for B-12), the reply, and the rubric. `icontains` and `not-icontains` are text checks.
 - A4 cases check `handoff` and `labels` from the playground response with `javascript` assertions.
 - Tokens and latency come from the playground response (`tokens`, `latency_ms`), which uses the same measurement as
-  `ai_agent_reply_traces`. The playground itself writes no trace.
+  `ai_agent_reply_traces`: both cover the scope check of a strict agent too. The playground itself writes no trace.
+- For a strict agent the report also lists the latency of the scope check (`scope.latency_ms`) and how often each of
+  its decisions came up, and failing cases show their decision in brackets, which tells a wrong decision of the check
+  from a wrong answer of the reply model.
 
 ## Baseline and flaky cases
 

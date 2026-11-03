@@ -1,6 +1,6 @@
 # Module: AI Agent (fork feature, CE)
 
-Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94, #95. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
+Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94, #95, #96. Status: **VERIFIED** from source. The fork's own knowledge-based auto-reply agent (epic #32, v2 roadmap epic #69). It is separate from Enterprise Captain; it reuses only the LLM settings (`CAPTAIN_OPEN_AI_*`) and RubyLLM.
 
 ## Where things live
 
@@ -8,7 +8,7 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94, #95
 |---|---|
 | Models | `app/models/ai_agent.rb`, `app/models/ai_agent/{knowledge_source,product,knowledge_chunk,integration,reply_trace}.rb`, `app/models/ai_agent_inbox.rb` |
 | API | `Api::V1::Accounts::AiAgentsController` (CRUD, `models`, `duplicate`, `train`, `playground`, `retrieval_test`), `Api::V1::Accounts::AiAgents::{KnowledgeSources,Products,GoogleSheets}Controller`; admin-only via `AiAgentPolicy` |
-| Runtime | `AiAgentListener` → `AiAgents::ReplyJob` → `AiAgents::ReplyGenerator` (+ `KnowledgeRetriever`, `ActionSchema`, `LlmClient`) → `AiAgents::ConversationSession` |
+| Runtime | `AiAgentListener` → `AiAgents::ReplyJob` → `AiAgents::ReplyGenerator` (+ `ScopeGuard`, `KnowledgeRetriever`, `ActionSchema`, `LlmClient`) → `AiAgents::ConversationSession` |
 | Knowledge pipeline | `ProcessKnowledgeSourceJob` (website via `WebPageFetcher`/`WebsiteContentExtractor`, file via `FileTextExtractor`, DOCX through `DocxMarkdown`) → `IndexKnowledgeJob` → `KnowledgeIndexer` + `TextChunker` |
 | Follow-up jobs | `WatchJob` (`Watcher`, second LLM look for missed handoff/labels), `AppendSheetRowJob` (Google Sheets) |
 | Frontend | `app/javascript/dashboard/routes/dashboard/aiAgents/`, API clients `api/aiAgents.js`, `api/aiAgentKnowledge.js`, `api/aiAgentGoogleSheets.js`, i18n `i18n/locale/en/aiAgents.json` |
@@ -17,14 +17,24 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94, #95
 
 1. `AiAgentListener#message_created`: for an incoming message in an inbox connected to an agent, while `ConversationSession#ai_active?`, queue `ReplyJob` after `message_await` seconds; otherwise send the pending message.
 2. `ReplyJob#perform`: only the job for the newest incoming message answers (bursts get one reply). If the session reached `message_limit`, hand off (`:message_limit`).
-3. `ReplyGenerator#perform`: instructions = behavior + Business Scope Policy (strict agents) + local time + `<knowledge>` + action instructions; history from `ConversationSession#history` (`history_limit`, images per `read_file_limit`). One LLM call with a forced function call (`ReplyTool`), because some gateways drop `response_format`.
-4. `ReplyJob#deliver`: send bubbles (unless silent handoff), apply labels/sheet row/handoff, queue `WatchJob`, then write an `AiAgent::ReplyTrace`. Any error hands off (`:error`) and writes an `error` trace.
+3. `ReplyGenerator#perform`: a strict agent first runs the scope check (see below), which may answer the turn itself. Otherwise instructions = behavior + Business Scope Policy (strict agents) + local time + `<knowledge>` + action instructions; history from `ConversationSession#history` (`history_limit`, images per `read_file_limit`). One LLM call with a forced function call (`ReplyTool`), because some gateways drop `response_format`.
+4. `ReplyJob#deliver`: send bubbles (unless silent handoff), apply labels/sheet row/handoff, queue `WatchJob` (not after a scope reply), then write an `AiAgent::ReplyTrace`. Any error hands off (`:error`) and writes an `error` trace.
 
 ## Business Scope Policy
 
 Per-agent columns, edited in the Business Scope panel of the General tab (#95): `scope_mode` (`off`, the default, or `strict`), `business_description`, `allowed_topics`, `disallowed_topics`. Strict requires the first two; text fields are at most 3,000 characters and blank means nil. `off` adds nothing to the prompt, even when the text fields are filled. For `strict`, `ReplyGenerator#scope_policy` puts `SCOPE_INSTRUCTIONS` (rules in code, shared by replies and the playground) and a `<business_scope>` block right after the behavior. This is a prompt rule, so it asks for compliance and does not guarantee it; the Scope Compliance eval measures it.
 
+Strict also requires `off_topic_message` and `clarification_message` (at most 1,000 characters each), the texts of the scope check below; they count as policy columns. Migration `AddScopeGuardToAiAgents` gave strict agents that existed before it an Indonesian default for both.
+
 `scope_policy_version` starts at 0 and goes up by one on each update that changes a policy column. A copy keeps the version of its original. The API returns it but does not accept it, and each reply trace stores the version in force, which tells replies before and after a change apart. The policy text itself has no history.
+
+## Scope check (`AiAgents::ScopeGuard`, #96)
+
+- Runs at the start of `ReplyGenerator#perform` for strict agents only, so replies and the playground take the same path; an `off` agent makes no extra call. It is its own model call with the agent's model, temperature 0, and a forced function call whose only field is `decision`, one of `DECISIONS`: `SUSPICIOUS`, `HANDOFF_REQUEST`, `AMBIGUOUS`, `IN_SCOPE`, `GREETING`, `OUT_OF_SCOPE` (the instructions ask for the first that applies, in that order).
+- Its prompt is `INSTRUCTIONS` plus the `<business_scope>` block (`AiAgent#business_scope`, shared with the reply prompt), with no behavior, knowledge, or actions. The user message is JSON: `latest_turn` (the customer messages after the last message from the agent's side) and `earlier_messages` (at most `CONTEXT_MESSAGES`, 6, before it, marked customer or agent), so the conversation is data inside string values.
+- `OUT_OF_SCOPE` and `SUSPICIOUS` are answered with `off_topic_message`, `AMBIGUOUS` with `clarification_message` (`REPLY_ATTRIBUTES`), as one bubble through `ConversationSession#reply!`, so it counts toward the message limit. Such a scope reply skips the knowledge search, the reply model, and the Watcher, and never hands off. The other decisions go on to the reply model, where the transfer conditions stay the only handoff trigger, and the reply prompt keeps the scope rules, which also cover the off-topic part of a mixed message.
+- A latest turn with images (attachments within `read_file_limit`) skips the check, because it cannot see them. A value outside `DECISIONS` or a text answer raises `AiAgents::LlmError`, so `ReplyJob` hands off with `error` and the playground returns 422.
+- The check has no keyword layer and no model of its own. On the eval it does not catch more than the prompt rule; its value is that a refused message never meets the knowledge or the reply instructions, a second independent layer, a fixed text, and the decision in the trace.
 
 ## Retrieval (`AiAgents::KnowledgeRetriever`)
 
@@ -38,7 +48,7 @@ Per-agent columns, edited in the Business Scope panel of the General tab (#95): 
 
 ## Reply traces (`ai_agent_reply_traces`)
 
-One row per answered customer message: `status` (`replied`, `handoff`, `message_limit`, `error`), `model`, `scope_policy_version`, `retrieval_mode`, `embedding_model`, `retrieved` (jsonb list of `chunk_id`, `chunkable_type`, `chunkable_id`, `rank`, `score`), `labels`, `input_tokens`/`output_tokens` (nil when the gateway sends no `usage`), `latency_ms` (retrieval + model call), `error_class`. No message or chunk content is stored, so the search queries are not stored either; they follow from the conversation. Rows are deleted with their agent or conversation (`dependent: :delete_all`); no time-based retention. Not written for the Watcher call, for the playground, or when a reply is dropped because the customer wrote again.
+One row per answered customer message: `status` (`replied`, `handoff`, `message_limit`, `error`), `model`, `scope_policy_version`, `scope_decision` and `scope_latency_ms` (nil when the check did not run), `retrieval_mode`, `embedding_model`, `retrieved` (jsonb list of `chunk_id`, `chunkable_type`, `chunkable_id`, `rank`, `score`; empty and nil mode for a scope reply), `labels`, `input_tokens`/`output_tokens` (scope check + reply model; nil when the gateway sends no `usage`), `latency_ms` (scope check + retrieval + model call), `error_class`. No message or chunk content is stored, so the search queries are not stored either; they follow from the conversation. Rows are deleted with their agent or conversation (`dependent: :delete_all`); no time-based retention. Not written for the Watcher call, for the playground, or when a reply is dropped because the customer wrote again.
 
 ## Knowledge Health
 
@@ -52,11 +62,11 @@ One row per answered customer message: `status` (`replied`, `handoff`, `message_
 
 ## Playground
 
-`POST /api/v1/accounts/:account_id/ai_agents/:id/playground` with `messages` (user/assistant, max 100, 10,000 characters each) returns `messages`, `handoff`, `labels`, `sheet_row`, `model`, `retrieval` (`mode`, `embedding_model`, `queries`, `chunks` with `rank`, `score`, `distance` (cosine distance for calibrating `AI_AGENT_EMBEDDING_MAX_DISTANCE`, null for a chunk found only by keywords), `content`, `source {id, type, title}`), `tokens {input, output}`, `latency_ms`. It writes no trace.
+`POST /api/v1/accounts/:account_id/ai_agents/:id/playground` with `messages` (user/assistant, max 100, 10,000 characters each) returns `messages`, `handoff`, `labels`, `sheet_row`, `model`, `scope` (`decision`, `latency_ms`; null when the check did not run), `retrieval` (null for a scope reply; otherwise `mode`, `embedding_model`, `queries`, `chunks` with `rank`, `score`, `distance` (cosine distance for calibrating `AI_AGENT_EMBEDDING_MAX_DISTANCE`, null for a chunk found only by keywords), `content`, `source {id, type, title}`), `tokens {input, output}`, `latency_ms`. It writes no trace.
 
 ## Evaluation
 
-`evals/ai-agent/` (issue #71) is a Promptfoo regression eval against the playground, outside the app bundle (`npx promptfoo@0.124.1`). `setup.mjs` recreates eval agents from `fixtures/toko-roti.json` through the API; `provider.mjs` sends each case's conversation (lines starting with `AI:` become assistant messages) and exposes `handoff`, `labels`, and retrieval as metadata for assertions; `llm-rubric` cases use a judge model from `.env`. A second config (`promptfooconfig.retrieval.yaml`, issue #80) runs questions through `retrieval_test` for an agent with a larger synthetic knowledge base (`fixtures/toko-roti-large.json`) and reports hit@1, hit@5, MRR, the score distribution of relevant vs irrelevant chunks, and latency per mode. A third config (`promptfooconfig.scope.yaml`, issue #94) runs `tests/s-scope.yaml` once per agent variant, where a variant is a provider with `config.agent`, and `report.mjs` computes off-topic leakage, false rejection, knowledge gap handling, and injection success per variant from the `metric` tag of each assertion. The end-to-end and scope configs share the judge in `judge.yaml`. See its README for running and comparing baselines, and for the release gate.
+`evals/ai-agent/` (issue #71) is a Promptfoo regression eval against the playground, outside the app bundle (`npx promptfoo@0.124.1`). `setup.mjs` recreates eval agents from `fixtures/toko-roti.json` through the API; `provider.mjs` sends each case's conversation (lines starting with `AI:` become assistant messages) and exposes `handoff`, `labels`, and retrieval as metadata for assertions; `llm-rubric` cases use a judge model from `.env`. A second config (`promptfooconfig.retrieval.yaml`, issue #80) runs questions through `retrieval_test` for an agent with a larger synthetic knowledge base (`fixtures/toko-roti-large.json`) and reports hit@1, hit@5, MRR, the score distribution of relevant vs irrelevant chunks, and latency per mode. A third config (`promptfooconfig.scope.yaml`, issue #94) runs `tests/s-scope.yaml` once per agent variant, where a variant is a provider with `config.agent`, and `report.mjs` computes off-topic leakage, false rejection, knowledge gap handling, and injection success per variant from the `metric` tag of each assertion, plus the scope check's latency (p90) and decision counts. The end-to-end and scope configs share the judge in `judge.yaml`. See its README for running and comparing baselines, and for the release gate.
 
 ## Configuration
 

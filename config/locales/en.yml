@@ -480,6 +480,7 @@ en:
         not_configured: 'The AI model API key is not configured. Ask the installation administrator to add it in Super Admin'
         request_failed: 'The AI model request failed (%{reason})'
         empty_reply: 'The AI model returned an empty reply'
+        invalid_scope_decision: 'The AI model returned no valid scope decision'
     knowledge:
       errors:
         invalid_url: 'Enter a full web address that starts with http:// or https://'

@@ -17,7 +17,9 @@ RSpec.describe AiAgents::ReplyGenerator do
     ]
   end
   let(:chat_requests) { [] }
+  let(:scope_requests) { [] }
   let(:embedding_requests) { [] }
+  let(:scope_decision) { 'IN_SCOPE' }
   let(:reply_content) { { messages: ['Kami buka setiap hari pukul 07.30 - 18.00.', ' ', 'Ada lagi yang bisa dibantu?'] }.to_json }
   let(:reply_message) do
     { role: 'assistant', content: nil,
@@ -37,10 +39,14 @@ RSpec.describe AiAgents::ReplyGenerator do
         body: { data: JSON.parse(request.body)['input'].map { { embedding: opening_hours } }, usage: { prompt_tokens: 4 } }.to_json }
     end
     stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
-      chat_requests << JSON.parse(request.body)
+      body = JSON.parse(request.body)
+      scope_check = body['tools'].sole['function']['name'] == 'ai_agent_scope'
+      (scope_check ? scope_requests : chat_requests) << body
+      scope_call = { id: 'call_0', type: 'function', function: { name: 'ai_agent_scope', arguments: { decision: scope_decision }.to_json } }
+      message = scope_check ? { role: 'assistant', content: nil, tool_calls: [scope_call] } : reply_message
       { status: 200, headers: { 'Content-Type' => 'application/json' },
-        body: { id: 'chatcmpl-1', model: 'gpt-4.1-mini', choices: [{ message: reply_message }],
-                usage: { prompt_tokens: 10, completion_tokens: 5 } }.to_json }
+        body: { id: 'chatcmpl-1', model: 'gpt-4.1-mini', choices: [{ message: message }],
+                usage: { prompt_tokens: scope_check ? 900 : 10, completion_tokens: 5 } }.to_json }
     end
   end
 
@@ -63,20 +69,25 @@ RSpec.describe AiAgents::ReplyGenerator do
   end
 
   describe 'business scope' do
+    let(:scope_replies) do
+      { business_description: 'Toko roti', allowed_topics: 'Harga', off_topic_message: 'Maaf, di luar layanan kami.',
+        clarification_message: 'Layanan yang mana, Kak?' }
+    end
     let(:system_prompt) do
       described_class.new(ai_agent: ai_agent, messages: messages).perform
       chat_requests.sole['messages'].first['content']
     end
 
-    it 'adds nothing when the scope is off, whatever the policy fields hold' do
-      ai_agent.update!(business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik')
+    it 'adds nothing and runs no scope check when the scope is off, whatever the policy fields hold' do
+      ai_agent.update!(disallowed_topics: 'Politik', **scope_replies)
 
       expect(system_prompt).to start_with("Kamu adalah asisten Grand Sehat.\n\nCurrent date and time: ")
       expect(system_prompt).not_to include('business_scope', 'Toko roti', 'Politik')
+      expect(scope_requests).to be_empty
     end
 
     it 'puts the rules and the policy of a strict agent after the behavior and before the knowledge' do
-      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik')
+      ai_agent.update!(scope_mode: 'strict', disallowed_topics: 'Politik', **scope_replies)
 
       expect(system_prompt).to include("Business: Toko roti\nAllowed topics: Harga\nDisallowed topics: Politik\n</business_scope>")
       expect(system_prompt.index('Kamu adalah asisten Grand Sehat.')).to be < system_prompt.index(described_class::SCOPE_INSTRUCTIONS)
@@ -84,10 +95,73 @@ RSpec.describe AiAgents::ReplyGenerator do
     end
 
     it 'leaves out the disallowed topics when there are none' do
-      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga')
+      ai_agent.update!(scope_mode: 'strict', **scope_replies)
 
       expect(system_prompt).to include("Allowed topics: Harga\n</business_scope>")
       expect(system_prompt).not_to include('Disallowed topics')
+    end
+
+    context 'with the scope check of a strict agent' do
+      let(:reply) { described_class.new(ai_agent: ai_agent, messages: messages).perform }
+
+      before { ai_agent.update!(scope_mode: 'strict', **scope_replies) }
+
+      %w[IN_SCOPE GREETING HANDOFF_REQUEST].each do |decision|
+        context "when the check decides #{decision}" do
+          let(:scope_decision) { decision }
+
+          it 'checks the turn first, then answers with the knowledge and traces both model calls' do
+            expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'])
+            expect(scope_requests.sole['messages'].last['content']).to include('Hari Minggu juga?')
+            expect(embedding_requests.size).to eq(1)
+            expect(chat_requests.size).to eq(1)
+            expect(reply).not_to be_scope_reply
+            expect(reply.trace.attributes).to include(scope_decision: decision, scope_latency_ms: be >= 0, retrieval_mode: 'hybrid',
+                                                      input_tokens: 910, output_tokens: 10, latency_ms: be >= reply.trace.scope.latency_ms)
+          end
+        end
+      end
+
+      { 'OUT_OF_SCOPE' => 'Maaf, di luar layanan kami.', 'SUSPICIOUS' => 'Maaf, di luar layanan kami.',
+        'AMBIGUOUS' => 'Layanan yang mana, Kak?' }.each do |decision, text|
+        context "when the check decides #{decision}" do
+          let(:scope_decision) { decision }
+
+          it 'answers with the text of the agent, without the knowledge search or the reply model' do
+            expect(reply).to have_attributes(messages: [text], handoff: false, labels: [], sheet_row: nil)
+            expect(reply).to be_scope_reply
+            expect(scope_requests.size).to eq(1)
+            expect(embedding_requests).to be_empty
+            expect(chat_requests).to be_empty
+            expect(reply.trace.attributes).to include(scope_decision: decision, scope_latency_ms: be >= 0, retrieval_mode: nil, embedding_model: nil,
+                                                      retrieved: [], input_tokens: 900, output_tokens: 5)
+          end
+        end
+      end
+
+      context 'when the latest turn has an image' do
+        let(:messages) do
+          message = create(:message, :with_attachment, content: nil)
+          [{ role: :user, content: message.content_for_llm, attachments: message.attachments.map { |attachment| attachment.file.blob } }]
+        end
+
+        it 'skips the check and lets the reply model see the image' do
+          expect(reply.messages).to include('Ada lagi yang bisa dibantu?')
+          expect(scope_requests).to be_empty
+          expect(chat_requests.sole['messages'].last['content']).to include(hash_including('type' => 'image_url'))
+          expect(reply.trace.attributes).to include(scope_decision: nil, scope_latency_ms: nil)
+        end
+      end
+
+      context 'when the check fails' do
+        let(:scope_decision) { 'MAYBE' }
+
+        it 'raises before the knowledge search and the reply model' do
+          expect { reply }.to raise_error(AiAgents::LlmError, 'The AI model returned no valid scope decision')
+          expect(embedding_requests).to be_empty
+          expect(chat_requests).to be_empty
+        end
+      end
     end
   end
 

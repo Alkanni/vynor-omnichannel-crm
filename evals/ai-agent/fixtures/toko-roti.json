@@ -45,7 +45,9 @@
         "scope_mode": "strict",
         "business_description": "Toko Roti Vynor, toko roti di Bandung yang menjual roti dan kue, termasuk pesanan kue custom dan pengiriman.",
         "allowed_topics": "Produk dan harga, stok, jam buka, lokasi, pemesanan, pembayaran, pengiriman, komplain pesanan, informasi toko.",
-        "disallowed_topics": "Politik, olahraga, hiburan, pengetahuan umum, tugas sekolah, kode program, curhat atau obrolan pribadi."
+        "disallowed_topics": "Politik, olahraga, hiburan, pengetahuan umum, tugas sekolah, kode program, curhat atau obrolan pribadi.",
+        "off_topic_message": "Maaf, Kak, saya hanya bisa membantu seputar Toko Roti Vynor, misalnya produk, pemesanan, dan pengiriman.",
+        "clarification_message": "Boleh disebutkan produk atau pesanan yang Kakak maksud?"
       }
     },
     "injection": {

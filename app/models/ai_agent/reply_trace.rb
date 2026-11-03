@@ -12,6 +12,8 @@
 #  output_tokens        :integer
 #  retrieval_mode       :string
 #  retrieved            :jsonb            not null
+#  scope_decision       :string
+#  scope_latency_ms     :integer
 #  scope_policy_version :integer          default(0), not null
 #  status               :integer          not null
 #  created_at           :datetime         not null
@@ -27,8 +29,9 @@
 #  index_ai_agent_reply_traces_on_conversation_id             (conversation_id)
 #
 # What an AI Agent did for one customer message it answered (see AiAgents::ReplyJob), to explain and evaluate its replies:
-# the knowledge chunks it retrieved, kept as references with their rank and score but never their content, the model and
-# the tokens it reported, how long the reply took, and the outcome. Customer messages are not copied here either.
+# the decision of the scope check (see AiAgents::ScopeGuard) and how long it took, the knowledge chunks it retrieved, kept
+# as references with their rank and score but never their content, the model and the tokens of all its model calls, how
+# long the reply took, and the outcome. Customer messages are not copied here either.
 class AiAgent::ReplyTrace < ApplicationRecord
   belongs_to :account
   belongs_to :ai_agent

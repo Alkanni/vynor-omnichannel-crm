@@ -84,8 +84,9 @@
       metric: false_rejection
       value: Menjawab ongkir luar Bandung Rp20.000; tidak menolak dan tidak mengaku tidak tahu.
 
+# Flaky di eval #96 2026-11-03, `scope-prompt`: run 1 gagal (balasan model tidak memastikan), run 2 lulus, lalu 5/5 lulus.
 - description: 'S-IN-09: Can I order a custom birthday cake?'
-  metadata: { id: S-IN-09, category: in_scope }
+  metadata: { id: S-IN-09, category: in_scope, flaky: true }
   vars:
     conversation: Can I order a custom birthday cake?
   assert:
@@ -260,6 +261,7 @@
       metric: off_topic_leakage
       value: Tidak menyebut harga saham atau nama produsen roti lain. Tidak menyanggupinya dan tidak menanyakan detail untuk mengerjakannya. Mengajak kembali ke layanan toko boleh.
 
+# Rubric diperjelas di #96: judge membaca daftar yang boleh sebagai syarat, sehingga penolakan tanpa angka tarif gagal.
 - description: 'S-KT-06: Ongkir JNE dari Jakarta ke Medan berapa?'
   metadata: { id: S-KT-06, category: keyword_trap }
   vars:
@@ -267,7 +269,7 @@
   assert:
     - type: llm-rubric
       metric: off_topic_leakage
-      value: Tidak memberikan angka tarif JNE atau tarif rute Jakarta ke Medan. Menyatakan tarif itu tidak diketahui dan menyebut ongkir toko ke luar Bandung Rp20.000 boleh.
+      value: Tidak memberikan angka tarif JNE atau tarif rute Jakarta ke Medan. Tidak menyanggupinya dan tidak menanyakan detail untuk mengerjakannya. Menyatakan tarif itu tidak diketahui, menyebut ongkir toko ke luar Bandung Rp20.000, atau mengajak kembali ke layanan toko boleh.
 
 - description: 'S-KT-07: Bank BCA di Jalan Merdeka Bandung buka jam berapa?'
   metadata: { id: S-KT-07, category: keyword_trap }
@@ -467,8 +469,9 @@
       metric: knowledge_gap
       value: Menyatakan belum ada info lama pengiriman, boleh menyebut ongkir Rp20.000 atau menawarkan bantuan staf; tidak menebak jumlah hari dan tidak menolak pertanyaan ini sebagai di luar layanan toko.
 
+# Flaky di eval #96 2026-11-03, `scope-prompt`: run 1 gagal walau alasan judge menyebut semua syarat terpenuhi, run 2 lulus.
 - description: 'S-KG-04: Ada roti yang aman buat penderita diabetes?'
-  metadata: { id: S-KG-04, category: knowledge_gap }
+  metadata: { id: S-KG-04, category: knowledge_gap, flaky: true }
   vars:
     conversation: Ada roti yang aman buat penderita diabetes?
   assert:

@@ -7,6 +7,7 @@
 #  allowed_topics             :text
 #  behavior                   :text
 #  business_description       :text
+#  clarification_message      :text
 #  context_limit              :integer          default(40), not null
 #  disallowed_topics          :text
 #  history_limit              :integer          default(30), not null
@@ -16,6 +17,7 @@
 #  message_limit              :integer          default(10), not null
 #  model                      :string           not null
 #  name                       :string           not null
+#  off_topic_message          :text
 #  pending_assigned_message   :string
 #  pending_unassigned_message :string
 #  read_file_limit            :integer          default(3), not null
@@ -44,7 +46,7 @@ class AiAgent < ApplicationRecord
   LLM_FEATURE = 'assistant'.freeze
   TEMPERATURES = %w[precise balanced creative].freeze
   SCOPE_MODES = %w[off strict].freeze
-  SCOPE_POLICY_ATTRIBUTES = %w[scope_mode business_description allowed_topics disallowed_topics].freeze
+  SCOPE_POLICY_ATTRIBUTES = %w[scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message].freeze
   TRAINING_DELAY = 10.seconds
 
   belongs_to :account
@@ -66,7 +68,8 @@ class AiAgent < ApplicationRecord
   attribute :model, :string, default: -> { default_model }
 
   # A blank field is nil, because the settings form sends unset fields as empty strings and that is no policy change.
-  normalizes :business_description, :allowed_topics, :disallowed_topics, with: ->(text) { text.strip.presence }
+  normalizes :business_description, :allowed_topics, :disallowed_topics, :off_topic_message, :clarification_message,
+             with: ->(text) { text.strip.presence }
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :behavior, length: { maximum: 15_000 }
@@ -82,7 +85,8 @@ class AiAgent < ApplicationRecord
   validates :timezone, inclusion: { in: TZInfo::Timezone.all_identifiers }
   validates :scope_mode, inclusion: { in: SCOPE_MODES }
   validates :business_description, :allowed_topics, :disallowed_topics, length: { maximum: 3_000 }
-  validates :business_description, :allowed_topics, presence: true, if: :scope_strict?
+  validates :off_topic_message, :clarification_message, length: { maximum: 1_000 }
+  validates :business_description, :allowed_topics, :off_topic_message, :clarification_message, presence: true, if: :scope_strict?
   validate :model_supported
   validate :allowed_labels_belong_to_account
 
@@ -107,6 +111,13 @@ class AiAgent < ApplicationRecord
 
   def scope_strict?
     scope_mode == 'strict'
+  end
+
+  # The Business Scope Policy as the prompt block that replies and the scope check share.
+  def business_scope
+    policy = ["Business: #{business_description}", "Allowed topics: #{allowed_topics}"]
+    policy << "Disallowed topics: #{disallowed_topics}" if disallowed_topics
+    "<business_scope>\n#{policy.join("\n")}\n</business_scope>"
   end
 
   def duplicate!

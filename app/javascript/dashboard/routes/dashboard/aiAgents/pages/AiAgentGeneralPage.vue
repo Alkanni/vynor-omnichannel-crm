@@ -36,6 +36,7 @@ const TEXT_LIMITS = {
   pendingMessage: 200,
   labelConditions: 3000,
   scopePolicy: 3000,
+  scopeReply: 1000,
 };
 
 const { t } = useI18n();
@@ -71,6 +72,8 @@ const toForm = agent => ({
   business_description: agent.business_description || '',
   allowed_topics: agent.allowed_topics || '',
   disallowed_topics: agent.disallowed_topics || '',
+  off_topic_message: agent.off_topic_message || '',
+  clarification_message: agent.clarification_message || '',
 });
 
 const form = reactive(toForm(props.agent));
@@ -507,6 +510,58 @@ onMounted(async () => {
                 auto-height
                 resize
                 min-height="5rem"
+              />
+            </SettingsField>
+            <SettingsField
+              :title="
+                t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.OFF_TOPIC_MESSAGE.TITLE')
+              "
+              :description="
+                t(
+                  'AI_AGENTS.GENERAL.BUSINESS_SCOPE.OFF_TOPIC_MESSAGE.DESCRIPTION'
+                )
+              "
+            >
+              <TextArea
+                id="ai-agent-off-topic-message"
+                v-model="form.off_topic_message"
+                :placeholder="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.OFF_TOPIC_MESSAGE.PLACEHOLDER'
+                  )
+                "
+                :max-length="TEXT_LIMITS.scopeReply"
+                show-character-count
+                auto-height
+                resize
+                min-height="3rem"
+              />
+            </SettingsField>
+            <SettingsField
+              :title="
+                t(
+                  'AI_AGENTS.GENERAL.BUSINESS_SCOPE.CLARIFICATION_MESSAGE.TITLE'
+                )
+              "
+              :description="
+                t(
+                  'AI_AGENTS.GENERAL.BUSINESS_SCOPE.CLARIFICATION_MESSAGE.DESCRIPTION'
+                )
+              "
+            >
+              <TextArea
+                id="ai-agent-clarification-message"
+                v-model="form.clarification_message"
+                :placeholder="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.CLARIFICATION_MESSAGE.PLACEHOLDER'
+                  )
+                "
+                :max-length="TEXT_LIMITS.scopeReply"
+                show-character-count
+                auto-height
+                resize
+                min-height="3rem"
               />
             </SettingsField>
           </CollapsiblePanel>

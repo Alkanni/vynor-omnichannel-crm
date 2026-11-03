@@ -1,6 +1,6 @@
 // Summarizes promptfoo JSON outputs as Markdown, per agent variant (provider label): the Scope Compliance metrics, pass
-// rate per category, agent tokens and latency, failing cases and, given two runs, the cases whose result changed
-// between them (flaky candidates).
+// rate per category, agent tokens and latency, the decisions of the scope check, failing cases and, given two runs, the
+// cases whose result changed between them (flaky candidates).
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
 import { readFileSync } from 'node:fs';
 
@@ -59,6 +59,8 @@ function loadRun(file) {
       inputTokens: result.response?.tokenUsage?.prompt,
       outputTokens: result.response?.tokenUsage?.completion,
       agentLatencyMs: result.response?.metadata?.agentLatencyMs,
+      scopeDecision: result.response?.metadata?.scopeDecision,
+      scopeLatencyMs: result.response?.metadata?.scopeLatencyMs,
     };
   });
 }
@@ -74,7 +76,21 @@ function stats(values) {
   const average = Math.round(
     sorted.reduce((sum, value) => sum + value, 0) / sorted.length
   );
-  return `avg ${average}, p50 ${sorted[Math.floor(sorted.length / 2)]}, max ${sorted[sorted.length - 1]} (n=${sorted.length})`;
+  const p90 = sorted[Math.ceil(sorted.length * 0.9) - 1];
+  return `avg ${average}, p50 ${sorted[Math.floor(sorted.length / 2)]}, p90 ${p90}, max ${sorted[sorted.length - 1]} (n=${sorted.length})`;
+}
+
+// How often each decision of the scope check came up; "-" counts cases where the check did not run or the call errored.
+function decisions(cases) {
+  const counts = {};
+  for (const { scopeDecision } of cases) {
+    const decision = scopeDecision || '-';
+    counts[decision] = (counts[decision] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .sort()
+    .map(([decision, count]) => `${decision} ${count}`)
+    .join(', ');
 }
 
 // Cases that errored say nothing about the agent, so they stay out of the rates and are reported on their own.
@@ -138,7 +154,9 @@ function report(title, cases) {
     '',
     `- Input tokens per balasan: ${stats(cases.map(testCase => testCase.inputTokens))}`,
     `- Output tokens per balasan: ${stats(cases.map(testCase => testCase.outputTokens))}`,
-    `- Latency agent (ms, retrieval + model): ${stats(cases.map(testCase => testCase.agentLatencyMs))}`,
+    `- Latency agent (ms, scope check + retrieval + model): ${stats(cases.map(testCase => testCase.agentLatencyMs))}`,
+    `- Latency scope check (ms): ${stats(cases.map(testCase => testCase.scopeLatencyMs))}`,
+    `- Keputusan scope check: ${decisions(cases)}`,
     '',
     'Kasus tidak lulus:'
   );
@@ -147,8 +165,11 @@ function report(title, cases) {
     const reason = (testCase.error || testCase.reasons.join(' | '))
       .replace(/\s+/g, ' ')
       .slice(0, REASON_LENGTH);
+    const decision = testCase.scopeDecision
+      ? ` [${testCase.scopeDecision}]`
+      : '';
     lines.push(
-      `- ${testCase.id}${testCase.flaky ? ' (flaky)' : ''}: ${reason}`
+      `- ${testCase.id}${testCase.flaky ? ' (flaky)' : ''}${decision}: ${reason}`
     );
   }
   if (failing.length === 0) lines.push('- tidak ada');

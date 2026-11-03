@@ -1,5 +1,7 @@
 # Builds the LLM request for an AI Agent (behavior, local time, relevant knowledge, actions, history) and returns
-# the reply as chat bubbles plus the actions it takes and a trace of how it was made.
+# the reply as chat bubbles plus the actions it takes and a trace of how it was made. A strict agent runs the scope
+# check first (see AiAgents::ScopeGuard); a turn the check answers gets the agent's own text, without the knowledge
+# search and the reply model.
 # Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
@@ -9,16 +11,22 @@ class AiAgents::ReplyGenerator
     def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil)
       super
     end
+
+    # Sent for a decision of the scope check, so it involved neither the knowledge nor the reply model.
+    def scope_reply? = trace.scope&.reply_attribute.present?
   end
-  # retrieval is an AiAgents::KnowledgeRetriever::Result; latency_ms covers the knowledge search and the model call.
-  Trace = Data.define(:retrieval, :input_tokens, :output_tokens, :latency_ms) do
+  # scope is an AiAgents::ScopeGuard::Result, nil when the check did not run; retrieval is an
+  # AiAgents::KnowledgeRetriever::Result, nil for a scope reply. Tokens add up the scope check and the reply model, and
+  # latency_ms covers the scope check, the knowledge search, and the model call.
+  Trace = Data.define(:scope, :retrieval, :input_tokens, :output_tokens, :latency_ms) do
     # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content.
     def attributes
-      retrieved = retrieval.hits.map do |hit|
+      retrieved = Array(retrieval&.hits).map do |hit|
         { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score }
       end
-      { retrieval_mode: retrieval.mode, embedding_model: retrieval.embedding_model, retrieved: retrieved,
-        input_tokens: input_tokens, output_tokens: output_tokens, latency_ms: latency_ms }
+      { scope_decision: scope&.decision, scope_latency_ms: scope&.latency_ms, retrieval_mode: retrieval&.mode,
+        embedding_model: retrieval&.embedding_model, retrieved: retrieved, input_tokens: input_tokens, output_tokens: output_tokens,
+        latency_ms: latency_ms }
     end
   end
   SCOPE_INSTRUCTIONS = <<~TEXT.freeze
@@ -48,12 +56,11 @@ class AiAgents::ReplyGenerator
   pattr_initialize [:ai_agent!, :messages!, :written_rows]
 
   def perform
-    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
-    completion = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
-                             messages: llm_messages, schema: actions.json_schema('ai_agent_reply', MESSAGES_PROPERTY))
-    content = completion.content
-    content = {} unless content.is_a?(Hash)
-    reply = Reply.new(messages: reply_messages(content), **actions.parse(content), trace: trace(completion, started_at))
+    @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
+    @scope = AiAgents::ScopeGuard.new(ai_agent: ai_agent, messages: messages).perform if ai_agent.scope_strict?
+    return scope_reply if @scope&.reply_attribute
+
+    reply = model_reply
     # A silent handoff may come without a note; any other turn needs something to send.
     raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.empty_reply') if reply.messages.empty? && !reply.handoff
 
@@ -62,9 +69,31 @@ class AiAgents::ReplyGenerator
 
   private
 
-  def trace(completion, started_at)
-    Trace.new(retrieval: retrieval, input_tokens: completion.input_tokens, output_tokens: completion.output_tokens,
-              latency_ms: Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started_at)
+  def model_reply
+    completion = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
+                             messages: llm_messages, schema: actions.json_schema('ai_agent_reply', MESSAGES_PROPERTY))
+    content = completion.content
+    content = {} unless content.is_a?(Hash)
+    Reply.new(messages: reply_messages(content), **actions.parse(content), trace: trace(completion))
+  end
+
+  def scope_reply
+    trace = Trace.new(scope: @scope, retrieval: nil, input_tokens: @scope.input_tokens, output_tokens: @scope.output_tokens, latency_ms: elapsed_ms)
+    Reply.new(messages: [ai_agent.public_send(@scope.reply_attribute)], handoff: false, labels: [], trace: trace)
+  end
+
+  def trace(completion)
+    Trace.new(scope: @scope, retrieval: retrieval, input_tokens: tokens(@scope&.input_tokens, completion.input_tokens),
+              output_tokens: tokens(@scope&.output_tokens, completion.output_tokens), latency_ms: elapsed_ms)
+  end
+
+  # nil when the gateway reported no usage.
+  def tokens(*counts)
+    counts.compact.presence&.sum
+  end
+
+  def elapsed_ms
+    Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - @started_at
   end
 
   def reply_messages(content)
@@ -77,11 +106,7 @@ class AiAgents::ReplyGenerator
 
   # Comes after the behavior, so the rules in code outrank whatever the behavior says.
   def scope_policy
-    return unless ai_agent.scope_strict?
-
-    policy = ["Business: #{ai_agent.business_description}", "Allowed topics: #{ai_agent.allowed_topics}"]
-    policy << "Disallowed topics: #{ai_agent.disallowed_topics}" if ai_agent.disallowed_topics
-    "#{SCOPE_INSTRUCTIONS}<business_scope>\n#{policy.join("\n")}\n</business_scope>"
+    "#{SCOPE_INSTRUCTIONS}#{ai_agent.business_scope}" if ai_agent.scope_strict?
   end
 
   def current_time
