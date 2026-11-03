@@ -45,9 +45,10 @@ class AiAgents::ReplyJob < ApplicationJob
                                   model: ai_agent.model, scope_policy_version: ai_agent.scope_policy_version, status: status, **details)
   end
 
-  # The Watcher only has something to check when the agent has transfer conditions or allowed labels.
+  # The Watcher only has something to check when the agent has transfer conditions or allowed labels. A scope reply is
+  # left alone, so a refused message reaches the actions no more than it reaches the reply model.
   def watch?(ai_agent, reply)
-    ai_agent.watcher_enabled && !reply.handoff && AiAgents::ActionSchema.new(ai_agent: ai_agent).any?
+    ai_agent.watcher_enabled && !reply.handoff && !reply.scope_reply? && AiAgents::ActionSchema.new(ai_agent: ai_agent).any?
   end
 
   def answerable?(session, message)

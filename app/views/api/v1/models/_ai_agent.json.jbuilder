@@ -25,6 +25,8 @@ json.scope_mode ai_agent.scope_mode
 json.business_description ai_agent.business_description
 json.allowed_topics ai_agent.allowed_topics
 json.disallowed_topics ai_agent.disallowed_topics
+json.off_topic_message ai_agent.off_topic_message
+json.clarification_message ai_agent.clarification_message
 json.scope_policy_version ai_agent.scope_policy_version
 json.inbox_ids ai_agent.inbox_ids
 json.trained_at ai_agent.trained_at&.to_i

@@ -74,7 +74,7 @@
         "DESCRIPTION": "Limit what the AI talks about to your business",
         "MODE": {
           "TITLE": "Scope Mode",
-          "DESCRIPTION": "In Strict mode the AI politely refuses anything outside the business below. When off, only the AI Agent Behavior limits it.",
+          "DESCRIPTION": "In Strict mode the AI checks each customer message against the business below before answering: messages outside it get the off-topic reply, unclear ones the clarification reply. When off, only the AI Agent Behavior limits it.",
           "OPTIONS": {
             "OFF": "Off",
             "STRICT": "Strict"
@@ -94,6 +94,16 @@
           "TITLE": "Disallowed Topics",
           "DESCRIPTION": "Topics the AI must refuse, even when they seem related to the business. Optional.",
           "PLACEHOLDER": "e.g. Politics, sports, entertainment, general knowledge, homework, programming, personal chat"
+        },
+        "OFF_TOPIC_MESSAGE": {
+          "TITLE": "Off-topic Reply",
+          "DESCRIPTION": "Sent as is when a message is outside the business or tries to change the AI's rules. Required in Strict mode.",
+          "PLACEHOLDER": "e.g. Sorry, I can only help with questions about our bakery: products, orders, and delivery."
+        },
+        "CLARIFICATION_MESSAGE": {
+          "TITLE": "Clarification Reply",
+          "DESCRIPTION": "Sent as is when a message does not say which product or order it means. Required in Strict mode.",
+          "PLACEHOLDER": "e.g. Could you tell me which product or order you mean?"
         }
       },
       "PENDING_MESSAGES": {

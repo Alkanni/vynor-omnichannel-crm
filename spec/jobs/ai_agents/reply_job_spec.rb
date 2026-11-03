@@ -10,7 +10,7 @@ RSpec.describe AiAgents::ReplyJob do
     chunk = AiAgent::KnowledgeChunk.new(id: 7, chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: 3)
     retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'hybrid', embedding_model: 'text-embedding-3-small', queries: ['Jam buka?'],
                                                          hits: [AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: 1, score: 0.12)])
-    AiAgents::ReplyGenerator::Trace.new(retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
+    AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
   end
   let(:traces) { AiAgent::ReplyTrace.where(conversation: conversation) }
   let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Halo!', 'Ada yang bisa dibantu?'], handoff: false, labels: [], trace: trace) }
@@ -41,7 +41,7 @@ RSpec.describe AiAgents::ReplyJob do
     expect(traces.sole).to have_attributes(
       account_id: account.id, ai_agent_id: ai_agent.id, message_id: message.id, status: 'replied', model: ai_agent.model,
       retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, latency_ms: 850,
-      labels: [], error_class: nil,
+      labels: [], error_class: nil, scope_decision: nil, scope_latency_ms: nil,
       retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12 }]
     )
   end
@@ -217,6 +217,60 @@ RSpec.describe AiAgents::ReplyJob do
       allow(generator).to receive(:perform)
         .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Baik.'], handoff: true, labels: [], trace: trace))
       expect { described_class.perform_now(create(:message, **message_attributes)) }.not_to have_enqueued_job(AiAgents::WatchJob)
+    end
+
+    it 'is not queued after a reply of the scope check' do
+      scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', input_tokens: 900, output_tokens: 5, latency_ms: 700)
+      scope_trace = AiAgents::ReplyGenerator::Trace.new(scope: scope, retrieval: nil, input_tokens: 900, output_tokens: 5, latency_ms: 700)
+      allow(generator).to receive(:perform)
+        .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Maaf.'], handoff: false, labels: [], trace: scope_trace))
+
+      expect { described_class.perform_now(message) }.not_to have_enqueued_job(AiAgents::WatchJob)
+    end
+  end
+
+  context 'with the scope check of a strict agent' do
+    let(:scope_decision) { 'OUT_OF_SCOPE' }
+    let(:chat_requests) { [] }
+    let(:message) { create(:message, **message_attributes, content: 'Siapa juara Piala Dunia terakhir?') }
+
+    before do
+      allow(AiAgents::ReplyGenerator).to receive(:new).and_call_original
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti di Bandung', allowed_topics: 'Produk, harga, dan pesanan',
+                       off_topic_message: 'Maaf, Kak, saya hanya bisa membantu seputar toko.', clarification_message: 'Produk yang mana, Kak?',
+                       watcher_enabled: true, transfer_conditions: 'Alihkan bila pelanggan komplain.')
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
+        chat_requests << JSON.parse(request.body)
+        { status: 200, headers: { 'Content-Type' => 'application/json' },
+          body: { id: 'chatcmpl-1', model: ai_agent.model, usage: { prompt_tokens: 900, completion_tokens: 5 },
+                  choices: [{ message: { role: 'assistant', content: nil, tool_calls: [{ id: 'call_1', type: 'function', function: {
+                    name: 'ai_agent_scope', arguments: { decision: scope_decision }.to_json
+                  } }] } }] }.to_json }
+      end
+    end
+
+    it 'sends the off-topic message as an AI reply that counts toward the message limit, and traces the decision' do
+      expect { described_class.perform_now(message) }.not_to have_enqueued_job(AiAgents::WatchJob)
+
+      expect(chat_requests.sole['tool_choice']).to eq('type' => 'function', 'function' => { 'name' => 'ai_agent_scope' })
+      expect(ai_replies.outgoing.pluck(:content)).to eq(['Maaf, Kak, saya hanya bisa membantu seputar toko.'])
+      expect(AiAgents::ConversationSession.new(conversation: conversation, ai_agent: ai_agent).reply_count).to eq(1)
+      expect(conversation.reload).to be_pending
+      expect(traces.sole).to have_attributes(status: 'replied', scope_decision: 'OUT_OF_SCOPE', scope_latency_ms: be >= 0, retrieval_mode: nil,
+                                             retrieved: [], input_tokens: 900, output_tokens: 5, scope_policy_version: ai_agent.scope_policy_version)
+    end
+
+    context 'when the check returns no valid decision' do
+      let(:scope_decision) { 'ALLOWED' }
+
+      it 'hands the conversation off without replying' do
+        described_class.perform_now(message)
+
+        expect(ai_replies).to be_empty
+        expect(handoff_activities.sole.additional_attributes).to eq('ai_agent_handoff' => 'error')
+        expect(traces.sole).to have_attributes(status: 'error', error_class: 'AiAgents::LlmError', scope_decision: nil)
+      end
     end
   end
 

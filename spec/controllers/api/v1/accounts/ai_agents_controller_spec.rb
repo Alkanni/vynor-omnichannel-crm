@@ -111,7 +111,8 @@ RSpec.describe 'AI Agents API', type: :request do
         model: 'gpt-4.1-mini', history_limit: 20, read_file_limit: 2, context_limit: 50, temperature: 'precise',
         message_await: 5, message_limit: 25, watcher_enabled: true, timezone: 'Asia/Makassar',
         session_only_memory: true, ignore_team_handoff: true, scope_mode: 'strict', business_description: 'Toko roti di Bandung',
-        allowed_topics: 'Harga dan stok', disallowed_topics: 'Politik'
+        allowed_topics: 'Harga dan stok', disallowed_topics: 'Politik', off_topic_message: 'Maaf, di luar layanan kami.',
+        clarification_message: 'Produk yang mana, Kak?'
       }
     end
 
@@ -120,7 +121,8 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(ai_agent.reload).to have_attributes(params)
-      expect(response.parsed_body).to include(params.slice(:scope_mode, :business_description, :allowed_topics, :disallowed_topics).stringify_keys)
+      expect(response.parsed_body).to include(params.slice(:scope_mode, :business_description, :allowed_topics, :disallowed_topics,
+                                                           :off_topic_message, :clarification_message).stringify_keys)
       expect(response.parsed_body['scope_policy_version']).to eq(1)
     end
 
@@ -131,13 +133,14 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(ai_agent.reload.scope_policy_version).to eq(0)
     end
 
-    it 'returns unprocessable entity for a strict scope without its business description and allowed topics' do
+    it 'returns unprocessable entity for a strict scope without its business description, allowed topics, and scope replies' do
       patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
-            params: { scope_mode: 'strict', business_description: '', allowed_topics: ' ', disallowed_topics: 'Politik' },
+            params: { scope_mode: 'strict', business_description: '', allowed_topics: ' ', disallowed_topics: 'Politik', off_topic_message: '' },
             headers: admin.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body['attributes']).to contain_exactly('business_description', 'allowed_topics')
+      expect(response.parsed_body['attributes'])
+        .to contain_exactly('business_description', 'allowed_topics', 'off_topic_message', 'clarification_message')
       expect(ai_agent.reload).to have_attributes(scope_mode: 'off', scope_policy_version: 0)
     end
 
@@ -298,7 +301,7 @@ RSpec.describe 'AI Agents API', type: :request do
                                                            hits: hits)
       reply = AiAgents::ReplyGenerator::Reply.new(
         messages: ['Kami buka 07.30 - 18.00.'], handoff: true, labels: ['booking'],
-        trace: AiAgents::ReplyGenerator::Trace.new(retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
+        trace: AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, input_tokens: 120, output_tokens: 30, latency_ms: 850)
       )
       generator = instance_double(AiAgents::ReplyGenerator, perform: reply)
       allow(AiAgents::ReplyGenerator).to receive(:new).and_return(generator)
@@ -308,6 +311,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
         'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'model' => ai_agent.model,
+        'scope' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
@@ -322,6 +326,26 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(AiAgents::ReplyGenerator).to have_received(:new)
         .with(ai_agent: ai_agent, messages: [{ role: :assistant, content: 'Halo Kak' }, { role: :user, content: 'Jam buka?' }])
       expect(AiAgent::ReplyTrace.count).to eq(0)
+    end
+
+    it 'returns the decision of the scope check, and no retrieval when the check answered the turn' do
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga',
+                       off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?')
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return(
+        status: 200, headers: { 'Content-Type' => 'application/json' },
+        body: { id: 'chatcmpl-1', model: ai_agent.model, usage: { prompt_tokens: 900, completion_tokens: 5 },
+                choices: [{ message: { role: 'assistant', content: nil, tool_calls: [{ id: 'call_1', type: 'function', function: {
+                  name: 'ai_agent_scope', arguments: { decision: 'AMBIGUOUS' }.to_json
+                } }] } }] }.to_json
+      )
+
+      post url, params: { messages: [{ role: 'user', content: 'Harganya berapa?' }] }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include('messages' => ['Produk yang mana, Kak?'], 'handoff' => false, 'labels' => [], 'retrieval' => nil,
+                                              'scope' => { 'decision' => 'AMBIGUOUS', 'latency_ms' => be >= 0 },
+                                              'tokens' => { 'input' => 900, 'output' => 5 })
     end
 
     it 'returns unprocessable entity for invalid messages' do
