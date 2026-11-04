@@ -1,7 +1,7 @@
 // Summarizes promptfoo JSON outputs as Markdown, per agent variant (provider label): the Scope Compliance metrics, pass
-// rate per category, agent tokens per model call and latency, the decisions of the scope check and of the reply, why replies were
-// replaced with the knowledge gap message, failing cases and, given two runs, the cases whose result changed between them
-// (flaky candidates).
+// rate per category, agent tokens per model call and latency, the decisions of the scope check and of the reply (also per
+// category), why replies were replaced with the knowledge gap message, failing cases and, given two runs, the cases whose
+// result changed between them (flaky candidates).
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
 import { readFileSync } from 'node:fs';
 
@@ -168,8 +168,8 @@ function report(title, cases) {
   const lines = [
     `### ${title}`,
     '',
-    '| Kategori | Lulus | Gagal | Error | Pass rate |',
-    '|---|---|---|---|---|',
+    '| Kategori | Lulus | Gagal | Error | Pass rate | Scope check | Balasan |',
+    '|---|---|---|---|---|---|---|',
   ];
   const categories = [
     ...new Set(cases.map(testCase => testCase.category)),
@@ -183,7 +183,7 @@ function report(title, cases) {
     const errors = scope.filter(testCase => testCase.error).length;
     const rate = `${Math.round((passed / scope.length) * 100)}%`;
     lines.push(
-      `| ${category} | ${passed} | ${scope.length - passed - errors} | ${errors} | ${rate} (${passed}/${scope.length}) |`
+      `| ${category} | ${passed} | ${scope.length - passed - errors} | ${errors} | ${rate} (${passed}/${scope.length}) | ${counts(scope, 'scopeDecision')} | ${counts(scope, 'replyDecision')} |`
     );
   }
   lines.push(
