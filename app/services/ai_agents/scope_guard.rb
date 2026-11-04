@@ -3,6 +3,9 @@
 # data, but no knowledge, behavior, or actions, and it can only answer with one of DECISIONS. AiAgents::ReplyGenerator
 # answers the decisions in REPLY_ATTRIBUTES with the agent's own text; the others go on to the reply model, where the
 # transfer conditions stay the only handoff trigger.
+# For an agent with web search (see AiAgent#web_search?), the check also writes the query to search the web with, if the
+# turn needs one, under the rules of docs/ai-agent-web-search-decisions.md. A query with personal data is never searched.
+# Web search runs in shadow mode for now: the result says whether the turn would be searched, but nothing is searched.
 # Messages are { role: :user | :assistant, content:, attachments: }, as for AiAgents::ReplyGenerator.
 class AiAgents::ScopeGuard
   DECISIONS = %w[SUSPICIOUS HANDOFF_REQUEST AMBIGUOUS IN_SCOPE GREETING OUT_OF_SCOPE].freeze
@@ -36,8 +39,34 @@ class AiAgents::ScopeGuard
     name: 'ai_agent_scope',
     schema: { type: 'object', properties: { decision: { type: 'string', enum: DECISIONS } }, required: ['decision'], additionalProperties: false }
   }.freeze
-  # Token counts are nil when the gateway does not report usage (see AiAgents::LlmClient::Completion).
-  Result = Data.define(:decision, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
+  # Added after INSTRUCTIONS for an agent with web search only, so the check of every other agent stays as it was.
+  WEB_INSTRUCTIONS = <<~TEXT.freeze
+    Web search: the agent can also search the internet for general information within the allowed topics.
+    - Asking for the phone number, address, or other personal data of a person or another business is OUT_OF_SCOPE, also as
+      a search request. The business's own contacts stay IN_SCOPE.
+    - "web_query": when an IN_SCOPE turn asks for general information, such as how something works, symptoms and causes,
+      maintenance, product types and specifications in general, news, recalls, or regulations, write a short search query in
+      the customer's language for that part only. Name its subject, from the earlier messages for a follow-up, and add the
+      business's country for news, recalls, and regulations. Never include people's names, phone numbers, plates, addresses,
+      e-mail addresses, identity or frame numbers, or the name of this business.
+    - Otherwise "web_query" is "": for the business's own facts (prices, stock, products, hours, contacts, orders, policies),
+      complaints, greetings, and every decision other than IN_SCOPE.
+  TEXT
+  WEB_SCHEMA = SCHEMA.deep_merge(schema: { properties: { web_query: { type: 'string' } }, required: %w[decision web_query] }).freeze
+  # The backstop to the rule against personal data in WEB_INSTRUCTIONS: a query that matches any of these is never searched,
+  # and neither is one longer than AiAgents::WebSearch::MAX_QUERY_CHARACTERS, which likely copies the customer's message.
+  # Names cannot be told apart from other words, so only the rule keeps them out.
+  PERSONAL_DATA_PATTERNS = [
+    /\d(?:[\s.()-]*\d){7,}/, # phone numbers, NIK, and any other 8 or more digits, also with spaces, dots, dashes, or parentheses between
+    /[^\s@]+@[^\s@]+\.[^\s@]+/, # e-mail addresses
+    /\b[A-Z]{1,2} ?\d{1,4} ?[A-Z]{1,3}\b/, # Indonesian plates such as D 1234 ABC, which some model names (XL7 AT) also match
+    /\b(?=[A-HJ-NPR-Z]*\d)[A-HJ-NPR-Z\d]{17}\b/i # VINs: 17 letters and digits, without I, O, and Q
+  ].freeze
+  # Token counts are nil when the gateway does not report usage (see AiAgents::LlmClient::Completion). web_query and
+  # web_search_status are nil for an agent without web search. Otherwise web_query is what the model wrote, blank when the
+  # turn needs no web search, and web_search_status is not_needed (no query, or the turn gets a scope reply),
+  # skipped_personal_data (see PERSONAL_DATA_PATTERNS), or shadow (it would be searched).
+  Result = Data.define(:decision, :web_query, :web_search_status, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
     # The agent setting whose text answers the turn, or nil when the turn goes on to the reply model.
     def reply_attribute = REPLY_ATTRIBUTES[decision]
   end
@@ -49,17 +78,40 @@ class AiAgents::ScopeGuard
     return if latest_turn.any? { |message| message[:attachments].present? }
 
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
-    completion = AiAgents::LlmClient.new.chat(model: ai_agent.model, temperature: 0, instructions: "#{INSTRUCTIONS}\n#{ai_agent.business_scope}",
-                                              messages: [{ role: :user, content: transcript }], schema: SCHEMA)
-    decision = completion.content['decision'] if completion.content.is_a?(Hash)
-    raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.invalid_scope_decision') unless DECISIONS.include?(decision)
+    web_search = ai_agent.web_search?
+    completion = AiAgents::LlmClient.new.chat(model: ai_agent.model, temperature: 0, instructions: instructions(web_search),
+                                              messages: [{ role: :user, content: transcript }], schema: web_search ? WEB_SCHEMA : SCHEMA)
+    decision, web_query = decision_and_web_query(completion.content, web_search)
 
-    Result.new(decision: decision, input_tokens: completion.input_tokens, output_tokens: completion.output_tokens,
-               cached_input_tokens: completion.cached_input_tokens,
+    Result.new(decision: decision, web_query: web_query, web_search_status: web_search_status(decision, web_query),
+               input_tokens: completion.input_tokens, output_tokens: completion.output_tokens, cached_input_tokens: completion.cached_input_tokens,
                latency_ms: Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started_at)
   end
 
   private
+
+  # Without web search, exactly the instructions of an agent from before web search existed.
+  def instructions(web_search)
+    [INSTRUCTIONS, (WEB_INSTRUCTIONS if web_search), ai_agent.business_scope].compact.join("\n")
+  end
+
+  # Raises unless the model chose one of DECISIONS and, with web search, wrote a web query, even a blank one.
+  def decision_and_web_query(content, web_search)
+    content = {} unless content.is_a?(Hash)
+    web_query = content['web_query'] if web_search
+    return [content['decision'], web_query] if DECISIONS.include?(content['decision']) && (!web_search || web_query.is_a?(String))
+
+    raise AiAgents::LlmError, I18n.t('ai_agents.llm.errors.invalid_scope_decision')
+  end
+
+  def web_search_status(decision, web_query)
+    return if web_query.nil?
+    return 'not_needed' if REPLY_ATTRIBUTES.key?(decision) || web_query.blank?
+    return 'skipped_personal_data' if web_query.length > AiAgents::WebSearch::MAX_QUERY_CHARACTERS
+    return 'skipped_personal_data' if PERSONAL_DATA_PATTERNS.any? { |pattern| pattern.match?(web_query) }
+
+    'shadow'
+  end
 
   # The customer messages since the last message from the agent's side.
   def latest_turn

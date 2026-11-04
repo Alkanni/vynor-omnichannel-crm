@@ -37,12 +37,13 @@ RSpec.describe AiAgents::ScopeGuard do
     result = guard.perform
 
     expect(result).to have_attributes(decision: 'SUSPICIOUS', input_tokens: 900, output_tokens: 8, latency_ms: be >= 0,
-                                      reply_attribute: :off_topic_message)
+                                      reply_attribute: :off_topic_message, web_query: nil, web_search_status: nil)
     request = requests.sole
     expect(request).to include('model' => 'gpt-4.1-mini', 'temperature' => 0,
                                'tool_choice' => { 'type' => 'function', 'function' => { 'name' => 'ai_agent_scope' } })
-    expect(request['tools'].sole['function']['parameters']['properties'])
-      .to eq('decision' => { 'type' => 'string', 'enum' => described_class::DECISIONS })
+    expect(request['tools'].sole['function']['parameters']).to include(
+      'properties' => { 'decision' => { 'type' => 'string', 'enum' => described_class::DECISIONS } }, 'required' => ['decision']
+    )
     system_prompt, *conversation = request['messages']
     expect(system_prompt['content']).to eq(
       "#{described_class::INSTRUCTIONS}\n<business_scope>\nBusiness: Bengkel cuci mobil di Bandung\nAllowed topics: Harga dan jam buka\n" \
@@ -67,7 +68,7 @@ RSpec.describe AiAgents::ScopeGuard do
   end
 
   it 'answers off-topic and suspicious turns with the off-topic message, unclear ones with the clarification, and passes the rest on' do
-    expect(described_class::DECISIONS.index_with { |decision| described_class::Result.new(decision, nil, nil, nil, 0).reply_attribute })
+    expect(described_class::DECISIONS.index_with { |decision| described_class::Result.new(decision, nil, nil, nil, nil, nil, 0).reply_attribute })
       .to eq('SUSPICIOUS' => :off_topic_message, 'HANDOFF_REQUEST' => nil, 'AMBIGUOUS' => :clarification_message, 'IN_SCOPE' => nil,
              'GREETING' => nil, 'OUT_OF_SCOPE' => :off_topic_message)
   end
@@ -77,6 +78,94 @@ RSpec.describe AiAgents::ScopeGuard do
 
     expect(guard.perform).to be_nil
     expect(requests).to be_empty
+  end
+
+  it 'sends the same request when web search is turned on but the Exa API key is blank' do
+    guard.perform
+    ai_agent.update!(web_search_enabled: true)
+    described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+    expect(requests.second).to eq(requests.first)
+  end
+
+  context 'with web search' do
+    let(:web_query) { 'penyebab rem mobil bunyi mencicit' }
+    let(:arguments) { { decision: 'IN_SCOPE', web_query: web_query }.to_json }
+
+    before do
+      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      ai_agent.update!(web_search_enabled: true)
+    end
+
+    it 'adds the web rules and the web query to the check, and searches nothing yet' do
+      result = guard.perform
+
+      expect(result).to have_attributes(decision: 'IN_SCOPE', web_query: web_query, web_search_status: 'shadow', reply_attribute: nil)
+      request = requests.sole
+      expect(request['messages'].first['content']).to eq(
+        "#{described_class::INSTRUCTIONS}\n#{described_class::WEB_INSTRUCTIONS}\n<business_scope>\nBusiness: Bengkel cuci mobil di Bandung\n" \
+        "Allowed topics: Harga dan jam buka\nDisallowed topics: Politik\n</business_scope>"
+      )
+      expect(request['tools'].sole['function']['parameters']).to include(
+        'properties' => { 'decision' => { 'type' => 'string', 'enum' => described_class::DECISIONS }, 'web_query' => { 'type' => 'string' } },
+        'required' => %w[decision web_query]
+      )
+      expect(a_request(:any, /exa\.ai/)).not_to have_been_made
+    end
+
+    context 'when the turn needs no web search' do
+      let(:web_query) { ' ' }
+
+      it 'needs no search' do
+        expect(guard.perform).to have_attributes(web_query: ' ', web_search_status: 'not_needed')
+      end
+    end
+
+    context 'when the turn gets a scope reply' do
+      let(:arguments) { { decision: 'OUT_OF_SCOPE', web_query: 'berita sepak bola terbaru' }.to_json }
+
+      it 'needs no search, whatever the query' do
+        expect(guard.perform).to have_attributes(decision: 'OUT_OF_SCOPE', web_search_status: 'not_needed')
+      end
+    end
+
+    {
+      'a phone number' => 'rem bunyi 0812-9876-5432', 'a phone number with the country code' => 'aki tekor +62 812 9876 5432',
+      'a landline number' => 'bengkel (022) 7654321', 'a NIK' => 'pajak progresif 3273012345670001',
+      'an e-mail address' => 'AC bau apek rina.putri@example.com', 'a plate' => 'Avanza D 1234 XYZ bunyi saat belok',
+      'a plate without spaces' => 'B1234CD bunyi', 'a VIN' => 'recall airbag MHFM1BA3JBK123456',
+      'a VIN in lower case' => 'recall airbag mhfm1ba3jbk123456', 'more than 200 characters' => "rem bunyi #{'a' * 191}"
+    }.each do |personal_data, query|
+      context "when the query has #{personal_data}" do
+        let(:web_query) { query }
+
+        it 'skips the search' do
+          expect(guard.perform).to have_attributes(web_query: query, web_search_status: 'skipped_personal_data')
+        end
+      end
+    end
+
+    [
+      'beda oli 5W-30 dan 10W-40', 'recall Toyota Avanza 2024 Indonesia', 'interval ganti oli Honda Brio per 10.000 km',
+      'setir bergetar di kecepatan 80 km/jam', 'aki mobil hybrid Toyota Corolla Cross', 'aturan uji emisi kendaraan Jakarta 2025',
+      'kampas rem Mitsubishi Xpander', "rem bunyi #{'a' * 190}"
+    ].each do |query|
+      context "when the query is #{query.truncate(40).inspect}" do
+        let(:web_query) { query }
+
+        it 'would search it' do
+          expect(guard.perform.web_search_status).to eq('shadow')
+        end
+      end
+    end
+
+    context 'when the model leaves out the web query' do
+      let(:arguments) { { decision: 'IN_SCOPE' }.to_json }
+
+      it 'raises an error' do
+        expect { guard.perform }.to raise_error(AiAgents::LlmError, 'The AI model returned no valid scope decision')
+      end
+    end
   end
 
   context 'when the model returns a decision outside the list' do

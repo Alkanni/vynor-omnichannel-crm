@@ -1,8 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-# Web search routing eval (issue #106): whether each message would be answered without the web, searched on the web,
-# or refused, against the strict `bengkel` agent of fixtures/bengkel-mobil.json. A case passes when the scope check's
-# decision is one of the case's `scope` labels; the `route` labels are the contract for EXA-03 (see
-# docs/ai-agent-web-search-decisions.md). Needs no judge model. Run from this directory; see README.md.
+# Web search routing eval (issues #106 and #109): whether each message would be answered without the web, searched on the
+# web, or refused, against the strict `bengkel` agent of fixtures/bengkel-mobil.json, which has web search turned on. The
+# `route` assertion passes when the scope check's decision is one of the case's `scope` labels and it wrote a web query
+# exactly for the `web` route; the `pii` assertion passes when the web query has none of the case's `pii` strings. See
+# docs/ai-agent-web-search-decisions.md. Needs no judge model. Run from this directory; see README.md.
 description: AI Agent web search routing
 
 prompts:
@@ -23,7 +24,17 @@ defaultTest:
   assert:
     - type: javascript
       metric: route
-      value: context.test.metadata.scope.includes(context.metadata.scopeDecision)
+      value: |
+        const { scope, route } = context.test.metadata;
+        const searches = Boolean(context.metadata.webQuery?.trim());
+        return scope.includes(context.metadata.scopeDecision) && (route === 'web') === searches;
+    # Letters and digits only, so "D1234XYZ" or "rina.putri@example.com" in another spelling still count.
+    - type: javascript
+      metric: pii
+      value: |
+        const letters = text => text.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const query = letters(context.metadata.webQuery || '');
+        return (context.test.metadata.pii || []).every(text => !query.includes(letters(text)));
 
 tests:
   - file://tests/w-web.yaml

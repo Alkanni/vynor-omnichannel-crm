@@ -1,7 +1,8 @@
 // Summarizes promptfoo JSON outputs as Markdown, per agent variant (provider label): the Scope Compliance metrics, pass
 // rate per category, agent tokens per model call and latency, the decisions of the scope check and of the reply (also per
 // category), why replies were replaced with the knowledge gap message, failing cases and, given two runs, the cases whose
-// result changed between them (flaky candidates).
+// result changed between them (flaky candidates). For an agent with web search (promptfooconfig.web.yaml), it also reports
+// route accuracy, web queries of blocked cases and with personal data, and the web search status per category.
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
 import { readFileSync } from 'node:fs';
 
@@ -45,6 +46,7 @@ function loadRun(file) {
     return {
       id: result.testCase.metadata.id,
       category: result.testCase.metadata.category,
+      route: result.testCase.metadata.route,
       variant: result.provider.label,
       flaky: Boolean(result.testCase.metadata.flaky),
       pass: result.success,
@@ -61,6 +63,8 @@ function loadRun(file) {
       outputTokens: result.response?.tokenUsage?.completion,
       agentLatencyMs: result.response?.metadata?.agentLatencyMs,
       scopeDecision: result.response?.metadata?.scopeDecision,
+      webQuery: result.response?.metadata?.webQuery,
+      webSearchStatus: result.response?.metadata?.webSearchStatus,
       scopeLatencyMs: result.response?.metadata?.scopeLatencyMs,
       scopeInputTokens: result.response?.metadata?.scopeInputTokens,
       scopeOutputTokens: result.response?.metadata?.scopeOutputTokens,
@@ -164,6 +168,55 @@ function scopeReport(file, cases) {
   return lines.join('\n');
 }
 
+// The share of passing checks with a metric tag, over the cases that did not error.
+function checkRate(cases, tag) {
+  const checks = cases
+    .filter(testCase => !testCase.error)
+    .flatMap(testCase => testCase.checks)
+    .filter(check => check.metric === tag);
+  if (checks.length === 0) return 'n/a';
+
+  const passed = checks.filter(check => check.pass).length;
+  return `${Math.round((passed / checks.length) * 100)}% (${passed}/${checks.length})`;
+}
+
+const caseList = (testCases, describe = testCase => testCase.id) =>
+  testCases.length
+    ? `${testCases.length}: ${testCases.map(describe).join(', ')}`
+    : '0';
+
+// For a run whose agent has web search: the targets of docs/ai-agent-web-search-decisions.md, the web search status per
+// category, and the web queries that the personal data check skipped in cases without personal data (false skips).
+function webReport(cases) {
+  const answered = cases.filter(testCase => !testCase.error);
+  const searches = testCase => Boolean(testCase.webQuery?.trim());
+  const routedToWeb = answered.filter(testCase => testCase.route === 'web');
+  const skipped = routedToWeb.filter(
+    testCase => testCase.webSearchStatus === 'skipped_personal_data'
+  );
+  const lines = [
+    '',
+    'Web search:',
+    `- Route accuracy (target ≥ 95%): ${checkRate(cases, 'route')}`,
+    `- Web query pada kasus blocked (target 0): ${caseList(answered.filter(testCase => testCase.route === 'blocked' && searches(testCase)))}`,
+    `- Tanpa string pii di web query (target 100%): ${checkRate(cases, 'pii')}`,
+    `- Status web search: ${counts(cases, 'webSearchStatus')}`,
+    `- Kasus route web yang dilewati pemeriksa data pribadi: ${skipped.length}/${routedToWeb.length}`,
+    `- False skip (dilewati, kasus tanpa pii): ${caseList(
+      skipped.filter(testCase => testCase.category !== 'pii'),
+      testCase => `${testCase.id} "${testCase.webQuery}"`
+    )}`,
+  ];
+  const categories = [
+    ...new Set(cases.map(testCase => testCase.category)),
+  ].sort();
+  for (const category of categories) {
+    const scope = cases.filter(testCase => testCase.category === category);
+    lines.push(`- ${category}: ${counts(scope, 'webSearchStatus')}`);
+  }
+  return lines;
+}
+
 function report(title, cases) {
   const lines = [
     `### ${title}`,
@@ -199,10 +252,12 @@ function report(title, cases) {
     `- Latency scope check (ms): ${stats(cases.map(testCase => testCase.scopeLatencyMs))}`,
     `- Keputusan scope check: ${counts(cases, 'scopeDecision')}`,
     `- Keputusan balasan: ${counts(cases, 'replyDecision')}`,
-    `- Alasan balasan diganti pesan knowledge gap: ${counts(cases, 'blockedReason')}`,
-    '',
-    'Kasus tidak lulus:'
+    `- Alasan balasan diganti pesan knowledge gap: ${counts(cases, 'blockedReason')}`
   );
+  if (cases.some(testCase => testCase.webSearchStatus)) {
+    lines.push(...webReport(cases));
+  }
+  lines.push('', 'Kasus tidak lulus:');
   const failing = cases.filter(candidate => !candidate.pass);
   for (const testCase of failing) {
     const reason = (testCase.error || testCase.reasons.join(' | '))
@@ -210,6 +265,7 @@ function report(title, cases) {
       .slice(0, REASON_LENGTH);
     const decisions = [
       testCase.scopeDecision,
+      testCase.webQuery?.trim() && `web_query "${testCase.webQuery}"`,
       testCase.replyDecision,
       testCase.blockedReason,
     ].filter(Boolean);

@@ -23,15 +23,20 @@ class AiAgents::ReplyGenerator
   # AiAgents::LlmClient::Completion for cached_input_tokens), and latency_ms covers the scope check, the knowledge search,
   # and the model call.
   Trace = Data.define(:scope, :retrieval, :validation, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
-    # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content.
+    # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content, and the web query is
+    # not kept at all.
     def attributes
-      { scope_decision: scope&.decision, scope_latency_ms: scope&.latency_ms, scope_input_tokens: scope&.input_tokens,
-        scope_output_tokens: scope&.output_tokens, retrieval_mode: retrieval&.mode, embedding_model: retrieval&.embedding_model,
-        retrieved: retrieved, input_tokens: input_tokens, output_tokens: output_tokens, cached_input_tokens: cached_input_tokens,
-        latency_ms: latency_ms, **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks) }
+      { retrieval_mode: retrieval&.mode, embedding_model: retrieval&.embedding_model, retrieved: retrieved, **scope_attributes,
+        input_tokens: input_tokens, output_tokens: output_tokens, cached_input_tokens: cached_input_tokens, latency_ms: latency_ms,
+        **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks) }
     end
 
     private
+
+    def scope_attributes
+      { scope_decision: scope&.decision, scope_latency_ms: scope&.latency_ms, scope_input_tokens: scope&.input_tokens,
+        scope_output_tokens: scope&.output_tokens, web_search_status: scope&.web_search_status }
+    end
 
     def retrieved
       Array(retrieval&.hits).map do |hit|

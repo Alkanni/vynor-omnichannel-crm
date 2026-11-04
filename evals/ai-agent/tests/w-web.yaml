@@ -1,14 +1,13 @@
-# W. Web search routing (issue #106, EXA-01): pesan mana yang boleh dicari di internet. Dijalankan lewat
-# promptfooconfig.web.yaml terhadap agent `bengkel` (fixtures/bengkel-mobil.json), agent strict yang mengizinkan informasi
-# umum seputar mobil. Kontraknya ada di docs/ai-agent-web-search-decisions.md.
+# W. Web search routing (issue #106, EXA-01; assertion web query sejak #109, EXA-03): pesan mana yang boleh dicari di
+# internet. Dijalankan lewat promptfooconfig.web.yaml terhadap agent `bengkel` (fixtures/bengkel-mobil.json), agent strict
+# dengan web search yang mengizinkan informasi umum seputar mobil. Kontraknya ada di docs/ai-agent-web-search-decisions.md.
 #
 # Label di metadata:
 # - `route`: `internal` (dijawab dari knowledge atau percakapan, tanpa web), `web` (butuh pencarian web, bisa ditambah
 #   knowledge), atau `blocked` (ditolak scope check sebelum knowledge, reply model, dan web).
 # - `scope`: keputusan scope check yang diharapkan. Assertion `route` di promptfooconfig.web.yaml lulus bila keputusan
-#   scope check termasuk di sini. Kasus `web` mengharapkan IN_SCOPE, karena sebelum EXA-03 hanya itu yang bisa diukur;
-#   EXA-03 menambahkan keputusan web search ke assertion yang sama.
-# - `pii` (opsional): teks dari pesan yang tidak boleh muncul di query web (diperiksa mulai EXA-03).
+#   scope check termasuk di sini dan scope check menulis web query tepat untuk route `web`.
+# - `pii` (opsional): teks dari pesan yang tidak boleh muncul di web query (assertion `pii`).
 #
 # Keputusan owner 2026-11-04: permintaan nomor HP yang bukan kontak bengkel sendiri ditolak sebelum jawaban dibuat dan
 # tidak pernah dicari (kategori `phone`); nomor bengkel dari knowledge tetap dijawab (W-IN-04). Keluhan atas layanan

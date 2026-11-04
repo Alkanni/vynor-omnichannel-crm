@@ -37,6 +37,7 @@ const TEXT_LIMITS = {
   labelConditions: 3000,
   scopePolicy: 3000,
   scopeReply: 1000,
+  webSearchDomains: 1000,
 };
 
 const { t } = useI18n();
@@ -75,6 +76,8 @@ const toForm = agent => ({
   off_topic_message: agent.off_topic_message || '',
   clarification_message: agent.clarification_message || '',
   knowledge_gap_message: agent.knowledge_gap_message || '',
+  web_search_enabled: agent.web_search_enabled,
+  web_search_domains: agent.web_search_domains || '',
 });
 
 const form = reactive(toForm(props.agent));
@@ -209,6 +212,12 @@ const sessionOnlyMemorySelect = booleanSelect('session_only_memory');
 // these fields always need a value, so that click is ignored.
 const setRequired = (key, value) => {
   if (value) form[key] = value;
+};
+
+// Web search needs Strict mode, so turning Strict off also turns it off.
+const setScopeMode = value => {
+  setRequired('scope_mode', value);
+  if (form.scope_mode !== 'strict') form.web_search_enabled = false;
 };
 
 const toPayload = values => ({
@@ -437,7 +446,7 @@ onMounted(async () => {
               <ComboBox
                 :model-value="form.scope_mode"
                 :options="scopeModeOptions"
-                @update:model-value="setRequired('scope_mode', $event)"
+                @update:model-value="setScopeMode"
               />
             </SettingsField>
             <SettingsField
@@ -592,6 +601,41 @@ onMounted(async () => {
                 min-height="3rem"
               />
             </SettingsField>
+            <template v-if="form.scope_mode === 'strict'">
+              <ToggleField
+                v-model="form.web_search_enabled"
+                :title="t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.WEB_SEARCH.TITLE')"
+                :description="
+                  t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.WEB_SEARCH.DESCRIPTION')
+                "
+              />
+              <SettingsField
+                v-if="form.web_search_enabled"
+                :title="
+                  t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.WEB_SEARCH_DOMAINS.TITLE')
+                "
+                :description="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.WEB_SEARCH_DOMAINS.DESCRIPTION'
+                  )
+                "
+              >
+                <TextArea
+                  id="ai-agent-web-search-domains"
+                  v-model="form.web_search_domains"
+                  :placeholder="
+                    t(
+                      'AI_AGENTS.GENERAL.BUSINESS_SCOPE.WEB_SEARCH_DOMAINS.PLACEHOLDER'
+                    )
+                  "
+                  :max-length="TEXT_LIMITS.webSearchDomains"
+                  show-character-count
+                  auto-height
+                  resize
+                  min-height="3rem"
+                />
+              </SettingsField>
+            </template>
           </CollapsiblePanel>
 
           <div class="flex flex-col gap-5">

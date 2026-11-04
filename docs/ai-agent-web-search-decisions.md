@@ -324,4 +324,4 @@ Findings:
 | Exa resets the free credit on the 1st by UTC | EXA-02 |
 | About 3 characters per token for Indonesian web text, behind the token budget | EXA-04 |
 | Exa answers within the 4 s read timeout for most queries | EXA-02 measures; EXA-04 keeps the timeouts |
-| The plate pattern also matches some model names (e.g. "XL7 AT"), which would skip their search | EXA-03 measures the skip rate |
+| The plate pattern also matches some model names (e.g. "XL7 AT"), which would skip their search | EXA-03 measured it offline: 3 of 116 model names (XL7 AT, Fuso FE 74 HD, E 300 AMG Line), and of 16 parts terms the battery code NS40ZL; "2024 2025" also counts as 8 digits |
