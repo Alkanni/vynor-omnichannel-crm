@@ -28,18 +28,30 @@ RSpec.describe AiAgents::KnowledgeRetriever do
     it 'fuses the nearest chunks of the current embedding model and the keyword matches, one hit per chunk up to the context limit' do
       ai_agent.update!(context_limit: 3)
       create_chunk('Jam buka lama', embedding: query_vector, embedding_model: 'old-model')
-      create_chunk('Jam buka setiap hari', embedding: far_vector, embedding_model: 'text-embedding-3-small')
+      farthest = create_chunk('Jam buka setiap hari', embedding: far_vector, embedding_model: 'text-embedding-3-small')
       closest = create_chunk('Alamat toko', embedding: query_vector, embedding_model: 'text-embedding-3-small')
       both = create_chunk('Jam operasional', embedding: close_vector, embedding_model: 'text-embedding-3-small')
-      next_closest = create_chunk('Harga cuci', embedding: Array.new(1536) { |index| index < 3 ? 1.0 : 0.0 },
-                                                embedding_model: 'text-embedding-3-small')
+      create_chunk('Harga cuci', embedding: Array.new(1536) { |index| index < 3 ? 1.0 : 0.0 }, embedding_model: 'text-embedding-3-small')
 
       result = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform
 
       expect(result).to have_attributes(mode: 'hybrid', embedding_model: 'text-embedding-3-small')
-      expect(result.hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[both, 1], [closest, 2], [next_closest, 3]])
-      expect(result.hits.map(&:score)).to match([be_within(1e-9).of(1.5 / 22), be_within(1e-9).of(1 / 21.0), be_within(1e-9).of(1 / 23.0)])
+      # The lists hold more chunks than the context limit, so the farthest chunk counts its fourth place by embedding too.
+      expect(result.hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[both, 1], [farthest, 2], [closest, 3]])
+      expect(result.hits.map(&:score)).to match([be_within(1e-9).of(1.5 / 22), be_within(1e-9).of((1 / 24.0) + (0.5 / 21)),
+                                                 be_within(1e-9).of(1 / 21.0)])
       expect(embedding_requests.sole['input']).to eq(['query: Jam buka?'])
+    end
+
+    it 'takes as many chunks per list as the context limit when it is above the candidates' do
+      stub_const("#{described_class}::CANDIDATES", 1)
+      closest = create_chunk('Alamat toko', embedding: query_vector, embedding_model: 'text-embedding-3-small')
+      next_closest = create_chunk('Harga cuci', embedding: close_vector, embedding_model: 'text-embedding-3-small')
+      create_chunk('Jam buka', embedding: far_vector, embedding_model: 'text-embedding-3-small')
+
+      result = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform
+
+      expect(result.hits.map(&:chunk)).to eq([closest, next_closest])
     end
 
     it 'leaves out chunks farther than the max embedding distance unless they share a word with the query' do

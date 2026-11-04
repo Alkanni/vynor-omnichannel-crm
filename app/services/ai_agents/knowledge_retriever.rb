@@ -13,9 +13,14 @@ class AiAgents::KnowledgeRetriever
   CONTEXT_TURNS = 2
   MAX_CONTEXT_CHARACTERS = 1_000
 
-  # Fusion settings, chosen with evals/ai-agent: k evens out how much a top rank counts against a lower one, keywords
-  # count half as much as embeddings because they match on any shared word, however common, and the query with earlier
-  # turns counts most because a follow-up is hardly searchable on its own.
+  # Each list takes this many chunks, or the Context Limit when it is higher, and only the top context_limit chunks of the
+  # fused ranking reach the model, so a lower limit sends less without changing the ranking. Smaller lists ranked some
+  # answers lower in evals/ai-agent (#103).
+  CANDIDATES = 40
+
+  # Fusion settings, chosen with evals/ai-agent on lists of CANDIDATES: k evens out how much a top rank counts against a
+  # lower one, keywords count half as much as embeddings because they match on any shared word, however common, and the
+  # query with earlier turns counts most because a follow-up is hardly searchable on its own.
   RRF_K = 20
   KEYWORD_WEIGHT = 0.5
   QUERY_WEIGHTS = [1.0, 4.0].freeze
@@ -77,12 +82,16 @@ class AiAgents::KnowledgeRetriever
   end
 
   def nearest_chunks(chunks, vector)
-    nearest = chunks.nearest_neighbors(:embedding, vector, distance: 'cosine').limit(ai_agent.context_limit)
+    nearest = chunks.nearest_neighbors(:embedding, vector, distance: 'cosine').limit(candidates)
     max_distance = AiAgents::LlmClient.embedding_max_distance
     max_distance ? nearest.select { |chunk| chunk.neighbor_distance <= max_distance } : nearest
   end
 
   def keyword_matches(chunks, query)
-    chunks.keyword_ranked(query).limit(ai_agent.context_limit).select { |chunk| chunk.keyword_rank.positive? }
+    chunks.keyword_ranked(query).limit(candidates).select { |chunk| chunk.keyword_rank.positive? }
+  end
+
+  def candidates
+    [CANDIDATES, ai_agent.context_limit].max
   end
 end

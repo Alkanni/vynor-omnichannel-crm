@@ -161,7 +161,7 @@
         },
         "CONTEXT_LIMIT": {
           "TITLE": "AI Context Limit",
-          "DESCRIPTION": "AI depth level for reading knowledge sources. Increase this if you have more knowledge entries."
+          "DESCRIPTION": "The number of knowledge entries sent to the AI with each reply. Increase this if replies to questions about several things at once leave some of them out."
         },
         "TEMPERATURE": {
           "TITLE": "AI Temperature",

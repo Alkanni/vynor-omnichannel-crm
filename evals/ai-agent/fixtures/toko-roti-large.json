@@ -8,7 +8,7 @@
     "temperature": "precise",
     "timezone": "Asia/Jakarta",
     "history_limit": 30,
-    "context_limit": 40
+    "context_limit": 8
   },
   "knowledge": [
     {

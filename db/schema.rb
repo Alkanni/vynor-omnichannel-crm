@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_03_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_04_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -297,7 +297,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_150000) do
     t.string "timezone", default: "Asia/Jakarta", null: false
     t.integer "history_limit", default: 30, null: false
     t.integer "read_file_limit", default: 3, null: false
-    t.integer "context_limit", default: 40, null: false
+    t.integer "context_limit", default: 8, null: false
     t.integer "message_await", default: 10, null: false
     t.integer "message_limit", default: 10, null: false
     t.datetime "created_at", null: false
