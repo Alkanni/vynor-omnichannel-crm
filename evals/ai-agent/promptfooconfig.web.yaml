@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Web search routing eval (issue #106): whether each message would be answered without the web, searched on the web,
+# or refused, against the strict `bengkel` agent of fixtures/bengkel-mobil.json. A case passes when the scope check's
+# decision is one of the case's `scope` labels; the `route` labels are the contract for EXA-03 (see
+# docs/ai-agent-web-search-decisions.md). Needs no judge model. Run from this directory; see README.md.
+description: AI Agent web search routing
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://provider.mjs
+    label: bengkel
+    config:
+      agent: bengkel
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 2
+
+defaultTest:
+  assert:
+    - type: javascript
+      metric: route
+      value: context.test.metadata.scope.includes(context.metadata.scopeDecision)
+
+tests:
+  - file://tests/w-web.yaml
