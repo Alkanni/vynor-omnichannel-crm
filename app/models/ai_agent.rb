@@ -8,7 +8,7 @@
 #  behavior                   :text
 #  business_description       :text
 #  clarification_message      :text
-#  context_limit              :integer          default(40), not null
+#  context_limit              :integer          default(8), not null
 #  disallowed_topics          :text
 #  history_limit              :integer          default(30), not null
 #  ignore_team_handoff        :boolean          default(FALSE), not null
