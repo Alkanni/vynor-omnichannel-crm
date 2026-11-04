@@ -438,7 +438,24 @@
         "LIMIT": "Up to {count} chunks are sent with a reply (Context Limit).",
         "NO_RESULTS": "No knowledge was found. The AI agent would answer this question without knowledge.",
         "RANK": "#{rank}",
-        "SCORE": "Score {score}"
+        "SCORE": "Score {score}",
+        "WEB_QUERY_LABEL": "Web search query (optional)",
+        "WEB_QUERY_PLACEHOLDER": "For example: causes of an overheating car engine",
+        "WEB_QUERY_HELP": "Searched on the internet with Exa exactly as written. Name only the subject, without names, phone numbers, or other personal data. Each search counts against the monthly web search budget, except the same search again within 6 hours.",
+        "WEB": {
+          "TITLE": "Web results",
+          "NO_RESULTS": "Exa found nothing for this query.",
+          "STATUS": {
+            "SEARCHED": "Searched with Exa in {latency} ms for {cost}.",
+            "CACHED": "Taken from the same search in the last 6 hours, at no cost.",
+            "SKIPPED_BUDGET": "Not searched: the monthly web search budget is used up, or Exa ran out of credits this month (UTC).",
+            "FAILED_TIMEOUT": "Exa did not answer in time. A reply would go on with the knowledge only.",
+            "FAILED_RATE_LIMIT": "Exa refused the search because too many were made. Try again later.",
+            "FAILED_CREDITS": "Exa has no credits left, so the web is not searched until next month (UTC).",
+            "FAILED_PROVIDER": "Exa could not be reached or had an error. Try again later.",
+            "FAILED_REQUEST": "Exa rejected the request. Ask the installation administrator to check the Exa API key in Super Admin."
+          }
+        }
       }
     },
     "INTEGRATIONS": {

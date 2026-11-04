@@ -20,6 +20,11 @@ const props = defineProps({
 
 // Same limit as AiAgents::KnowledgeRetriever::MAX_QUERY_CHARACTERS.
 const MAX_QUERY_LENGTH = 4000;
+// Same limit as AiAgents::WebSearch::MAX_QUERY_CHARACTERS.
+const MAX_WEB_QUERY_LENGTH = 200;
+// Exa charges in US dollars.
+const WEB_SEARCH_CURRENCY = 'USD';
+const WEB_URL_PATTERN = /^https?:\/\//i;
 const MAX_CONVERSATION_LENGTH = 10000;
 const AGENT_REPLY_PREFIX = 'AI:';
 
@@ -28,10 +33,12 @@ const { run, abort, isPending } = useAbortableRequest();
 
 const dialogRef = ref(null);
 const query = ref('');
+const webQuery = ref('');
 const conversation = ref('');
 const result = ref(null);
 
 const trimmedQuery = computed(() => query.value.trim());
+const trimmedWebQuery = computed(() => webQuery.value.trim());
 const history = computed(() =>
   conversation.value
     .split('\n')
@@ -62,10 +69,59 @@ const modeDescription = computed(() =>
     : t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.MODE_KEYWORD')
 );
 
+const webStatusDescription = computed(() => {
+  const { status, latency_ms: latency, cost_usd: cost } = result.value.web;
+  const descriptions = {
+    searched: t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.SEARCHED', {
+      latency,
+      cost: new Intl.NumberFormat(locale.value, {
+        style: 'currency',
+        currency: WEB_SEARCH_CURRENCY,
+        maximumFractionDigits: 4,
+      }).format(cost),
+    }),
+    cached: t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.CACHED'),
+    skipped_budget: t(
+      'AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.SKIPPED_BUDGET'
+    ),
+    failed_timeout: t(
+      'AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.FAILED_TIMEOUT'
+    ),
+    failed_rate_limit: t(
+      'AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.FAILED_RATE_LIMIT'
+    ),
+    failed_credits: t(
+      'AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.FAILED_CREDITS'
+    ),
+    failed_provider: t(
+      'AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.FAILED_PROVIDER'
+    ),
+    failed_request: t(
+      'AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.STATUS.FAILED_REQUEST'
+    ),
+  };
+  return descriptions[status];
+});
+const webSearchFoundNothing = computed(
+  () =>
+    ['searched', 'cached'].includes(result.value.web.status) &&
+    !result.value.web.results.length
+);
+
 const formatScore = score =>
   new Intl.NumberFormat(locale.value, { maximumFractionDigits: 4 }).format(
     score
   );
+
+// Exa gives the date without a time, so it is shown as is in any time zone.
+const formatPublishedDate = date =>
+  new Intl.DateTimeFormat(locale.value, {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(new Date(date));
+
+// The URLs come from pages on the internet, so only web addresses become links.
+const webUrlLink = url => (WEB_URL_PATTERN.test(url) ? url : undefined);
 
 const runTest = async () => {
   if (!trimmedQuery.value) return;
@@ -73,8 +129,11 @@ const runTest = async () => {
     const data = await run(async signal => {
       const response = await AiAgentKnowledgeAPI.testRetrieval(
         props.agentId,
-        trimmedQuery.value,
-        history.value,
+        {
+          query: trimmedQuery.value,
+          history: history.value,
+          webQuery: trimmedWebQuery.value || undefined,
+        },
         { signal }
       );
       return response.data;
@@ -133,6 +192,19 @@ defineExpose({ open });
           :is-loading="isPending"
         />
       </div>
+    </div>
+    <div class="flex flex-col gap-1">
+      <Input
+        v-model="webQuery"
+        :label="t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB_QUERY_LABEL')"
+        :placeholder="
+          t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB_QUERY_PLACEHOLDER')
+        "
+        :maxlength="MAX_WEB_QUERY_LENGTH"
+      />
+      <p class="text-label-small text-n-slate-11">
+        {{ t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB_QUERY_HELP') }}
+      </p>
     </div>
 
     <div v-if="result" class="flex flex-col gap-3">
@@ -200,6 +272,68 @@ defineExpose({ open });
             class="whitespace-pre-wrap break-words text-body-main text-n-slate-11"
           >
             {{ chunk.content }}
+          </p>
+        </li>
+      </ol>
+    </div>
+
+    <div v-if="result?.web" class="flex flex-col gap-3">
+      <div class="flex flex-col gap-1">
+        <h3 class="text-heading-3 text-n-slate-12">
+          {{ t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.TITLE') }}
+        </h3>
+        <p class="text-body-main text-n-slate-11">
+          {{ webStatusDescription }}
+        </p>
+      </div>
+      <p
+        v-if="webSearchFoundNothing"
+        class="px-6 py-8 text-center rounded-xl text-body-main text-n-slate-11 outline outline-1 -outline-offset-1 outline-n-weak"
+      >
+        {{ t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.WEB.NO_RESULTS') }}
+      </p>
+      <ol v-else-if="result.web.results.length" class="flex flex-col gap-3">
+        <li
+          v-for="item in result.web.results"
+          :key="item.rank"
+          class="flex flex-col gap-2 p-3 rounded-lg outline outline-1 -outline-offset-1 outline-n-weak"
+        >
+          <div class="flex items-center min-w-0 gap-2">
+            <span
+              class="px-2 py-0.5 rounded-md shrink-0 tabular-nums text-label-small bg-n-alpha-2 text-n-slate-12"
+            >
+              {{
+                t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.RANK', {
+                  rank: item.rank,
+                })
+              }}
+            </span>
+            <span
+              class="flex-1 min-w-0 truncate text-heading-3 text-n-slate-12"
+            >
+              {{ item.title }}
+            </span>
+            <span
+              v-if="item.published_at"
+              class="shrink-0 tabular-nums text-label-small text-n-slate-11"
+            >
+              {{ formatPublishedDate(item.published_at) }}
+            </span>
+          </div>
+          <a
+            :href="webUrlLink(item.url)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="break-all text-body-main text-n-slate-11 hover:underline"
+          >
+            {{ item.url }}
+          </a>
+          <p
+            v-for="(highlight, index) in item.highlights"
+            :key="index"
+            class="whitespace-pre-wrap break-words text-body-main text-n-slate-11"
+          >
+            {{ highlight }}
           </p>
         </li>
       </ol>

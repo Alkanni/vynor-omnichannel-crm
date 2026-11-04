@@ -16,6 +16,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   before_action :fetch_ai_agent, except: [:index, :create, :models]
   before_action :check_authorization
   before_action :validate_inbox_ids, only: [:create, :update]
+  before_action :validate_web_query, only: :retrieval_test
 
   def index
     @ai_agents = Current.account.ai_agents.includes(:inboxes).order(created_at: :desc)
@@ -59,17 +60,17 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   end
 
   # Searches the knowledge for a customer question exactly as a reply would (see AiAgents::KnowledgeRetriever), after the
-  # optional history of earlier messages, in the format of the playground.
+  # optional history of earlier messages, in the format of the playground. An optional web query is also searched on the
+  # web (see AiAgents::WebSearch), so admins can judge the results before customers see any.
   def retrieval_test
     query = params[:query]
     history = conversation_messages(params.fetch(:history, []))
-    unless query.is_a?(String) && query.strip.present? && query.length <= AiAgents::KnowledgeRetriever::MAX_QUERY_CHARACTERS
-      return render_could_not_create_error('Invalid query')
-    end
+    return render_could_not_create_error('Invalid query') unless query_text?(query, AiAgents::KnowledgeRetriever::MAX_QUERY_CHARACTERS)
     return render_could_not_create_error('Invalid history') if history.nil?
 
     messages = [*history, { role: :user, content: query }].last(@ai_agent.history_limit)
     @retrieval = AiAgents::KnowledgeRetriever.new(ai_agent: @ai_agent, messages: messages).perform
+    @web_search = AiAgents::WebSearch.new(query: params[:web_query].strip).perform if params[:web_query]
   rescue AiAgents::LlmError => e
     render_could_not_create_error(e.message)
   end
@@ -94,11 +95,23 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     render_could_not_create_error(I18n.t('ai_agents.inboxes.errors.invalid'))
   end
 
+  def validate_web_query
+    web_query = params[:web_query]
+    return if web_query.nil?
+    return render_could_not_create_error('Invalid web query') unless query_text?(web_query, AiAgents::WebSearch::MAX_QUERY_CHARACTERS)
+
+    render_could_not_create_error(I18n.t('ai_agents.web_search.errors.not_configured')) unless AiAgents::WebSearch.configured?
+  end
+
   # Returns nil unless every message is a non-empty user or assistant text within the playground limits.
   def conversation_messages(messages)
     return unless messages.is_a?(Array) && messages.size <= MAX_PLAYGROUND_MESSAGES && messages.all? { |message| conversation_message?(message) }
 
     messages.map { |message| { role: message[:role].to_sym, content: message[:content] } }
+  end
+
+  def query_text?(value, max_length)
+    value.is_a?(String) && value.strip.present? && value.length <= max_length
   end
 
   def conversation_message?(message)

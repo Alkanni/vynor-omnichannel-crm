@@ -221,6 +221,16 @@
   description: 'API key for the AI Agent Embedding Endpoint. Default: the OpenAI API Key above.'
   locked: false
   type: secret
+- name: AI_AGENT_EXA_API_KEY
+  display_title: 'AI Agent Exa API Key (optional)'
+  description: 'API key from exa.ai for AI Agent web search. Only the search query written by the AI Agent is sent to Exa, never the customer messages. Leave blank to turn web search off for every AI Agent.'
+  locked: false
+  type: secret
+- name: AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET
+  display_title: 'AI Agent Web Search Monthly Budget (USD)'
+  value: 8
+  description: 'AI Agents stop searching the web for the rest of the month (UTC) once Exa has charged this much, and answer from their knowledge only. 0 stops web search. Leave blank for the default of 8.'
+  locked: false
 - name: CAPTAIN_FIRECRAWL_API_KEY
   display_title: 'FireCrawl API Key (optional)'
   description: 'The FireCrawl API key for the Captain AI service'

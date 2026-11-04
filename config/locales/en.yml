@@ -491,6 +491,9 @@ en:
         unreadable_file: 'The file could not be read. It may be damaged or password protected'
         no_text: 'No text was found. If this is a scanned PDF, upload a version where you can highlight the text'
         processing_failed: 'Processing failed. Try syncing again'
+    web_search:
+      errors:
+        not_configured: 'Web search is not configured. Ask the installation administrator to add the Exa API key in Super Admin'
   captain:
     copilot_message_required: Message is required
     copilot_error: 'Please connect an assistant to this inbox to use Copilot'

@@ -56,6 +56,12 @@ module Redis::RedisKeys
   AI_AGENT_TRAINING_SCHEDULED = 'AI_AGENT::%<id>d::TRAINING_SCHEDULED'.freeze
   # Held while a knowledge indexing job runs, so two jobs never embed the same knowledge
   AI_AGENT_TRAINING_LOCK = 'AI_AGENT::%<id>d::TRAINING_LOCK'.freeze
+  # Micro-dollars that Exa charged for web searches in a UTC month (YYYY-MM)
+  AI_AGENT_WEB_SEARCH_SPEND = 'ai_agents:web_search:spend:%<month>s'.freeze
+  # Present after Exa answered 402 (credits gone) in a UTC month, so no web search is made until the next month
+  AI_AGENT_WEB_SEARCH_CREDITS_GONE = 'ai_agents:web_search:credits_gone:%<month>s'.freeze
+  # Exa results for a request, by the SHA-256 of its body
+  AI_AGENT_WEB_SEARCH_CACHE = 'ai_agents:web_search:cache:%<digest>s'.freeze
 
   ## User Keys
   # SSO Auth Tokens

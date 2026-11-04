@@ -33,4 +33,21 @@ RSpec.describe InstallationConfig do
       end
     end
   end
+
+  describe 'AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET' do
+    it 'accepts a blank value or an amount of 0 or more' do
+      ['', '0', '8', '2.5', 8].each do |value|
+        expect(described_class.new(name: 'AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET', value: value)).to be_valid
+      end
+    end
+
+    it 'rejects anything else' do
+      ['-1', 'abc', '$8'].each do |value|
+        config = described_class.new(name: 'AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET', value: value)
+
+        expect(config).not_to be_valid
+        expect(config.errors[:base]).to eq(['AI Agent Web Search Monthly Budget must be a number of US dollars, 0 or more'])
+      end
+    end
+  end
 end
