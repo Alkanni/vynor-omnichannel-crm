@@ -41,15 +41,19 @@ class AiAgents::ScopeGuard
   }.freeze
   # Added after INSTRUCTIONS for an agent with web search only, so the check of every other agent stays as it was.
   WEB_INSTRUCTIONS = <<~TEXT.freeze
-    Web search: the agent can also search the internet for general information within the allowed topics.
-    - Asking for the phone number, address, or other personal data of a person or another business is OUT_OF_SCOPE, also as
-      a search request. The business's own contacts stay IN_SCOPE.
-    - "web_query": when an IN_SCOPE turn asks for general information, such as how something works, symptoms and causes,
-      maintenance, product types and specifications in general, news, recalls, or regulations, write a short search query in
-      the customer's language for that part only. Name its subject, from the earlier messages for a follow-up, and add the
-      business's country for news, recalls, and regulations. Never include people's names, phone numbers, plates, addresses,
-      e-mail addresses, identity or frame numbers, or the name of this business.
-    - Otherwise "web_query" is "": for the business's own facts (prices, stock, products, hours, contacts, orders, policies),
+    Web search: the agent can also search the internet for general information within the allowed topics. That does not
+    widen them, and these two rules come before the decisions above:
+    - A disallowed topic stays OUT_OF_SCOPE.
+    - Asking for the phone number, address, or other contact or personal data of a person, or of any business or service
+      other than this one, is OUT_OF_SCOPE, even as a search request or when the customer needs it.
+
+    "web_query" is a short search query in the customer's language, for an IN_SCOPE turn that asks for general information
+    (how something works, symptoms and causes, maintenance, product types and specifications, news, recalls, regulations):
+    - It covers that part only. It goes to an outside search service, so never copy people's names, phone numbers, plates,
+      addresses, e-mail addresses, identity or frame (VIN) numbers, or the name of this business into it: a car is only
+      its make and model. Name the subject of a follow-up from the earlier messages, and add the business's country for
+      news, recalls, and regulations.
+    - Otherwise it is "": for the business's own facts (prices, stock, products, hours, contacts, orders, policies),
       complaints, greetings, and every decision other than IN_SCOPE.
   TEXT
   WEB_SCHEMA = SCHEMA.deep_merge(schema: { properties: { web_query: { type: 'string' } }, required: %w[decision web_query] }).freeze
