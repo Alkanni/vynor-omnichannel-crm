@@ -188,7 +188,7 @@ Content-Type: application/json
 ## Token budget and answer length
 
 - **Web block:** at most 3 entries × 800 characters of highlights, plus titles and URLs. That is at most about 2,700 characters, roughly 900 tokens (**assumption**; measured in EXA-04).
-- **Scope check:** for web-enabled agents, about 150 more instruction tokens and about 20 output tokens. Nothing changes for other agents.
+- **Scope check:** for web-enabled agents, about 150 more instruction tokens and about 20 output tokens. Nothing changes for other agents. Measured in EXA-03 (#109) on `w-web.yaml`: 297 more input tokens on every call, and 10 to 11 more output tokens on average (at most 29).
 - **Reply:** the web instructions (about 120 tokens) are sent only on turns with web results. Turns without a web query cost what they cost today.
 - **Answer length:** the instructions ask for at most three short sentences of web information plus at most two links. The output token target is set in EXA-05 from the eval (proposed p90 ≤ 250 output tokens for web replies).
 
