@@ -38,6 +38,7 @@ class InstallationConfig < ApplicationRecord
   validates :name, presence: true
   validate :saml_sso_users_check, if: -> { name == 'ENABLE_SAML_SSO_LOGIN' }
   validate :ai_agent_max_distance_check, if: -> { name == 'AI_AGENT_EMBEDDING_MAX_DISTANCE' }
+  validate :ai_agent_web_search_budget_check, if: -> { name == 'AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET' }
 
   # TODO: Get rid of default scope
   # https://stackoverflow.com/a/1834250/939299
@@ -81,5 +82,15 @@ class InstallationConfig < ApplicationRecord
     return if distance&.positive? && distance <= 2
 
     errors.add(:base, 'AI Agent Max Embedding Distance must be a number greater than 0 and at most 2')
+  end
+
+  # Blank means the default budget (see AiAgents::WebSearch.monthly_budget).
+  def ai_agent_web_search_budget_check
+    return if value.blank?
+
+    budget = Float(value, exception: false)
+    return if budget && budget >= 0
+
+    errors.add(:base, 'AI Agent Web Search Monthly Budget must be a number of US dollars, 0 or more')
   end
 end

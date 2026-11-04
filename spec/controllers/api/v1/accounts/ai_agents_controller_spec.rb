@@ -441,6 +441,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(body['chunks'].map { |chunk| [chunk['rank'], chunk['content'], chunk['source']] })
         .to eq([[1, 'Jam buka toko: Senin sampai Sabtu', text_source], [2, 'Alamat toko: Jalan Merdeka 10', text_source]])
       expect(body['chunks'].pluck('score')).to all(be > 0)
+      expect(body).not_to have_key('web')
 
       AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Toko buka jam berapa?' }]).perform
       prompt = chat_requests.sole['messages'].first['content']
@@ -499,6 +500,42 @@ RSpec.describe 'AI Agents API', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
       end
+    end
+
+    it 'also searches the web for an optional web query' do
+      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-key')
+      exa_request = stub_request(:post, 'https://api.exa.ai/search').with(body: hash_including(query: 'jam buka bengkel umum')).to_return(
+        status: 200, headers: { 'Content-Type' => 'application/json' },
+        body: { results: [{ title: 'Jam buka', url: 'https://example.com/jam', publishedDate: '2026-10-01', highlights: ['Buka pukul 08.00.'] }],
+                costDollars: { total: 0.004 } }.to_json
+      )
+
+      post url, params: { query: 'Jam buka?', web_query: ' jam buka bengkel umum ' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(exa_request).to have_been_made.once
+      expect(response.parsed_body['chunks']).to be_present
+      expect(response.parsed_body['web']).to include('status' => 'searched', 'cost_usd' => 0.004, 'latency_ms' => be >= 0)
+      expect(response.parsed_body['web']['results']).to eq(
+        [{ 'rank' => 1, 'title' => 'Jam buka', 'url' => 'https://example.com/jam', 'published_at' => '2026-10-01',
+           'highlights' => ['Buka pukul 08.00.'] }]
+      )
+    end
+
+    it 'rejects a blank, non-text, or too long web query' do
+      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-key')
+      ['', '   ', ['jam buka'], 5, 'a' * 201].each do |web_query|
+        post url, params: { query: 'Jam buka?', web_query: web_query }, headers: admin.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
+    end
+
+    it 'explains when web search is not configured' do
+      post url, params: { query: 'Jam buka?', web_query: 'jam buka bengkel' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to include('Web search is not configured')
     end
 
     it 'explains when the embedding API key is not configured' do
