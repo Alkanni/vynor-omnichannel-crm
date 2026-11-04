@@ -48,13 +48,14 @@ class AiAgents::ScopeGuard
       other than this one, is OUT_OF_SCOPE, even as a search request or when the customer needs it.
 
     "web_query" is a short search query in the customer's language, for an IN_SCOPE turn that asks for general information
-    (how something works, symptoms and causes, maintenance, product types and specifications, news, recalls, regulations):
-    - It covers that part only. It goes to an outside search service, so never copy people's names, phone numbers, plates,
-      addresses, e-mail addresses, identity or frame (VIN) numbers, or the name of this business into it: a car is only
-      its make and model. Name the subject of a follow-up from the earlier messages, and add the business's country for
-      news, recalls, and regulations.
-    - Otherwise it is "": for the business's own facts (prices, stock, products, hours, contacts, orders, policies),
-      complaints, greetings, and every decision other than IN_SCOPE.
+    (how something works, symptoms and causes, maintenance, product types and specifications, news, recalls, regulations),
+    also when the same turn asks about this business too:
+    - It covers only the general part. It goes to an outside search service, so never copy people's names, phone numbers,
+      plates, addresses, e-mail addresses, identity or frame (VIN) numbers, or the name of this business into it: a car is
+      only its make and model. Name the subject of a follow-up from the earlier messages, and add the business's country
+      for news, recalls, and regulations.
+    - It is "" for a turn without such a part: one that asks only for the business's own facts (prices, stock, products,
+      hours, contacts, orders, policies), complaints, greetings, and every decision other than IN_SCOPE.
   TEXT
   WEB_SCHEMA = SCHEMA.deep_merge(schema: { properties: { web_query: { type: 'string' } }, required: %w[decision web_query] }).freeze
   # The backstop to the rule against personal data in WEB_INSTRUCTIONS: a query that matches any of these is never searched,
