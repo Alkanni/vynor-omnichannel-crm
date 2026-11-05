@@ -156,10 +156,11 @@ RSpec.describe AiAgents::ReplyValidator do
       expect(result.blocked_reason).to eq('unknown_source')
     end
 
-    it 'blocks an answer that cites a web result without its link' do
+    it 'leaves the links of the web results it cites to the reply generator' do
       content['sources'] = [3, 4]
+      replies.replace(['Aki biasanya soak setelah 2 tahun dan menyimpan energi listrik.'])
 
-      expect(result.blocked_reason).to eq('missing_citation')
+      expect(result.blocked_reason).to be_nil
     end
 
     it 'blocks a link that is not one of the web results, the knowledge, or the conversation, also one that extends a known link' do
@@ -225,6 +226,13 @@ RSpec.describe AiAgents::ReplyValidator do
     it 'reads a range of years as two numbers of the web result, not as a long number' do
       web_results[0] = web_results[0].with(highlights: ['Recall Xpander | 139,111 unit | produksi 2017 - 2019. Aki soak setelah 2 tahun.'])
       replies.replace(['Recall untuk Xpander produksi 2017-2019, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'passes the published date of a web result it cites' do
+      web_results[0] = web_results[0].with(published_at: Date.new(2022, 5, 10))
+      replies.replace(['Artikel 10 Mei 2022 menyebut aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
 
       expect(result.blocked_reason).to be_nil
     end

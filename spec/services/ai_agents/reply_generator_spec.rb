@@ -307,7 +307,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     end
 
     it 'searches the query of the scope check and gives the results to the reply model after the knowledge, ranked after it' do
-      expect(system_prompt).to include(described_class::WEB_INSTRUCTIONS)
+      expect(system_prompt).to include(AiAgents::ReplyValidator::WEB_INSTRUCTIONS)
       expect(system_prompt[%r{<web_results>\n(.*)\n</web_results>}m, 1]).to eq(<<~TEXT.chomp)
         [2] Mesin overheat
         URL: https://otomotif.example/overheat
@@ -335,28 +335,37 @@ RSpec.describe AiAgents::ReplyGenerator do
       end
     end
 
-    context 'when the reply cites a web result with its link' do
+    context 'when the reply cites web results' do
       let(:reply_content) do
-        { decision: 'answer', sources: [2],
-          messages: ['Dari internet: radiator tersumbat membuat mesin panas (https://otomotif.example/overheat).'] }.to_json
+        { decision: 'answer', sources: [1, 2, 3],
+          messages: ['Kami buka 07.30 - 18.00.', 'Dari internet: radiator tersumbat membuat mesin panas.'] }.to_json
       end
 
-      it 'sends it, and traces the search with the rank and URL of each result, without the query or the page content' do
-        expect(reply.messages).to eq(['Dari internet: radiator tersumbat membuat mesin panas (https://otomotif.example/overheat).'])
+      it 'sends it with their links under its last bubble, and traces the search without the query or the page content' do
+        expect(reply.messages).to eq(['Kami buka 07.30 - 18.00.',
+                                      "Dari internet: radiator tersumbat membuat mesin panas.\nhttps://otomotif.example/overheat\nhttps://bengkel.example/radiator"])
         expect(reply.trace.attributes).to include(
-          web_search_status: 'searched', web_latency_ms: be >= 0, web_cost_usd: 0.004, cited_ranks: [2], blocked_reason: nil,
+          web_search_status: 'searched', web_latency_ms: be >= 0, web_cost_usd: 0.004, cited_ranks: [1, 2, 3], blocked_reason: nil,
           web_results: [{ rank: 2, url: 'https://otomotif.example/overheat' }, { rank: 3, url: 'https://bengkel.example/radiator' }]
         )
         expect(reply.trace.attributes.values.flatten.join).not_to include('penyebab mesin mobil overheat', 'Radiator tersumbat')
       end
     end
 
-    context 'when the reply cites a web result without its link' do
-      let(:reply_content) { { decision: 'answer', sources: [2], messages: ['Radiator tersumbat membuat mesin panas.'] }.to_json }
+    context 'when the reply already has the link of a web result it cites' do
+      let(:reply_content) do
+        { decision: 'answer', sources: [2],
+          messages: ['Dari internet: radiator tersumbat membuat mesin panas (https://otomotif.example/overheat).'] }.to_json
+      end
 
-      it 'sends the knowledge gap message instead' do
-        expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
-        expect(reply.trace.attributes).to include(blocked_reason: 'missing_citation')
+      it 'does not add it again' do
+        expect(reply.messages).to eq(['Dari internet: radiator tersumbat membuat mesin panas (https://otomotif.example/overheat).'])
+      end
+    end
+
+    context 'when the reply cites no web result' do
+      it 'adds no link' do
+        expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
       end
     end
 
