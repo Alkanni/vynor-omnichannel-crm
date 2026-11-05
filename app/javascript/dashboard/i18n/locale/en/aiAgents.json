@@ -111,8 +111,8 @@
           "PLACEHOLDER": "e.g. Sorry, we don't have that information yet. Is there anything else we can help with?"
         },
         "WEB_SEARCH": {
-          "TITLE": "Web Search (preview)",
-          "DESCRIPTION": "The scope check also decides whether a message asks for general information within the allowed topics, such as symptoms, maintenance, or recalls, and writes a search query without personal data. For now this is only recorded, and nothing is searched. Needs the Exa API key in Super Admin."
+          "TITLE": "Web Search",
+          "DESCRIPTION": "When a message asks for general information within the allowed topics, such as symptoms, maintenance, or recalls, the AI searches the web with a query it writes without personal data, and adds the links of the results it uses to its reply. Business facts still come only from the knowledge, and contact requests are never searched. Needs the Exa API key in Super Admin."
         },
         "WEB_SEARCH_DOMAINS": {
           "TITLE": "Web Search Domains",

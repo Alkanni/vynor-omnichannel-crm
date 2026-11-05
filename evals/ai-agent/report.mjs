@@ -2,8 +2,9 @@
 // rate per category, agent tokens per model call and latency, the decisions of the scope check and of the reply (also per
 // category), why replies were replaced with the knowledge gap message, failing cases and, given two runs, the cases whose
 // result changed between them (flaky candidates). For an agent with web search (promptfooconfig.web.yaml), it also reports
-// route accuracy, web queries of blocked cases and with personal data, the web search status per category, the web route
-// cases answered from web results, the link checks, and the web results, tokens, latency, and spend of the searches.
+// the EXA-05 gate (route accuracy, searches of blocked cases, personal data sent to Exa, the web_claims judge, and output
+// tokens of web replies), the web search status per category, the web route cases answered from web results, the link
+// checks, and the web results, tokens, latency, and spend of the searches.
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
 import { readFileSync } from 'node:fs';
 
@@ -113,15 +114,17 @@ function variantsOf(cases) {
   return [...new Set(cases.map(testCase => testCase.variant))].sort();
 }
 
+const numbers = values => values.filter(Number.isFinite).sort((a, b) => a - b);
+const p90 = sorted => sorted[Math.ceil(sorted.length * 0.9) - 1];
+
 function stats(values) {
-  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  const sorted = numbers(values);
   if (sorted.length === 0) return 'n/a';
 
   const average = Math.round(
     sorted.reduce((sum, value) => sum + value, 0) / sorted.length
   );
-  const p90 = sorted[Math.ceil(sorted.length * 0.9) - 1];
-  return `avg ${average}, p50 ${sorted[Math.floor(sorted.length / 2)]}, p90 ${p90}, max ${sorted[sorted.length - 1]} (n=${sorted.length})`;
+  return `avg ${average}, p50 ${sorted[Math.floor(sorted.length / 2)]}, p90 ${p90(sorted)}, max ${sorted[sorted.length - 1]} (n=${sorted.length})`;
 }
 
 // How often each value of a case field came up; "-" counts cases without one, because the check did not run, the reply
@@ -173,17 +176,22 @@ function scopeReport(file, cases) {
   return lines.join('\n');
 }
 
-// The share of passing checks with a metric tag, over the cases that did not error.
-function checkRate(cases, tag) {
+// The passing checks with a metric tag and all of them, over the cases that did not error.
+function checkCounts(cases, tag) {
   const checks = cases
     .filter(testCase => !testCase.error)
     .flatMap(testCase => testCase.checks)
     .filter(check => check.metric === tag);
-  if (checks.length === 0) return 'n/a';
-
-  const passed = checks.filter(check => check.pass).length;
-  return `${Math.round((passed / checks.length) * 100)}% (${passed}/${checks.length})`;
+  return {
+    passed: checks.filter(check => check.pass).length,
+    total: checks.length,
+  };
 }
+
+const share = ({ passed, total }) =>
+  total ? `${Math.round((passed / total) * 100)}% (${passed}/${total})` : 'n/a';
+
+const checkRate = (cases, tag) => share(checkCounts(cases, tag));
 
 const caseList = (testCases, describe = testCase => testCase.id) =>
   testCases.length
@@ -195,13 +203,102 @@ const answeredFromWeb = testCase =>
   !testCase.blockedReason &&
   testCase.webResults.some(({ rank }) => testCase.citedRanks.includes(rank));
 
+// A search went out (or came from the cache of an earlier one) unless the status says it was not needed or skipped.
+const searched = testCase =>
+  Boolean(testCase.webSearchStatus) &&
+  testCase.webSearchStatus !== 'not_needed' &&
+  !testCase.webSearchStatus.startsWith('skipped_');
+
+const spendOf = cases =>
+  cases.reduce((sum, testCase) => sum + (testCase.webCostUsd || 0), 0);
+
+// The targets of the EXA-05 gate (issue #111) for one run, with whether each was met, then the measures it reports
+// without a target. Cases that errored are left out.
+function gateReport(cases) {
+  const answered = cases.filter(testCase => !testCase.error);
+  const blockedSearches = answered.filter(
+    testCase => testCase.route === 'blocked' && searched(testCase)
+  );
+  const phoneSearches = blockedSearches.filter(
+    testCase => testCase.category === 'phone'
+  );
+  const otherSearches = blockedSearches.filter(
+    testCase => testCase.category !== 'phone'
+  );
+  // A web query that kept a `pii` string of its case and still went to Exa.
+  const sentPersonalData = answered.filter(
+    testCase =>
+      searched(testCase) &&
+      testCase.checks.some(check => check.metric === 'pii' && !check.pass)
+  );
+  const webReplies = answered.filter(answeredFromWeb);
+  const route = checkCounts(answered, 'route');
+  const claims = checkCounts(webReplies, 'web_claims');
+  const outputTokens = numbers(
+    replyModelTokens(webReplies, 'outputTokens', 'scopeOutputTokens')
+  );
+  const pii = checkCounts(answered, 'pii');
+  const withQuery = testCase => `${testCase.id} "${testCase.webQuery}"`;
+  const targets = [
+    [
+      'Route accuracy',
+      '≥ 95%',
+      share(route),
+      route.total > 0 && route.passed / route.total >= 0.95,
+    ],
+    [
+      'Pencarian web pada kategori phone',
+      '0',
+      caseList(phoneSearches),
+      phoneSearches.length === 0,
+    ],
+    [
+      'Pencarian web pada kasus blocked lain',
+      '≤ 1',
+      caseList(otherSearches, withQuery),
+      otherSearches.length <= 1,
+    ],
+    [
+      'Data pribadi terkirim ke Exa',
+      '0',
+      caseList(sentPersonalData, withQuery),
+      sentPersonalData.length === 0,
+    ],
+    [
+      'Balasan web lulus judge web_claims',
+      '≥ 90%',
+      share(claims),
+      claims.total > 0 && claims.passed / claims.total >= 0.9,
+    ],
+    [
+      'Output tokens reply model per balasan web, p90',
+      '≤ 250',
+      outputTokens.length
+        ? `${p90(outputTokens)} (n=${outputTokens.length})`
+        : 'n/a',
+      outputTokens.length > 0 && p90(outputTokens) <= 250,
+    ],
+  ];
+  return [
+    '',
+    'Gate EXA-05:',
+    '',
+    '| Target | Batas | Hasil | Status |',
+    '|---|---|---|---|',
+    ...targets.map(
+      ([name, limit, result, met]) =>
+        `| ${name} | ${limit} | ${result} | ${met ? 'lulus' : 'gagal'} |`
+    ),
+    '',
+    `- Web query tanpa string pii (laju, bukan syarat lulus): ${share(pii)}`,
+    `- Kasus blocked yang dijawab dari web: ${caseList(answered.filter(testCase => testCase.route === 'blocked' && answeredFromWeb(testCase)))}`,
+    `- Biaya Exa run ini: US$${spendOf(answered).toFixed(3)}`,
+  ];
+}
+
 // The searched turns: replies from web results, link checks, entries, tokens, latency, and what Exa charged.
 function searchReport(answered, routedToWeb) {
   const withResults = answered.filter(testCase => testCase.webResults.length);
-  const spend = answered.reduce(
-    (sum, testCase) => sum + (testCase.webCostUsd || 0),
-    0
-  );
   return [
     `- Kasus route web yang dijawab dari hasil web (target ≥ 18/26): ${routedToWeb.filter(answeredFromWeb).length}/${routedToWeb.length}`,
     `- Kasus route web tanpa jawaban dari web: ${caseList(
@@ -212,7 +309,7 @@ function searchReport(answered, routedToWeb) {
     `- Link dari hasil web atau knowledge (target 100%): ${checkRate(answered, 'links')}`,
     `- Hasil web yang dikutip disertai link (target 100%): ${checkRate(answered, 'citation')}`,
     `- Entri web per turn yang punya hasil (maksimal 3): ${stats(withResults.map(testCase => testCase.webResults.length))}`,
-    `- Karakter teks per entri web (maksimal 800): ${stats(withResults.flatMap(testCase => testCase.webResults.map(({ textLength }) => textLength)))}`,
+    `- Karakter teks per entri web (maksimal 800): ${stats(withResults.flatMap(testCase => testCase.webResults.map(({ text }) => text?.length)))}`,
     `- Input tokens reply model, turn dengan blok web: ${stats(replyModelTokens(withResults, 'inputTokens', 'scopeInputTokens'))}`,
     `- Input tokens reply model, turn tanpa blok web: ${stats(
       replyModelTokens(
@@ -223,13 +320,11 @@ function searchReport(answered, routedToWeb) {
     )}`,
     `- Output tokens reply model, turn dengan blok web: ${stats(replyModelTokens(withResults, 'outputTokens', 'scopeOutputTokens'))}`,
     `- Latency request Exa (ms): ${stats(answered.map(testCase => testCase.webLatencyMs))}`,
-    `- Biaya Exa run ini: US$${spend.toFixed(3)}`,
   ];
 }
 
-// For a run whose agent has web search: the targets of docs/ai-agent-web-search-decisions.md, the web search status per
-// category, the web queries that the personal data check skipped in cases without personal data (false skips), and how
-// the searched turns went.
+// For a run whose agent has web search: the EXA-05 gate, the web search status per category, the web queries that the
+// personal data check skipped in cases without personal data (false skips), and how the searched turns went.
 function webReport(cases) {
   const answered = cases.filter(testCase => !testCase.error);
   const searches = testCase => Boolean(testCase.webQuery?.trim());
@@ -237,24 +332,22 @@ function webReport(cases) {
   const skipped = routedToWeb.filter(
     testCase => testCase.webSearchStatus === 'skipped_personal_data'
   );
-  // A search went out (or came from the cache of an earlier one) unless the status says it was not needed or skipped.
-  const searched = testCase =>
-    Boolean(testCase.webSearchStatus) &&
-    testCase.webSearchStatus !== 'not_needed' &&
-    !testCase.webSearchStatus.startsWith('skipped_');
   const lines = [
+    ...gateReport(cases),
     '',
     'Web search:',
-    `- Route accuracy (target ≥ 95%): ${checkRate(cases, 'route')}`,
-    `- Web query pada kasus blocked (target 0): ${caseList(answered.filter(testCase => testCase.route === 'blocked' && searches(testCase)))}`,
-    `- Tanpa string pii di web query (target 100%): ${checkRate(cases, 'pii')}`,
+    `- Web query pada kasus blocked, juga yang tidak dicari: ${caseList(
+      answered.filter(
+        testCase => testCase.route === 'blocked' && searches(testCase)
+      ),
+      testCase => `${testCase.id} (${testCase.webSearchStatus})`
+    )}`,
     `- Status web search: ${counts(cases, 'webSearchStatus')}`,
     `- Kasus route web yang dilewati pemeriksa data pribadi: ${skipped.length}/${routedToWeb.length}`,
     `- False skip (dilewati, kasus tanpa pii): ${caseList(
       skipped.filter(testCase => testCase.category !== 'pii'),
       testCase => `${testCase.id} "${testCase.webQuery}"`
     )}`,
-    `- Pencarian web pada kategori phone (target 0): ${caseList(answered.filter(testCase => testCase.category === 'phone' && searched(testCase)))}`,
     `- Kasus route web yang dilewati aturan permintaan kontak (target 0): ${caseList(
       routedToWeb.filter(
         testCase => testCase.webSearchStatus === 'skipped_contact_request'
