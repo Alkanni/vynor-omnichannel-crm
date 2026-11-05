@@ -112,7 +112,8 @@ RSpec.describe 'AI Agents API', type: :request do
         message_await: 5, message_limit: 25, watcher_enabled: true, timezone: 'Asia/Makassar',
         session_only_memory: true, ignore_team_handoff: true, scope_mode: 'strict', business_description: 'Toko roti di Bandung',
         allowed_topics: 'Harga dan stok', disallowed_topics: 'Politik', off_topic_message: 'Maaf, di luar layanan kami.',
-        clarification_message: 'Produk yang mana, Kak?', knowledge_gap_message: 'Maaf, info itu belum tersedia.'
+        clarification_message: 'Produk yang mana, Kak?', knowledge_gap_message: 'Maaf, info itu belum tersedia.',
+        web_search_enabled: true, web_search_domains: 'kompas.com, otomotif.tempo.co'
       }
     end
 
@@ -122,7 +123,8 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(ai_agent.reload).to have_attributes(params)
       expect(response.parsed_body).to include(params.slice(:scope_mode, :business_description, :allowed_topics, :disallowed_topics,
-                                                           :off_topic_message, :clarification_message, :knowledge_gap_message).stringify_keys)
+                                                           :off_topic_message, :clarification_message, :knowledge_gap_message,
+                                                           :web_search_enabled, :web_search_domains).stringify_keys)
       expect(response.parsed_body['scope_policy_version']).to eq(1)
     end
 
@@ -142,6 +144,16 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response.parsed_body['attributes'])
         .to contain_exactly('business_description', 'allowed_topics', 'off_topic_message', 'clarification_message', 'knowledge_gap_message')
       expect(ai_agent.reload).to have_attributes(scope_mode: 'off', scope_policy_version: 0)
+    end
+
+    it 'returns unprocessable entity for web search without the strict scope and for domains that are not host names' do
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { web_search_enabled: true, web_search_domains: 'https://kompas.com' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to include('attributes' => contain_exactly('web_search_enabled', 'web_search_domains'),
+                                              'message' => 'Web search enabled needs the Strict scope mode, Web search domains is invalid')
+      expect(ai_agent.reload).to have_attributes(web_search_enabled: false, web_search_domains: nil)
     end
 
     it 'returns unprocessable entity for an unknown scope mode and for a policy over the length limit' do
@@ -329,17 +341,18 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(AiAgent::ReplyTrace.count).to eq(0)
     end
 
-    it 'returns the decision of the scope check, and no retrieval when the check answered the turn' do
+    it 'returns the decision of the scope check with its web search, and no retrieval when the check answered the turn' do
       ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga',
                        off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?',
-                       knowledge_gap_message: 'Maaf, info itu belum tersedia.')
+                       knowledge_gap_message: 'Maaf, info itu belum tersedia.', web_search_enabled: true)
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
       stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return(
         status: 200, headers: { 'Content-Type' => 'application/json' },
         body: { id: 'chatcmpl-1', model: ai_agent.model,
                 usage: { prompt_tokens: 900, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 0 } },
                 choices: [{ message: { role: 'assistant', content: nil, tool_calls: [{ id: 'call_1', type: 'function', function: {
-                  name: 'ai_agent_scope', arguments: { decision: 'AMBIGUOUS' }.to_json
+                  name: 'ai_agent_scope', arguments: { decision: 'AMBIGUOUS', web_query: '' }.to_json
                 } }] } }] }.to_json
       )
 
@@ -347,8 +360,8 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to include('messages' => ['Produk yang mana, Kak?'], 'handoff' => false, 'labels' => [], 'retrieval' => nil,
-                                              'scope' => { 'decision' => 'AMBIGUOUS', 'latency_ms' => be >= 0, 'input_tokens' => 900,
-                                                           'output_tokens' => 5 },
+                                              'scope' => { 'decision' => 'AMBIGUOUS', 'web_query' => '', 'web_search_status' => 'not_needed',
+                                                           'latency_ms' => be >= 0, 'input_tokens' => 900, 'output_tokens' => 5 },
                                               'validation' => nil, 'tokens' => { 'input' => 900, 'output' => 5, 'cached_input' => 0 })
     end
 

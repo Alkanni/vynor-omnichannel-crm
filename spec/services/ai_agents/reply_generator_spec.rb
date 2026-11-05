@@ -19,7 +19,7 @@ RSpec.describe AiAgents::ReplyGenerator do
   let(:chat_requests) { [] }
   let(:scope_requests) { [] }
   let(:embedding_requests) { [] }
-  let(:scope_decision) { 'IN_SCOPE' }
+  let(:scope_arguments) { { decision: 'IN_SCOPE' } }
   let(:reply_content) { { messages: ['Kami buka setiap hari pukul 07.30 - 18.00.', ' ', 'Ada lagi yang bisa dibantu?'] }.to_json }
   let(:reply_message) do
     { role: 'assistant', content: nil,
@@ -42,7 +42,7 @@ RSpec.describe AiAgents::ReplyGenerator do
       body = JSON.parse(request.body)
       scope_check = body['tools'].sole['function']['name'] == 'ai_agent_scope'
       (scope_check ? scope_requests : chat_requests) << body
-      scope_call = { id: 'call_0', type: 'function', function: { name: 'ai_agent_scope', arguments: { decision: scope_decision }.to_json } }
+      scope_call = { id: 'call_0', type: 'function', function: { name: 'ai_agent_scope', arguments: scope_arguments.to_json } }
       message = scope_check ? { role: 'assistant', content: nil, tool_calls: [scope_call] } : reply_message
       { status: 200, headers: { 'Content-Type' => 'application/json' },
         body: { id: 'chatcmpl-1', model: 'gpt-4.1-mini', choices: [{ message: message }],
@@ -124,7 +124,7 @@ RSpec.describe AiAgents::ReplyGenerator do
 
       %w[IN_SCOPE GREETING HANDOFF_REQUEST].each do |decision|
         context "when the check decides #{decision}" do
-          let(:scope_decision) { decision }
+          let(:scope_arguments) { { decision: decision } }
 
           it 'checks the turn first, then answers with the knowledge and traces both model calls' do
             expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'])
@@ -142,7 +142,7 @@ RSpec.describe AiAgents::ReplyGenerator do
       { 'OUT_OF_SCOPE' => 'Maaf, di luar layanan kami.', 'SUSPICIOUS' => 'Maaf, di luar layanan kami.',
         'AMBIGUOUS' => 'Layanan yang mana, Kak?' }.each do |decision, text|
         context "when the check decides #{decision}" do
-          let(:scope_decision) { decision }
+          let(:scope_arguments) { { decision: decision } }
 
           it 'answers with the text of the agent, without the knowledge search or the reply model' do
             expect(reply).to have_attributes(messages: [text], handoff: false, labels: [], sheet_row: nil)
@@ -154,6 +154,27 @@ RSpec.describe AiAgents::ReplyGenerator do
                                                       retrieved: [], input_tokens: 900, output_tokens: 5, scope_input_tokens: 900,
                                                       scope_output_tokens: 5, cached_input_tokens: 512)
           end
+        end
+      end
+
+      it 'traces no web search for an agent without it' do
+        expect(reply.trace.attributes).to include(web_search_status: nil)
+      end
+
+      context 'with web search' do
+        let(:scope_arguments) { { decision: 'IN_SCOPE', web_query: 'jam buka bengkel hari Minggu' } }
+
+        before do
+          create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+          ai_agent.update!(web_search_enabled: true)
+        end
+
+        it 'traces the web search the turn would get, without the query, and replies with the knowledge only' do
+          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'])
+          expect(reply.trace.attributes).to include(scope_decision: 'IN_SCOPE', web_search_status: 'shadow')
+          expect(reply.trace.attributes.values.flatten).not_to include('jam buka bengkel hari Minggu')
+          expect(chat_requests.sole['messages'].first['content']).not_to include('jam buka bengkel hari Minggu')
+          expect(a_request(:any, /exa\.ai/)).not_to have_been_made
         end
       end
 
@@ -172,7 +193,7 @@ RSpec.describe AiAgents::ReplyGenerator do
       end
 
       context 'when the check fails' do
-        let(:scope_decision) { 'MAYBE' }
+        let(:scope_arguments) { { decision: 'MAYBE' } }
 
         it 'raises before the knowledge search and the reply model' do
           expect { reply }.to raise_error(AiAgents::LlmError, 'The AI model returned no valid scope decision')

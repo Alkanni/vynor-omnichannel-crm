@@ -28,6 +28,8 @@ json.disallowed_topics ai_agent.disallowed_topics
 json.off_topic_message ai_agent.off_topic_message
 json.clarification_message ai_agent.clarification_message
 json.knowledge_gap_message ai_agent.knowledge_gap_message
+json.web_search_enabled ai_agent.web_search_enabled
+json.web_search_domains ai_agent.web_search_domains
 json.scope_policy_version ai_agent.scope_policy_version
 json.inbox_ids ai_agent.inbox_ids
 json.trained_at ai_agent.trained_at&.to_i

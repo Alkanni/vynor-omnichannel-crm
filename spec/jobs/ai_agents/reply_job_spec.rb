@@ -225,8 +225,8 @@ RSpec.describe AiAgents::ReplyJob do
     end
 
     it 'is not queued after a reply of the scope check' do
-      scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', input_tokens: 900, output_tokens: 5, cached_input_tokens: nil,
-                                               latency_ms: 700)
+      scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', web_query: nil, web_search_status: nil, input_tokens: 900,
+                                               output_tokens: 5, cached_input_tokens: nil, latency_ms: 700)
       scope_trace = AiAgents::ReplyGenerator::Trace.new(scope: scope, retrieval: nil, validation: nil, input_tokens: 900, output_tokens: 5,
                                                         cached_input_tokens: nil, latency_ms: 700)
       allow(generator).to receive(:perform)

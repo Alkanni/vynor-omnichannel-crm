@@ -109,6 +109,15 @@
           "TITLE": "Knowledge Gap Reply",
           "DESCRIPTION": "Sent as is when the knowledge has no answer to a question, or when an answer cites no knowledge or has a number that neither its knowledge nor the conversation has. Required in Strict mode.",
           "PLACEHOLDER": "e.g. Sorry, we don't have that information yet. Is there anything else we can help with?"
+        },
+        "WEB_SEARCH": {
+          "TITLE": "Web Search (preview)",
+          "DESCRIPTION": "The scope check also decides whether a message asks for general information within the allowed topics, such as symptoms, maintenance, or recalls, and writes a search query without personal data. For now this is only recorded, and nothing is searched. Needs the Exa API key in Super Admin."
+        },
+        "WEB_SEARCH_DOMAINS": {
+          "TITLE": "Web Search Domains",
+          "DESCRIPTION": "Only search these websites, separated by commas or line breaks. Optional; leave empty to search the whole web.",
+          "PLACEHOLDER": "e.g. kompas.com, otomotif.tempo.co"
         }
       },
       "PENDING_MESSAGES": {

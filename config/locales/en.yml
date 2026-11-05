@@ -494,6 +494,7 @@ en:
     web_search:
       errors:
         not_configured: 'Web search is not configured. Ask the installation administrator to add the Exa API key in Super Admin'
+        strict_scope_required: 'needs the Strict scope mode'
   captain:
     copilot_message_required: Message is required
     copilot_error: 'Please connect an assistant to this inbox to use Copilot'

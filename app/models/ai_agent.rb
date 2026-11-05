@@ -34,6 +34,8 @@
 #  training_failed_at         :datetime
 #  transfer_conditions        :text
 #  watcher_enabled            :boolean          default(FALSE), not null
+#  web_search_domains         :text
+#  web_search_enabled         :boolean          default(FALSE), not null
 #  welcome_message            :text
 #  created_at                 :datetime         not null
 #  updated_at                 :datetime         not null
@@ -49,7 +51,10 @@ class AiAgent < ApplicationRecord
   SCOPE_MODES = %w[off strict].freeze
   SCOPE_POLICY_ATTRIBUTES = %w[
     scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message knowledge_gap_message
+    web_search_enabled web_search_domains
   ].freeze
+  # A host name such as kompas.com or otomotif.kompas.com, as Exa's includeDomains takes it (see AiAgents::WebSearch).
+  WEB_SEARCH_DOMAIN = /\A(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\z/i
   TRAINING_DELAY = 10.seconds
 
   belongs_to :account
@@ -72,7 +77,7 @@ class AiAgent < ApplicationRecord
 
   # A blank field is nil, because the settings form sends unset fields as empty strings and that is no policy change.
   normalizes :business_description, :allowed_topics, :disallowed_topics, :off_topic_message, :clarification_message, :knowledge_gap_message,
-             with: ->(text) { text.strip.presence }
+             :web_search_domains, with: ->(text) { text.strip.presence }
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :behavior, length: { maximum: 15_000 }
@@ -91,6 +96,10 @@ class AiAgent < ApplicationRecord
   validates :off_topic_message, :clarification_message, :knowledge_gap_message, length: { maximum: 1_000 }
   validates :business_description, :allowed_topics, :off_topic_message, :clarification_message, :knowledge_gap_message,
             presence: true, if: :scope_strict?
+  validates :web_search_domains, length: { maximum: 1_000 }
+  validate -> { errors.add(:web_search_enabled, I18n.t('ai_agents.web_search.errors.strict_scope_required')) },
+           if: -> { web_search_enabled && !scope_strict? }
+  validate -> { errors.add(:web_search_domains, :invalid) }, unless: -> { web_search_domain_list.all?(WEB_SEARCH_DOMAIN) }
   validate :model_supported
   validate :allowed_labels_belong_to_account
 
@@ -115,6 +124,17 @@ class AiAgent < ApplicationRecord
 
   def scope_strict?
     scope_mode == 'strict'
+  end
+
+  # Only strict agents can turn web search on, and it stays off for every agent while the Exa API key is blank (see
+  # AiAgents::WebSearch.configured?).
+  def web_search?
+    web_search_enabled && AiAgents::WebSearch.configured?
+  end
+
+  # The domains of web_search_domains, which may be separated by commas, spaces, or line breaks.
+  def web_search_domain_list
+    web_search_domains.to_s.split(/[\s,]+/).compact_blank
   end
 
   # The Business Scope Policy as the prompt block that replies and the scope check share.

@@ -11,7 +11,8 @@ RSpec.describe AiAgent do
         stop_ai_after_handoff: true, silent_handoff: false, history_limit: 30, read_file_limit: 3,
         context_limit: 8, temperature: 'balanced', message_await: 10, message_limit: 10,
         watcher_enabled: false, timezone: 'Asia/Jakarta', session_only_memory: false,
-        ignore_team_handoff: false, allowed_label_ids: [], scope_mode: 'off', scope_policy_version: 0
+        ignore_team_handoff: false, allowed_label_ids: [], scope_mode: 'off', scope_policy_version: 0, web_search_enabled: false,
+        web_search_domains: nil
       )
       expect(ai_agent).to be_valid
     end
@@ -82,6 +83,29 @@ RSpec.describe AiAgent do
       expect(ai_agent.errors.attribute_names).to contain_exactly(:off_topic_message, :knowledge_gap_message)
     end
 
+    it 'allows web search in strict mode only' do
+      ai_agent.web_search_enabled = true
+
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.full_messages).to eq(['Web search enabled needs the Strict scope mode'])
+
+      ai_agent.assign_attributes(scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Servis', off_topic_message: 'Maaf.',
+                                 clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.')
+      expect(ai_agent).to be_valid
+    end
+
+    it 'accepts web search domains as host names separated by commas, spaces, or line breaks' do
+      ai_agent.web_search_domains = "kompas.com, otomotif.tempo.co\nOTO.com  auto2000.co.id"
+      expect(ai_agent).to be_valid
+      expect(ai_agent.web_search_domain_list).to eq(%w[kompas.com otomotif.tempo.co OTO.com auto2000.co.id])
+
+      ['https://kompas.com', 'kompas.com/otomotif', 'kompas', '-kompas.com', 'kompas .com', "#{'a' * 997}.com"].each do |domains|
+        ai_agent.web_search_domains = domains
+        expect(ai_agent).not_to be_valid, domains
+        expect(ai_agent.errors.attribute_names).to eq([:web_search_domains])
+      end
+    end
+
     it 'rejects models outside the assistant feature' do
       ai_agent.model = 'whisper-1'
       expect(ai_agent).not_to be_valid
@@ -126,6 +150,24 @@ RSpec.describe AiAgent do
     end
   end
 
+  describe '#web_search?' do
+    let(:ai_agent) do
+      build(:ai_agent, account: account, scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Servis',
+                       off_topic_message: 'Maaf.', clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.',
+                       web_search_enabled: true)
+    end
+
+    it 'is on for an agent that turned it on while the Exa API key is set' do
+      expect(ai_agent.web_search?).to be(false)
+
+      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      expect(ai_agent.web_search?).to be(true)
+
+      ai_agent.web_search_enabled = false
+      expect(ai_agent.web_search?).to be(false)
+    end
+  end
+
   describe '#knowledge_stats' do
     it 'counts characters of every manual knowledge source' do
       ai_agent.save!
@@ -148,7 +190,8 @@ RSpec.describe AiAgent do
 
     it 'goes up by one when a policy attribute changes' do
       { business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik', off_topic_message: 'Maaf.',
-        clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.', scope_mode: 'strict' }.each do |attribute, value|
+        clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.', scope_mode: 'strict', web_search_enabled: true,
+        web_search_domains: 'kompas.com' }.each do |attribute, value|
         expect { ai_agent.update!(attribute => value) }.to change(ai_agent, :scope_policy_version).by(1)
       end
     end
@@ -169,10 +212,11 @@ RSpec.describe AiAgent do
 
       expect do
         ai_agent.update!(business_description: " Toko roti\n", allowed_topics: '', disallowed_topics: ' ', off_topic_message: '',
-                         clarification_message: "\n", knowledge_gap_message: ' ', name: 'Baru')
+                         clarification_message: "\n", knowledge_gap_message: ' ', web_search_domains: ' ', name: 'Baru')
       end.not_to change(ai_agent, :scope_policy_version)
       expect(ai_agent.reload).to have_attributes(business_description: 'Toko roti', allowed_topics: nil, disallowed_topics: nil,
-                                                 off_topic_message: nil, clarification_message: nil, knowledge_gap_message: nil)
+                                                 off_topic_message: nil, clarification_message: nil, knowledge_gap_message: nil,
+                                                 web_search_domains: nil)
     end
   end
 

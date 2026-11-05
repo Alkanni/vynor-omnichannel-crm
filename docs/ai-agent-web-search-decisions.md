@@ -188,7 +188,7 @@ Content-Type: application/json
 ## Token budget and answer length
 
 - **Web block:** at most 3 entries × 800 characters of highlights, plus titles and URLs. That is at most about 2,700 characters, roughly 900 tokens (**assumption**; measured in EXA-04).
-- **Scope check:** for web-enabled agents, about 150 more instruction tokens and about 20 output tokens. Nothing changes for other agents.
+- **Scope check:** for web-enabled agents, about 150 more instruction tokens and about 20 output tokens. Nothing changes for other agents. Measured in EXA-03 (#109) on `w-web.yaml`: 297 more input tokens on every call, and 10 to 11 more output tokens on average (at most 29).
 - **Reply:** the web instructions (about 120 tokens) are sent only on turns with web results. Turns without a web query cost what they cost today.
 - **Answer length:** the instructions ask for at most three short sentences of web information plus at most two links. The output token target is set in EXA-05 from the eval (proposed p90 ≤ 250 output tokens for web replies).
 
@@ -324,4 +324,4 @@ Findings:
 | Exa resets the free credit on the 1st by UTC | EXA-02 |
 | About 3 characters per token for Indonesian web text, behind the token budget | EXA-04 |
 | Exa answers within the 4 s read timeout for most queries | EXA-02 measures; EXA-04 keeps the timeouts |
-| The plate pattern also matches some model names (e.g. "XL7 AT"), which would skip their search | EXA-03 measures the skip rate |
+| The plate pattern also matches some model names (e.g. "XL7 AT"), which would skip their search | EXA-03 measured it offline: 3 of 116 model names (XL7 AT, Fuso FE 74 HD, E 300 AMG Line), and of 16 parts terms the battery code NS40ZL; "2024 2025" also counts as 8 digits |

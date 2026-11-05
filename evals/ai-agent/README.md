@@ -8,8 +8,9 @@ Regression evals for the AI Agent, run against a running app:
   expected knowledge source ranks. No chat model is called.
 - **Scope Compliance** (issue #94): each case runs once per agent variant and measures whether the agent stays inside
   the business scope. This is the release gate for changes to agent behavior.
-- **Web search routing** (issue #106): each case states whether a message should be answered without the web, searched
-  on the web, or refused, for the web search work in `docs/ai-agent-web-search-decisions.md`. No judge model is called.
+- **Web search routing** (issues #106 and #109): each case states whether a message should be answered without the web,
+  searched on the web, or refused, and checks the scope check's decision and web query against it, for the web search
+  work in `docs/ai-agent-web-search-decisions.md`. No judge model is called.
 
 Run them before and after changes to behavior, models, chunking, or retrieval, and compare the results.
 
@@ -27,8 +28,8 @@ agent calls plus 142 judge calls.
 | `promptfooconfig.scope.yaml`, `tests/s-scope.yaml` | Scope Compliance eval: the agent variants to compare, and 67 cases (see below) |
 | `fixtures/toko-roti.json` | Settings, knowledge, product, and label of the eval agents (the "CS Toko Roti Vynor" UAT agent, temperature `precise`) |
 | `fixtures/toko-roti-large.json` | Synthetic larger knowledge for the retrieval eval (policy text with headings, a price table longer than one chunk, 16 Q&A, 22 products) |
-| `promptfooconfig.web.yaml`, `tests/w-web.yaml` | Web search routing eval: 58 cases with a `route` and an expected scope check decision (see below) |
-| `fixtures/bengkel-mobil.json` | Synthetic strict car workshop agent whose allowed topics include general car information, for the web search routing eval |
+| `promptfooconfig.web.yaml`, `tests/w-web.yaml` | Web search routing eval: 58 cases with a `route`, an expected scope check decision, and the personal data a web query must leave out (see below) |
+| `fixtures/bengkel-mobil.json` | Synthetic strict car workshop agent with web search, whose allowed topics include general car information, for the web search routing eval |
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
@@ -168,10 +169,15 @@ node report.mjs output/web-1.json
 - Each case in `tests/w-web.yaml` has a `route` in its metadata: `internal` (answered from the knowledge or the
   conversation), `web` (needs a web search, possibly with the knowledge too), or `blocked` (refused by the scope check
   before anything else). That label is the contract of the web search work.
-- Until the scope check can ask for a web search (EXA-03), a case passes when the scope check's decision is one of its
-  `scope` labels: `blocked` cases expect `OUT_OF_SCOPE` or `SUSPICIOUS`, `web` cases `IN_SCOPE`. The report's category
-  table shows both decisions per category.
-- `pii` lists text of the message that must never reach a web query, for the checks added in EXA-03.
+- The `route` assertion passes when the scope check's decision is one of the case's `scope` labels (`blocked` cases
+  expect `OUT_OF_SCOPE` or `SUSPICIOUS`, `web` cases `IN_SCOPE`) and the scope check wrote a web query exactly when the
+  route is `web`. The `pii` assertion passes when the web query contains none of the case's `pii` strings, compared by
+  letters and digits only.
+- The `bengkel` agent has web search turned on, which also needs the Exa API key in Super Admin. Web search runs in
+  shadow mode (#109): the playground returns the web query and its `web_search_status`, but nothing is searched yet.
+- The report adds a web search section: route accuracy, web queries of `blocked` cases, cases without `pii` strings in
+  the web query, the web search status per category, and the web queries that the personal data check skipped although
+  the case has no personal data (false skips).
 - One run makes 58 agent calls: the scope check for each, and the reply model unless the scope check answered.
 
 ## Retrieval eval
