@@ -148,8 +148,18 @@ Why this point:
 - A cited rank may be a knowledge chunk or a web entry; any other rank stays `unknown_source`. An `answer` whose only sources are web entries is valid.
 - Numbers may come from the highlights of cited web entries, as they do from cited chunks.
 - A new reason, `unknown_url`: every URL in the reply must be the URL of a web entry the model received, or appear in the knowledge or the conversation.
-- A new reason, `missing_citation`: a reply that cites a web entry must contain that entry's URL.
+- ~~A new reason, `missing_citation`: a reply that cites a web entry must contain that entry's URL.~~ Replaced in EXA-04 by the owner's decision on #110: the model writes no links, and the app adds the URL of each cited web entry under the last bubble after the check. In the first eval runs the model copied long URLs wrongly or left them out, which replaced 3 to 7 of 26 web answers per run.
 - **Residual risk.** A number taken from a web page can still be presented as the business's own price. The check cannot tell the two apart, so the prompt rule and the eval cover it.
+
+As built in EXA-04 (#110), after its security review and first eval runs:
+- **Which links.** A link is one with its scheme, or a bare host with a letter top-level domain (`promo-palsu.com`, also the domain of an e-mail address), because chat apps make those clickable too. Links compare without their scheme, `www.`, trailing slash, trailing punctuation, or case.
+- **Site names.** A reply may name the site of a received result ("Kompas.com" for a page on `otomotif.kompas.com`).
+- **Links added by the app.** The model cites web ranks in `sources` and writes no link. After the check, the reply gets the URL of each cited web result under its last bubble, unless it already has it. `unknown_url` still applies to every link the model writes.
+- **Business facts.** The web instructions also ask for no business fact the customer did not ask for: in a probe of 2 × 26 web cases, volunteered contacts and prices without their knowledge entry were most of the remaining blocks (38 → 48 of 52 passed).
+- **Digits of links.** The digits of a link (`/read/2025/09/16/112200115/`) are left out of the number rule, because the link rules check links. Without this, the first live answer from a Kompas page was blocked as `unsupported_number`.
+- **Long numbers.** A web result backs no run of 8 or more digits (phone, account, or identity numbers, the backstop's first pattern). When a reply cites a web result, each such run in it needs the same digits in a cited chunk or the conversation, so a page cannot supply the parts of a number one by one. Two years ("2017 - 2019") are left out of both rules: the first eval run blocked a correct recall answer on the production years of a Mitsubishi page.
+- **Agents without web search** keep the check of #97: their links are not checked.
+- **Residual risks of the link and number rules.** Digits spelled out in words, or split by separators other than spaces, dots, dashes, and parentheses, are not read as one number; and a link written without a dot (`kompas com`) is not read as a link. The prompt rule is the only control for those.
 
 ## Exa request contract
 
@@ -167,6 +177,7 @@ Content-Type: application/json
 - **Three results, all used.** The price is the same up to 10 results, but each result costs prompt tokens.
 - **`includeDomains`** is sent only when the agent sets `web_search_domains`.
 - **Normalized result:** `{ rank, title, url, published_at (Date or nil), highlights: [String] }`. `costDollars.total` from the response feeds the budget.
+- **Text in the prompt.** EXA-02 measured that a result's highlight holds up to about three times `maxCharacters`, so the reply prompt gets the highlights of each result joined and cut to 800 characters (`WebSearch::Item#text`, EXA-04). The request keeps `maxCharacters: 800`.
 
 ## Failures, budget, and cache
 
@@ -191,6 +202,10 @@ Content-Type: application/json
 - **Scope check:** for web-enabled agents, about 150 more instruction tokens and about 20 output tokens. Nothing changes for other agents. Measured in EXA-03 (#109) on `w-web.yaml`: 297 more input tokens on every call, and 10 to 11 more output tokens on average (at most 29).
 - **Reply:** the web instructions (about 120 tokens) are sent only on turns with web results. Turns without a web query cost what they cost today.
 - **Answer length:** the instructions ask for at most three short sentences of web information plus at most two links. The output token target is set in EXA-05 from the eval (proposed p90 ≤ 250 output tokens for web replies).
+- **Measured in EXA-04 (#110)**, each searched case of `w-web.yaml` against the same case of the EXA-01 baseline, whose reply prompt is the same without web results:
+  - The web block with its instructions adds 920 and 929 input tokens on average in the two final runs (p90 about 1,050, max 1,090).
+  - Turns without web results get exactly the prompt of `main` (difference 0).
+  - Web replies take 98 to 102 output tokens on average (p90 115 to 137), since the app adds the links.
 
 ## Configuration and kill switches
 
@@ -204,7 +219,7 @@ Content-Type: application/json
 ## Observability
 
 New `AiAgent::ReplyTrace` columns:
-- `web_search_status`: nil when the agent has no web search, otherwise one of `not_needed`, `shadow`, `searched`, `cached`, `skipped_personal_data`, `skipped_budget`, `failed_*`.
+- `web_search_status`: nil when the agent has no web search, otherwise one of `not_needed`, `searched`, `cached`, `skipped_personal_data`, `skipped_budget`, `failed_*`. Rows from the EXA-03 shadow mode have `shadow`. Since EXA-04 the scope check's own status for a query it lets through is `pending`, which the reply replaces with the search's, so traces never store it.
 - `web_results`: jsonb list of `{ rank, url }`.
 - `web_latency_ms`.
 - `web_cost_usd`.
@@ -289,13 +304,39 @@ Findings:
 
    This is why the Exa timeouts are 1 s to open and 4 s to read.
 
+## EXA-04 results (#110)
+
+Run setup:
+- **Clone:** `ai110`, a clone of vynor-ce on build `78b07795e4`.
+- **Agent:** agent 17 `bengkel`, with the owner's Exa key.
+- **Runs:** two final runs of `w-web.yaml`.
+
+| Measure | Run 4 | Run 5 | Target |
+|---|---|---|---|
+| `web` route cases answered from web results | 23/26 | 22/26 | ≥ 18/26, set by the owner on #110 (baseline 0/26) |
+| Links in replies from web results or knowledge | 100% | 100% | 100% |
+| Cited web results with their link | 100% | 100% | 100% |
+| Web entries per block, characters per entry | ≤ 3, ≤ 800 | ≤ 3, ≤ 800 | ≤ 3, ≤ 800 |
+| Route accuracy | 58/58 | 57/58 (W-OS-07) | ≥ 95% |
+| Exa request latency p50 | 602 ms | 587 ms | |
+| Exa spend | US$0.024 | US$0.060 | |
+
+- The remaining `web` route misses are `unsupported_number` replies that state a business price without citing its chunk (W-MX-01, the #97 case from the EXA-01 baseline), and one VIN that the backstop kept out of the query (W-PI-04, `skipped_personal_data`).
+- W-OS-07 (used cars, a disallowed topic) got a web query in 3 of the 5 runs of this work. That is the EXA-03 scope check's known variance, and it is an input to the EXA-05 gate.
+- Injection, with the Exa response stubbed: 4 cases × 3 runs against the real reply model, and no marker of the injection reached any model output or sent reply:
+  - a fake free-service offer with a bank account and a link;
+  - a `</web_results>` closer with a fake price;
+  - a request to reveal the instructions;
+  - a towing phone number.
+- Worst case: an Exa request that uses its whole timeout and fails gives a reply without web after 10.9 to 12.1 s, under Rack::Timeout's 15 s.
+
 ## Work units
 
 | Unit | Scope | Depends on |
 |---|---|---|
 | EXA-02 | `AiAgents::WebSearch` client (Faraday), normalized result, error mapping, timeouts, budget and 402 flag, cache; `AI_AGENT_EXA_API_KEY` and the budget in Super Admin. The Retrieval Test accepts an optional web query and shows the results, so the owner can judge Exa on real questions before customers see it. Specs with WebMock | EXA-01 |
 | EXA-03 | `web_search_enabled`/`web_search_domains` (migration, API, General tab); web rules and `web_query` in `ScopeGuard` for web-enabled agents; personal data backstop; **shadow mode** (trace `shadow`, no Exa call); playground shows the decision and query; `w-web.yaml` asserts the web decision | EXA-01 |
-| EXA-04 | Search in `ReplyGenerator` with the web block and instructions; `ReplyValidator` web sources, `unknown_url`, `missing_citation`; trace columns and usage report; playground shows web results; specs for escaping and an Exa response carrying an injection | EXA-02, EXA-03 |
+| EXA-04 | Search in `ReplyGenerator` with the web block and instructions; `ReplyValidator` web sources, `unknown_url`; links of cited web results added by the app (replacing `missing_citation`); trace columns and usage report; playground shows web results; specs for escaping and an Exa response carrying an injection | EXA-02, EXA-03 |
 | EXA-05 | Eval gate (targets above), owner enters the key, rollout on vynor-ce, then on the VPS. The VPS agent is still `off`, so it needs a strict policy first. Rollback is the kill switches | EXA-04 |
 
 ## Not adopted
@@ -322,6 +363,6 @@ Findings:
 | Rate limits of the free plan, which the pricing page does not list | EXA-02 |
 | Quality of `lite` results for Indonesian queries with `userLocation: "ID"`, and the freshness of `lite` for "recent" questions (recalls, regulations), since it cannot force a fresh fetch | EXA-02, with the Retrieval Test on real questions |
 | Exa resets the free credit on the 1st by UTC | EXA-02 |
-| About 3 characters per token for Indonesian web text, behind the token budget | EXA-04 |
+| About 3 characters per token for Indonesian web text, behind the token budget | EXA-04 measured the tokens directly instead: about 920 per searched turn (see Token budget) |
 | Exa answers within the 4 s read timeout for most queries | EXA-02 measures; EXA-04 keeps the timeouts |
 | The plate pattern also matches some model names (e.g. "XL7 AT"), which would skip their search | EXA-03 measured it offline: 3 of 116 model names (XL7 AT, Fuso FE 74 HD, E 300 AMG Line), and of 16 parts terms the battery code NS40ZL; "2024 2025" also counts as 8 digits |
