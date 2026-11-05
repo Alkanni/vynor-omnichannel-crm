@@ -22,8 +22,15 @@ class AiAgents::WebSearch
   # An Exa answer that means the request or the key is wrong. Its message never holds the key.
   class RequestError < StandardError; end
 
+  # Exa returns up to about three times highlights.maxCharacters per result (measured in #108), so the text of a result
+  # that a prompt gets is cut to this.
+  MAX_TEXT_CHARACTERS = 800
+
   # rank starts at 1. published_at is a Date when Exa gives one, never guessed.
-  Item = Data.define(:rank, :title, :url, :published_at, :highlights)
+  Item = Data.define(:rank, :title, :url, :published_at, :highlights) do
+    # The highlights as one text of at most MAX_TEXT_CHARACTERS, as a reply prompt gets them.
+    def text = highlights.join(' ').squish.truncate(MAX_TEXT_CHARACTERS, separator: ' ')
+  end
   # status is one of searched, cached, skipped_budget, failed_timeout, failed_rate_limit, failed_credits, failed_provider, or
   # failed_request. latency_ms is the Exa request's, nil when none was made. cost_usd is what Exa charged for this search.
   Result = Data.define(:status, :results, :latency_ms, :cost_usd)

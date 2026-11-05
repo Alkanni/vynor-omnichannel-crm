@@ -10,7 +10,7 @@ RSpec.describe AiAgents::ReplyJob do
     chunk = AiAgent::KnowledgeChunk.new(id: 7, chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: 3)
     retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'hybrid', embedding_model: 'text-embedding-3-small', queries: ['Jam buka?'],
                                                          hits: [AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: 1, score: 0.12)])
-    AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, validation: nil, input_tokens: 120, output_tokens: 30,
+    AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, web_search: nil, validation: nil, input_tokens: 120, output_tokens: 30,
                                         cached_input_tokens: 64, latency_ms: 850)
   end
   let(:traces) { AiAgent::ReplyTrace.where(conversation: conversation) }
@@ -44,9 +44,27 @@ RSpec.describe AiAgents::ReplyJob do
       retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, cached_input_tokens: 64,
       latency_ms: 850, labels: [], error_class: nil, scope_decision: nil, scope_latency_ms: nil, scope_input_tokens: nil, scope_output_tokens: nil,
       reply_decision: nil, cited_ranks: [], blocked_reason: nil, watcher_input_tokens: nil, watcher_output_tokens: nil,
-      watcher_cached_input_tokens: nil,
+      watcher_cached_input_tokens: nil, web_search_status: nil, web_results: [], web_latency_ms: nil, web_cost_usd: nil,
       retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12 }]
     )
+  end
+
+  it 'records the web search of the reply with each result as its rank and URL, without the query or the page content' do
+    scope = AiAgents::ScopeGuard::Result.new(decision: 'IN_SCOPE', web_query: 'penyebab aki cepat soak', web_search_status: 'pending',
+                                             input_tokens: 900, output_tokens: 12, cached_input_tokens: nil, latency_ms: 700)
+    item = AiAgents::WebSearch::Item.new(rank: 2, title: 'Aki soak', url: 'https://otomotif.example/aki', published_at: nil,
+                                         highlights: ['Aki soak karena umur.'])
+    web_search = AiAgents::WebSearch::Result.new(status: 'searched', results: [item], latency_ms: 610, cost_usd: 0.004)
+    allow(generator).to receive(:perform).and_return(AiAgents::ReplyGenerator::Reply.new(
+                                                       messages: ['Aki biasanya soak karena umur.'], handoff: false, labels: [],
+                                                       trace: trace.with(scope: scope, web_search: web_search)
+                                                     ))
+
+    described_class.perform_now(create(:message, **message_attributes, content: 'Kenapa aki cepat soak?'))
+
+    expect(traces.sole).to have_attributes(web_search_status: 'searched', web_results: [{ 'rank' => 2, 'url' => 'https://otomotif.example/aki' }],
+                                           web_latency_ms: 610, web_cost_usd: BigDecimal('0.004'))
+    expect(traces.sole.attributes.values.flatten.join).not_to include('penyebab aki cepat soak', 'Aki soak karena umur.')
   end
 
   it 'records the version of the scope policy the reply was made under' do
@@ -227,8 +245,8 @@ RSpec.describe AiAgents::ReplyJob do
     it 'is not queued after a reply of the scope check' do
       scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', web_query: nil, web_search_status: nil, input_tokens: 900,
                                                output_tokens: 5, cached_input_tokens: nil, latency_ms: 700)
-      scope_trace = AiAgents::ReplyGenerator::Trace.new(scope: scope, retrieval: nil, validation: nil, input_tokens: 900, output_tokens: 5,
-                                                        cached_input_tokens: nil, latency_ms: 700)
+      scope_trace = AiAgents::ReplyGenerator::Trace.new(scope: scope, retrieval: nil, web_search: nil, validation: nil, input_tokens: 900,
+                                                        output_tokens: 5, cached_input_tokens: nil, latency_ms: 700)
       allow(generator).to receive(:perform)
         .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Maaf.'], handoff: false, labels: [], trace: scope_trace))
 
