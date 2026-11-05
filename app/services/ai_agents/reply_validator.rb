@@ -3,7 +3,8 @@
 # uses. A reply fails when its decision is not one of DECISIONS, when an "answer" cites no source or cites one the prompt
 # did not have, or when it has a number that none of the cited sources, the conversation, or the current time in the
 # prompt has, unless the number is one of them times a number the customer wrote (4 × Rp25.000); a web result backs no
-# phone, account, or other number of 8 or more digits. For an agent with web search, it also fails when it has a link
+# phone, account, or other number of 8 or more digits, in whole or in parts. For an agent with web search, it also fails
+# when it has a link
 # that is not one of the web results, the knowledge, or the conversation of the prompt, or the site of a web result, or
 # when it cites a web result without its link. AiAgents::ReplyGenerator sends the agent's knowledge gap message instead
 # of a reply that fails and of a knowledge_gap decision.
@@ -89,9 +90,22 @@ class AiAgents::ReplyValidator
   end
 
   def numbers_supported?
-    reply_numbers.all? do |number|
+    long_numbers_supported? && reply_numbers.all? do |number|
       known_numbers.include?(number) || customer_numbers.any? { |quantity| quantity.nonzero? && known_numbers.include?(number / quantity) }
     end
+  end
+
+  # When the reply cites a web result, each run of 8 or more digits in it, such as a phone number, needs the same digits
+  # in a cited chunk or the conversation, because a page could hold its parts apart ("0812, 3456, 7890").
+  def long_numbers_supported?
+    return true if cited_web_results.empty?
+
+    known = digit_runs([*cited_hits.values.map { |hit| hit.chunk.content }, *messages.pluck(:content)].join("\n"))
+    digit_runs(replies.join("\n")).all? { |digits| known.include?(digits) }
+  end
+
+  def digit_runs(text)
+    text.scan(AiAgents::ScopeGuard::LONG_NUMBER).map { |run| run.delete('^0-9') }
   end
 
   def reply_numbers

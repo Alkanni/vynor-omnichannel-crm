@@ -215,6 +215,13 @@ RSpec.describe AiAgents::ReplyValidator do
                                  current_time: '').perform.blocked_reason).to be_nil
     end
 
+    it 'does not let a web result back a long number from parts it holds apart' do
+      web_results[0] = web_results[0].with(highlights: ['Aki soak setelah 2 tahun. Kode 0812, seri 3456, dan nomor 7890.'])
+      replies.replace(['Hubungi 0812-3456-7890, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to eq('unsupported_number')
+    end
+
     it 'keeps the parentheses of a link that has them' do
       content['sources'] = [4]
       replies.replace(['Aki menyimpan energi listrik (lihat https://id.wikipedia.org/wiki/Aki_(otomotif)).'])
