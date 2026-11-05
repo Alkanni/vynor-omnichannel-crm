@@ -222,6 +222,13 @@ RSpec.describe AiAgents::ReplyValidator do
       expect(result.blocked_reason).to eq('unsupported_number')
     end
 
+    it 'does not read the digits of a link as numbers' do
+      web_results[0] = web_results[0].with(url: 'https://otomotif.example/read/2025/09/16/112200115/aki-soak')
+      replies.replace(['Aki biasanya soak setelah 2 tahun: https://otomotif.example/read/2025/09/16/112200115/aki-soak'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
     it 'keeps the parentheses of a link that has them' do
       content['sources'] = [4]
       replies.replace(['Aki menyimpan energi listrik (lihat https://id.wikipedia.org/wiki/Aki_(otomotif)).'])

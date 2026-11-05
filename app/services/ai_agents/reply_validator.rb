@@ -4,10 +4,9 @@
 # did not have, or when it has a number that none of the cited sources, the conversation, or the current time in the
 # prompt has, unless the number is one of them times a number the customer wrote (4 × Rp25.000); a web result backs no
 # phone, account, or other number of 8 or more digits, in whole or in parts. For an agent with web search, it also fails
-# when it has a link
-# that is not one of the web results, the knowledge, or the conversation of the prompt, or the site of a web result, or
-# when it cites a web result without its link. AiAgents::ReplyGenerator sends the agent's knowledge gap message instead
-# of a reply that fails and of a knowledge_gap decision.
+# when it has a link that is not one of the web results, the knowledge, or the conversation of the prompt, or the site
+# of a web result, or when it cites a web result without its link. AiAgents::ReplyGenerator sends the agent's knowledge
+# gap message instead of a reply that fails and of a knowledge_gap decision.
 # The check is deterministic: it traces numbers and links to a source, but cannot tell whether the rest of the reply is
 # true, or whether a number from a web result is presented as the business's own.
 class AiAgents::ReplyValidator
@@ -101,7 +100,7 @@ class AiAgents::ReplyValidator
     return true if cited_web_results.empty?
 
     known = digit_runs([*cited_hits.values.map { |hit| hit.chunk.content }, *messages.pluck(:content)].join("\n"))
-    digit_runs(replies.join("\n")).all? { |digits| known.include?(digits) }
+    digit_runs(reply_text).all? { |digits| known.include?(digits) }
   end
 
   def digit_runs(text)
@@ -109,7 +108,13 @@ class AiAgents::ReplyValidator
   end
 
   def reply_numbers
-    numbers(replies.map { |reply| reply.gsub(LIST_ITEM, '') }.join("\n"))
+    numbers(reply_text.gsub(LIST_ITEM, ''))
+  end
+
+  # For an agent with web search, without the links, which the link rules check instead: the digits of a link
+  # ("/read/2025/09/16/…") are no fact to trace.
+  def reply_text
+    @reply_text ||= replies.join("\n").then { |text| web_results.nil? ? text : text.gsub(URL, ' ') }
   end
 
   def known_numbers
