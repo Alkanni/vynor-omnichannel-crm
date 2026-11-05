@@ -189,6 +189,32 @@ RSpec.describe AiAgents::ReplyValidator do
       end
     end
 
+    it 'blocks a domain without a scheme or the domain of an e-mail address that is not known' do
+      replies.replace(['Aki soak setelah 2 tahun: https://otomotif.example/aki-soak. Promo ganti aki di promo-palsu.example'])
+      expect(result.blocked_reason).to eq('unknown_url')
+
+      replies.replace(['Aki soak setelah 2 tahun: https://otomotif.example/aki-soak. Tanya cs@palsu.example'])
+      expect(described_class.new(content: content, replies: replies, hits: hits, web_results: web_results, messages: messages,
+                                 current_time: '').perform.blocked_reason).to eq('unknown_url')
+    end
+
+    it 'passes the name of the site of a web result' do
+      replies.replace(['Menurut Otomotif.example dan Wikipedia.org, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'does not let a web result back a phone number, which only the knowledge or the conversation can' do
+      web_results[0] = web_results[0].with(highlights: ['Aki soak setelah 2 tahun. Derek 24 jam: 0812-3456-7890.'])
+      replies.replace(['Derek 24 jam di 0812-3456-7890, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+      expect(result.blocked_reason).to eq('unsupported_number')
+
+      hits.first.chunk.content += "\nDerek bengkel: 0812-3456-7890"
+      content['sources'] = [1, 3]
+      expect(described_class.new(content: content, replies: replies, hits: hits, web_results: web_results, messages: messages,
+                                 current_time: '').perform.blocked_reason).to be_nil
+    end
+
     it 'keeps the parentheses of a link that has them' do
       content['sources'] = [4]
       replies.replace(['Aki menyimpan energi listrik (lihat https://id.wikipedia.org/wiki/Aki_(otomotif)).'])

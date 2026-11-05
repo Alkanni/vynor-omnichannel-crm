@@ -2,10 +2,11 @@
 # also returns a decision (one of DECISIONS) and, as "sources", the [rank] of each knowledge chunk or web result the reply
 # uses. A reply fails when its decision is not one of DECISIONS, when an "answer" cites no source or cites one the prompt
 # did not have, or when it has a number that none of the cited sources, the conversation, or the current time in the
-# prompt has, unless the number is one of them times a number the customer wrote (4 × Rp25.000). For an agent with web
-# search, it also fails when it has a link that is not one of the web results, the knowledge, or the conversation of the
-# prompt, or when it cites a web result without its link. AiAgents::ReplyGenerator sends the agent's knowledge gap
-# message instead of a reply that fails and of a knowledge_gap decision.
+# prompt has, unless the number is one of them times a number the customer wrote (4 × Rp25.000); a web result backs no
+# phone, account, or other number of 8 or more digits. For an agent with web search, it also fails when it has a link
+# that is not one of the web results, the knowledge, or the conversation of the prompt, or the site of a web result, or
+# when it cites a web result without its link. AiAgents::ReplyGenerator sends the agent's knowledge gap message instead
+# of a reply that fails and of a knowledge_gap decision.
 # The check is deterministic: it traces numbers and links to a source, but cannot tell whether the rest of the reply is
 # true, or whether a number from a web result is presented as the business's own.
 class AiAgents::ReplyValidator
@@ -29,9 +30,9 @@ class AiAgents::ReplyValidator
   SCALES = { 'ribu' => 1_000, 'rb' => 1_000, 'k' => 1_000, 'juta' => 1_000_000, 'jt' => 1_000_000 }.freeze
   # The number of a list item ("1. ", "2) ") at the start of a line of the reply is not a fact.
   LIST_ITEM = /^\s*\d+[.)]\s/
-  # A link with its scheme or "www.", up to a space or a character that marks it up in a reply. A link without either is
-  # not recognized.
-  URL = %r{\b(?:https?://|www\.)[^\s<>"'`*\[\]]+}i
+  # A link with its scheme, or a host name with a top-level domain of letters ("kompas.com/otomotif", also the domain of an
+  # e-mail address), because chat apps make those clickable too; up to a space or a character that marks it up.
+  URL = %r{\b(?:https?://[^\s<>"'`*\[\]]+|(?:[a-z\d-]+\.)+[a-z]{2,}\b(?:/[^\s<>"'`*\[\]]*)?)}i
   # Without content, so a trace can keep it: blocked_reason is nil when the reply may be sent.
   Result = Data.define(:decision, :sources, :blocked_reason) do
     def knowledge_gap? = decision == 'knowledge_gap' || blocked_reason.present?
@@ -98,8 +99,14 @@ class AiAgents::ReplyValidator
   end
 
   def known_numbers
-    @known_numbers ||= numbers([*cited_hits.values.map { |hit| hit.chunk.content }, *cited_web_results.values.map(&:text), *messages.pluck(:content),
-                                current_time].join("\n")).to_set
+    @known_numbers ||= numbers([*cited_hits.values.map { |hit| hit.chunk.content }, *cited_web_results.values.map { |item| web_numbers(item) },
+                                *messages.pluck(:content), current_time].join("\n")).to_set
+  end
+
+  # The text of a web result without its runs of 8 or more digits, so a page cannot back a phone, account, or identity
+  # number: those come from the knowledge or the conversation only.
+  def web_numbers(item)
+    item.text.gsub(AiAgents::ScopeGuard::LONG_NUMBER, ' ')
   end
 
   def customer_numbers
@@ -108,8 +115,17 @@ class AiAgents::ReplyValidator
 
   def urls_known?
     text = [*hits.map { |hit| hit.chunk.content }, *messages.pluck(:content)].join("\n")
-    known = [*web_results.map(&:url), *text.scan(URL)].to_set { |url| url_key(url) }
-    replies.join("\n").scan(URL).all? { |url| known.include?(url_key(url)) }
+    known = [*web_results.map(&:url), *text.scan(URL)].map { |url| url_key(url) }
+    replies.join("\n").scan(URL).all? { |url| known_url?(url_key(url), known) }
+  end
+
+  # A link is known when it is one of the known links, or names the site of one ("kompas.com" for a page on
+  # otomotif.kompas.com), as a reply may when it says where the information comes from.
+  def known_url?(key, known)
+    known.any? do |known_key|
+      host = known_key[%r{\A[^/?#]+}]
+      known_key == key || host == key || host.end_with?(".#{key}")
+    end
   end
 
   def citations_linked?

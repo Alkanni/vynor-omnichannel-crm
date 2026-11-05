@@ -61,8 +61,10 @@ class AiAgents::ScopeGuard
   # The backstop to the rule against personal data in WEB_INSTRUCTIONS: a query that matches any of these is never searched,
   # and neither is one longer than AiAgents::WebSearch::MAX_QUERY_CHARACTERS, which likely copies the customer's message.
   # Names cannot be told apart from other words, so only the rule keeps them out.
+  # Phone numbers, NIK, and any other 8 or more digits, also with spaces, dots, dashes, or parentheses between them.
+  LONG_NUMBER = /\d(?:[\s.()-]*\d){7,}/
   PERSONAL_DATA_PATTERNS = [
-    /\d(?:[\s.()-]*\d){7,}/, # phone numbers, NIK, and any other 8 or more digits, also with spaces, dots, dashes, or parentheses between
+    LONG_NUMBER,
     /[^\s@]+@[^\s@]+\.[^\s@]+/, # e-mail addresses
     /\b[A-Z]{1,2} ?\d{1,4} ?[A-Z]{1,3}\b/, # Indonesian plates such as D 1234 ABC, which some model names (XL7 AT) also match
     /\b(?=[A-HJ-NPR-Z]*\d)[A-HJ-NPR-Z\d]{17}\b/i # VINs: 17 letters and digits, without I, O, and Q
