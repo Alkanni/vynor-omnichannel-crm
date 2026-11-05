@@ -51,9 +51,9 @@ class AiAgents::ReplyValidator
   # A link with its scheme, or a host name with a top-level domain of letters ("kompas.com/otomotif", also the domain of an
   # e-mail address), because chat apps make those clickable too; up to a space or a character that marks it up.
   URL = %r{\b(?:https?://[^\s<>"'`*\[\]]+|(?:[a-z\d-]+\.)+[a-z]{2,}\b(?:/[^\s<>"'`*\[\]]*)?)}i
-  # Two years ("2017 - 2019", production years in a recall) also have 8 digits, but are no phone, account, or identity
-  # number, so the long number rules leave them alone.
-  YEAR_RANGE = /\A(?:19|20)\d\d[\s-]*(?:19|20)\d\d\z/
+  # A range of two years ("2017 - 2019", production years in a recall) also has 8 digits, but is no phone, account, or
+  # identity number, so the long number rules leave it alone; each year still needs a source.
+  YEAR_RANGE = /\A(?:19|20)\d\d\s*-\s*(?:19|20)\d\d\z/
   # Without content, so a trace can keep it: blocked_reason is nil when the reply may be sent.
   Result = Data.define(:decision, :sources, :blocked_reason) do
     def knowledge_gap? = decision == 'knowledge_gap' || blocked_reason.present?

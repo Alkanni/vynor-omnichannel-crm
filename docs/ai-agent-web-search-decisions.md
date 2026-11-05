@@ -159,7 +159,7 @@ As built in EXA-04 (#110), after its security review and first eval runs:
 - **Digits of links.** The digits of a link (`/read/2025/09/16/112200115/`) are left out of the number rule, because the link rules check links. Without this, the first live answer from a Kompas page was blocked as `unsupported_number`.
 - **Long numbers.** A web result backs no run of 8 or more digits (phone, account, or identity numbers, the backstop's first pattern). When a reply cites a web result, each such run in it needs the same digits in a cited chunk or the conversation, so a page cannot supply the parts of a number one by one. Two years ("2017 - 2019") are left out of both rules: the first eval run blocked a correct recall answer on the production years of a Mitsubishi page.
 - **Agents without web search** keep the check of #97: their links are not checked.
-- **Residual risks of the link and number rules.** Digits spelled out in words, or split by separators other than spaces, dots, dashes, and parentheses, are not read as one number; and a link written without a dot (`kompas com`) is not read as a link. The prompt rule is the only control for those.
+- **Residual risks of the link and number rules.** Digits spelled out in words, or split by separators other than spaces, dots, dashes, and parentheses, are not read as one number; a link written without a dot (`kompas com`) is not read as a link; and the digits inside a link are not checked, so a result URL with a phone number in its path would reach the customer as a link. Refusing result URLs with 8 or more digits was not adopted, because news URLs such as Kompas's carry 9-digit article ids. The prompt rule, and links limited to the URLs Exa returned, are the only controls for those.
 
 ## Exa request contract
 
