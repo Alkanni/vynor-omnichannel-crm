@@ -183,7 +183,8 @@ node report.mjs output/web-1.json
   not searched.
 - The report adds a web search section: route accuracy, web queries of `blocked` cases, cases without `pii` strings in
   the web query, the web search status per category, the web queries that the personal data check skipped although
-  the case has no personal data (false skips), the `web` route cases answered from web results and the others with
+  the case has no personal data (false skips), the searches made for `phone` cases and the `web` route cases that the
+  contact request check skipped (both target 0), the `web` route cases answered from web results and the others with
   their status and reply check, the link checks, the entries and characters per web block, reply model tokens with and
   without a web block, Exa latency, and what Exa charged for the run.
 - One run makes 58 agent calls: the scope check for each, and the reply model unless the scope check answered. About

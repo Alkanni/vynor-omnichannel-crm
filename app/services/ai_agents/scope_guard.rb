@@ -4,8 +4,8 @@
 # answers the decisions in REPLY_ATTRIBUTES with the agent's own text; the others go on to the reply model, where the
 # transfer conditions stay the only handoff trigger.
 # For an agent with web search (see AiAgent#web_search?), the check also writes the query to search the web with, if the
-# turn needs one, under the rules of docs/ai-agent-web-search-decisions.md. A query with personal data is never searched;
-# AiAgents::ReplyGenerator searches the others.
+# turn needs one, under the rules of docs/ai-agent-web-search-decisions.md. A query with personal data, or for a turn that
+# asks for contact details, is never searched; AiAgents::ReplyGenerator searches the others.
 # Messages are { role: :user | :assistant, content:, attachments: }, as for AiAgents::ReplyGenerator.
 class AiAgents::ScopeGuard
   DECISIONS = %w[SUSPICIOUS HANDOFF_REQUEST AMBIGUOUS IN_SCOPE GREETING OUT_OF_SCOPE].freeze
@@ -69,10 +69,21 @@ class AiAgents::ScopeGuard
     /\b[A-Z]{1,2} ?\d{1,4} ?[A-Z]{1,3}\b/, # Indonesian plates such as D 1234 ABC, which some model names (XL7 AT) also match
     /\b(?=[A-HJ-NPR-Z]*\d)[A-HJ-NPR-Z\d]{17}\b/i # VINs: 17 letters and digits, without I, O, and Q
   ].freeze
+  # The backstop to the rule against contact requests in WEB_INSTRUCTIONS: a turn whose latest customer messages or web
+  # query match this is never searched, whatever the decision. The query alone is not enough, because the model can leave
+  # out "nomor". "nomor" alone is not one, so a question about the frame number ("nomor rangka") is still searched, and
+  # neither are the ignition terms "kunci kontak" and "kontak ON".
+  CONTACT_REQUEST = /
+    \b(?:
+      (?:nomor|nomer|no\.?)\s*(?:telepon|telpon|telp|tlp|hp|handphone|ponsel|wa|whatsapp|kontak|layanan|darurat|pengaduan)
+      | whatsapp | hotline | call\s*cent(?:er|re) | alamat | (?<!kunci\s)kontak(?!\s+o(?:n|ff)\b)
+    )(?:-?nya)?\b
+  /ix
   # Token counts are nil when the gateway does not report usage (see AiAgents::LlmClient::Completion). web_query and
   # web_search_status are nil for an agent without web search. Otherwise web_query is what the model wrote, blank when the
   # turn needs no web search, and web_search_status is not_needed (no query, or the turn gets a scope reply),
-  # skipped_personal_data (see PERSONAL_DATA_PATTERNS), or pending (the reply searches it and traces how that went).
+  # skipped_personal_data (see PERSONAL_DATA_PATTERNS), skipped_contact_request (see CONTACT_REQUEST), or pending (the
+  # reply searches it and traces how that went).
   Result = Data.define(:decision, :web_query, :web_search_status, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
     # The agent setting whose text answers the turn, or nil when the turn goes on to the reply model.
     def reply_attribute = REPLY_ATTRIBUTES[decision]
@@ -114,10 +125,14 @@ class AiAgents::ScopeGuard
   def web_search_status(decision, web_query)
     return if web_query.nil?
     return 'not_needed' if REPLY_ATTRIBUTES.key?(decision) || web_query.blank?
-    return 'skipped_personal_data' if web_query.length > AiAgents::WebSearch::MAX_QUERY_CHARACTERS
-    return 'skipped_personal_data' if PERSONAL_DATA_PATTERNS.any? { |pattern| pattern.match?(web_query) }
+    return 'skipped_personal_data' if personal_data?(web_query)
+    return 'skipped_contact_request' if [*latest_turn.pluck(:content), web_query].any? { |text| CONTACT_REQUEST.match?(text) }
 
     'pending'
+  end
+
+  def personal_data?(web_query)
+    web_query.length > AiAgents::WebSearch::MAX_QUERY_CHARACTERS || PERSONAL_DATA_PATTERNS.any? { |pattern| pattern.match?(web_query) }
   end
 
   # The customer messages since the last message from the agent's side.

@@ -74,6 +74,8 @@ KnowledgeRetriever (unchanged, always)
    ▼  web_query present
 personal data check (deterministic) ── hit ────────► no search, status skipped_personal_data
    ▼
+contact request check (deterministic) ── hit ──────► no search, status skipped_contact_request
+   ▼
 budget check (Redis) ─────────── exhausted ────────► no search, status skipped_budget
    ▼
 cache (Redis) ── hit ─┐
@@ -124,6 +126,13 @@ Why this point:
   - The reply then goes on with the knowledge only.
   - Names cannot be detected deterministically. Keeping them out relies on the guard's instruction, and the eval checks it (`pii` metadata in `tests/w-web.yaml`).
 - **Phone and personal-data lookups** are `blocked` at the scope check, per owner decision 2.
+- **Contact request backstop** (owner decision 1b on #109, added in #110). The scope check sometimes lets a contact lookup through as `IN_SCOPE`: W-PH-06 (a towing number on the toll road) did so in 2 of 6 runs of #109 and 1 of 5 runs of #110. So a deterministic check also fails closed:
+  - When the latest customer messages or the query contain a contact phrase, the turn is not searched and gets status `skipped_contact_request`, whatever the decision. The reply goes on with the knowledge only, so the business's own contacts are still answered.
+  - Both texts are checked, because the model can leave out "nomor" from the query.
+  - The phrases (`ScopeGuard::CONTACT_REQUEST`): "nomor", "nomer", or "no." followed by telepon, telpon, telp, tlp, HP, handphone, ponsel, WA, WhatsApp, kontak, layanan, darurat, or pengaduan; WhatsApp, hotline, call center, alamat, and kontak, each also with "-nya".
+  - "nomor" alone is not a contact request, so a question about where the frame number sits is still searched. Neither are the ignition terms "kunci kontak" and "kontak ON/OFF".
+  - A turn that asks for the business's own contact and a general question at once ("Nomor WA bengkel berapa? Sekalian, rem bunyi kenapa?") gets no search either, and neither does a customer who gives their own number or address in such words ("nomor HP saya …"). That is the price of failing closed.
+  - Other languages and other wordings ("WA bengkel resmi", "phone number") rely on the scope check rule only.
 - **No content in traces.** Traces keep not storing content, so the query is not stored. The playground and the Retrieval Test show it to admins.
 - **Exa as a data processor.** Exa is a new processor in the US. Zero Data Retention is listed under its Enterprise plan, so queries may be retained. The backstop and the query rules are the mitigation.
 
@@ -219,7 +228,7 @@ Content-Type: application/json
 ## Observability
 
 New `AiAgent::ReplyTrace` columns:
-- `web_search_status`: nil when the agent has no web search, otherwise one of `not_needed`, `searched`, `cached`, `skipped_personal_data`, `skipped_budget`, `failed_*`. Rows from the EXA-03 shadow mode have `shadow`. Since EXA-04 the scope check's own status for a query it lets through is `pending`, which the reply replaces with the search's, so traces never store it.
+- `web_search_status`: nil when the agent has no web search, otherwise one of `not_needed`, `searched`, `cached`, `skipped_personal_data`, `skipped_contact_request`, `skipped_budget`, `failed_*`. Rows from the EXA-03 shadow mode have `shadow`. Since EXA-04 the scope check's own status for a query it lets through is `pending`, which the reply replaces with the search's, so traces never store it.
 - `web_results`: jsonb list of `{ rank, url }`.
 - `web_latency_ms`.
 - `web_cost_usd`.
@@ -329,6 +338,19 @@ Run setup:
   - a request to reveal the instructions;
   - a towing phone number.
 - Worst case: an Exa request that uses its whole timeout and fails gives a reply without web after 10.9 to 12.1 s, under Rack::Timeout's 15 s.
+
+The contact request backstop (AC8) came in a follow-up PR. Two more runs of `w-web.yaml` on `ai110` with it:
+
+| Measure | Run 6 | Run 8 | Target |
+|---|---|---|---|
+| Searches in `phone` cases | 0 | 0 | 0 |
+| `web` route cases skipped by the contact request check | 0 | 0 | 0 |
+| `web` route cases answered from web results | 23/26 | 25/26 | ≥ 18/26 |
+| Route accuracy | 57/57 (1 error) | 57/58 (W-IN-07 wrote a query) | ≥ 95% |
+
+- Run 7 had 4 gateway timeouts (more than the 3 the README allows), so run 8 replaced it.
+- In both runs the scope check refused every `phone` case itself, so the backstop never had to fire there. Its spec covers each phrase.
+- In two playground probes, a mixed turn that asks for the business's WhatsApp number or address together with a brake question was `IN_SCOPE` with a query and ended `skipped_contact_request`. The address was still answered from the knowledge.
 
 ## Work units
 
