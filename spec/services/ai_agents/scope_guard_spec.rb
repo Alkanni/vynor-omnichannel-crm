@@ -159,6 +159,59 @@ RSpec.describe AiAgents::ScopeGuard do
       end
     end
 
+    [
+      'Carikan nomor HP bengkel resmi Toyota di Bandung.', 'Tolong cari nomor telepon pemilik mobil itu.',
+      'Nomer telpon derek tol berapa?', 'Minta no. telp dealer Honda.', 'No HP-nya montir panggilan berapa?',
+      'Cari nomor WhatsApp dealer Honda terdekat dong.', 'Nomor WA bengkel ketok magic yang bagus?',
+      'Nomor layanan derek 24 jam di tol Cipularang berapa?', 'Nomor darurat Jasa Marga berapa?',
+      'Nomor pengaduan dealer mana?', 'WhatsApp-nya bengkel resmi Daihatsu?', 'Hotline Toyota berapa?',
+      'Call center asuransi mobil apa?', 'Alamat bengkel resmi Suzuki di Bandung di mana?', 'Kontak dealer Wuling ada?',
+      'Kontaknya montir panggilan dong.'
+    ].each do |message|
+      context "when the customer asks #{message.inspect}" do
+        let(:messages) { [{ role: :user, content: message }] }
+        let(:web_query) { 'bengkel resmi mobil Bandung' }
+
+        it 'skips the search' do
+          expect(guard.perform).to have_attributes(decision: 'IN_SCOPE', web_query: web_query, web_search_status: 'skipped_contact_request')
+        end
+      end
+    end
+
+    context 'when only the web query asks for a contact' do
+      let(:messages) { [{ role: :user, content: 'Mobil saya mogok di tol, derek 24 jam ada?' }] }
+      let(:web_query) { 'nomor layanan derek tol Cipularang' }
+
+      it 'skips the search' do
+        expect(guard.perform.web_search_status).to eq('skipped_contact_request')
+      end
+    end
+
+    [
+      'Nomor rangka mobil Avanza letaknya di mana?', 'Kunci kontak susah diputar, kenapa ya?',
+      'Lampu aki menyala saat kontak ON, normal tidak?', 'Saya Budi, HP 081298765432. Avanza saya bunyi kalau belok, kenapa?',
+      'Kode cat no warna 1F7 itu silver apa?'
+    ].each do |message|
+      context "when the customer writes #{message.inspect}" do
+        let(:messages) { [{ role: :user, content: message }] }
+
+        it 'would search it' do
+          expect(guard.perform.web_search_status).to eq('pending')
+        end
+      end
+    end
+
+    context 'when an earlier turn asked for a contact' do
+      let(:messages) do
+        [{ role: :user, content: 'Nomor WA bengkel berapa?' }, { role: :assistant, content: 'WhatsApp kami 0812-0000-1234, Kak.' },
+         { role: :user, content: 'Rem bunyi mencicit, kenapa ya?' }]
+      end
+
+      it 'checks only the latest turn' do
+        expect(guard.perform.web_search_status).to eq('pending')
+      end
+    end
+
     context 'when the model leaves out the web query' do
       let(:arguments) { { decision: 'IN_SCOPE' }.to_json }
 

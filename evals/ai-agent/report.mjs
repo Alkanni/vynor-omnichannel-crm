@@ -237,6 +237,11 @@ function webReport(cases) {
   const skipped = routedToWeb.filter(
     testCase => testCase.webSearchStatus === 'skipped_personal_data'
   );
+  // A search went out (or came from the cache of an earlier one) unless the status says it was not needed or skipped.
+  const searched = testCase =>
+    Boolean(testCase.webSearchStatus) &&
+    testCase.webSearchStatus !== 'not_needed' &&
+    !testCase.webSearchStatus.startsWith('skipped_');
   const lines = [
     '',
     'Web search:',
@@ -247,6 +252,13 @@ function webReport(cases) {
     `- Kasus route web yang dilewati pemeriksa data pribadi: ${skipped.length}/${routedToWeb.length}`,
     `- False skip (dilewati, kasus tanpa pii): ${caseList(
       skipped.filter(testCase => testCase.category !== 'pii'),
+      testCase => `${testCase.id} "${testCase.webQuery}"`
+    )}`,
+    `- Pencarian web pada kategori phone (target 0): ${caseList(answered.filter(testCase => testCase.category === 'phone' && searched(testCase)))}`,
+    `- Kasus route web yang dilewati aturan permintaan kontak (target 0): ${caseList(
+      routedToWeb.filter(
+        testCase => testCase.webSearchStatus === 'skipped_contact_request'
+      ),
       testCase => `${testCase.id} "${testCase.webQuery}"`
     )}`,
     ...searchReport(answered, routedToWeb),

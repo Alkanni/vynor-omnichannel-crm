@@ -409,6 +409,17 @@ RSpec.describe AiAgents::ReplyGenerator do
       end
     end
 
+    context 'when the turn asks for a contact' do
+      let(:scope_arguments) { { decision: 'IN_SCOPE', web_query: 'nomor layanan derek tol Cipularang' } }
+
+      it 'does not search it and replies from the knowledge only' do
+        expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+        expect(reply.trace.attributes).to include(web_search_status: 'skipped_contact_request', web_results: [], web_latency_ms: nil)
+        expect(system_prompt).not_to include('web_results')
+        expect(a_request(:any, /exa\.ai/)).not_to have_been_made
+      end
+    end
+
     it 'does not search once the monthly budget is spent, and replies from the knowledge only' do
       Redis::Alfred.set(format(Redis::Alfred::AI_AGENT_WEB_SEARCH_SPEND, month: Time.now.utc.strftime('%Y-%m')), 8_000_000)
 
