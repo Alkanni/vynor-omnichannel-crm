@@ -25,6 +25,9 @@
 #  watcher_cached_input_tokens :integer
 #  watcher_input_tokens        :integer
 #  watcher_output_tokens       :integer
+#  web_cost_usd                :decimal(10, 6)
+#  web_latency_ms              :integer
+#  web_results                 :jsonb            not null
 #  web_search_status           :string
 #  created_at                  :datetime         not null
 #  updated_at                  :datetime         not null
@@ -40,11 +43,12 @@
 #
 # What an AI Agent did for one customer message it answered (see AiAgents::ReplyJob), to explain and evaluate its replies:
 # the decision of the scope check (see AiAgents::ScopeGuard) and how long it took, what became of web search for an agent
-# with web search (web_search_status, see AiAgents::ScopeGuard::Result; the query is not kept), the knowledge chunks it
-# retrieved, kept as references with their rank and score but never their content, the decision of a strict agent's
-# reply, the ranks it cited, and why the reply was replaced with the knowledge gap message (see AiAgents::ReplyValidator),
-# the model and the tokens of all its model calls, how long the reply took, and the outcome. Customer messages and replies
-# are not copied here either.
+# with web search (web_search_status, see AiAgents::ReplyGenerator::Trace#web_search_status; the query is not kept) with
+# the rank and URL of each web result in the prompt, the search's latency and what Exa charged for it (see
+# AiAgents::WebSearch), the knowledge chunks it retrieved, kept as references with their rank and score but never their
+# content, the decision of a strict agent's reply, the ranks it cited, and why the reply was replaced with the knowledge
+# gap message (see AiAgents::ReplyValidator), the model and the tokens of all its model calls, how long the reply took
+# (the web search included), and the outcome. Customer messages, replies, and web content are not copied here either.
 # input_tokens, output_tokens, and cached_input_tokens add up the scope check and the reply model, of which the scope_*
 # tokens are the scope check's share. The Watcher run after the reply (see AiAgents::WatchJob) adds its own watcher_*
 # tokens. See AiAgents::LlmClient::Completion for cached input, and AiAgents::UsageReport for a summary of a period.

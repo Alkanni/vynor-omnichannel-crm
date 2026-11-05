@@ -39,6 +39,15 @@ RSpec.describe AiAgents::WebSearch do
     )
   end
 
+  it 'gives a prompt the highlights of a result as one text of at most 800 characters' do
+    item = described_class::Item.new(rank: 1, title: 'Mesin overheat', url: 'https://otomotif.example/overheat', published_at: nil,
+                                     highlights: ["Radiator  tersumbat.\n" * 60, 'Kipas mati.'])
+
+    expect(item.text.length).to be <= 800
+    expect(item.text).to start_with('Radiator tersumbat. Radiator tersumbat.').and end_with('...')
+    expect(item.with(highlights: ['Radiator tersumbat.', 'Kipas mati.']).text).to eq('Radiator tersumbat. Kipas mati.')
+  end
+
   it 'searches only the given domains' do
     request = stub_request(:post, url).with(body: hash_including(includeDomains: ['otomotif.example'])).to_return(exa_response)
 

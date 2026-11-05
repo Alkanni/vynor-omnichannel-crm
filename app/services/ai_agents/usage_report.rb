@@ -1,7 +1,8 @@
 # Sums up how the AI Agents used their models over a period, from their reply traces (see AiAgent::ReplyTrace), as Markdown
 # for the ai_agents:usage_report task. Per agent: the traces by status, the model calls and their tokens by kind, cached
-# input, latency, the knowledge chunks sent, the decisions, and the tokens and model calls per conversation, also for the
-# conversations the AI handled without a handoff. Counts only, without message or knowledge content.
+# input, latency, the knowledge chunks sent, the decisions, web search for an agent with it, and the tokens and model
+# calls per conversation, also for the conversations the AI handled without a handoff. Counts only, without message,
+# knowledge, or web content.
 # A model call is counted when it returned, since a failed one ends in an error trace; Watcher calls are counted by their
 # tokens. Statistics leave out the traces that lack their columns, such as those written before the columns existed, and
 # say over how many values they were taken (n).
@@ -35,7 +36,7 @@ class AiAgents::UsageReport
     return [title, '', 'No reply traces.'] if rows.empty?
 
     [title, '', "- Traces by status: #{counts(rows.map(&:status))}", "- Models: #{counts(rows.map(&:model))}", '',
-     *call_table(rows), '', *cached_lines(rows), *detail_lines(rows), *conversation_lines(rows)]
+     *call_table(rows), '', *cached_lines(rows), *detail_lines(rows), *web_lines(rows), *conversation_lines(rows)]
   end
 
   def call_table(rows)
@@ -58,11 +59,28 @@ class AiAgents::UsageReport
 
   def detail_lines(rows)
     reply_calls = rows.select { |row| reply_model?(row) }
-    ["- Reply latency in ms (scope check, knowledge search, and reply model): #{stats(rows.map(&:latency_ms), percentiles: [50, 95])}",
+    ["- Reply latency in ms (scope check, knowledge search, web search, and reply model): #{stats(rows.map(&:latency_ms), percentiles: [50, 95])}",
      "- Scope check latency in ms: #{stats(rows.map(&:scope_latency_ms), percentiles: [50, 95])}",
      "- Knowledge chunks sent per reply model call: #{stats(reply_calls.map { |row| row.retrieved.size })}",
      "- Scope check decisions: #{counts(rows.filter_map(&:scope_decision))}",
      "- Reply decisions: #{counts(rows.filter_map(&:reply_decision))}"]
+  end
+
+  # The turns with web search (see AiAgents::ReplyGenerator::Trace#web_search_status): the share that needed the web, what
+  # became of them, and the requests made to Exa.
+  def web_lines(rows)
+    web_rows = rows.select(&:web_search_status)
+    return [] if web_rows.empty?
+
+    routed = web_rows.count { |row| row.web_search_status != 'not_needed' }
+    ["- Turns routed to web search: #{routed} of #{web_rows.size} turns with web search (#{(routed * 100.0 / web_rows.size).round}%)",
+     "- Web search statuses: #{counts(web_rows.map(&:web_search_status))}", *exa_lines(web_rows.select(&:web_latency_ms))]
+  end
+
+  # requests: the traces of the turns whose search made a request to Exa.
+  def exa_lines(requests)
+    ["- Exa requests: #{requests.size}, spend US$#{format('%.3f', requests.sum(&:web_cost_usd))}",
+     "- Exa request latency in ms: #{stats(requests.map(&:web_latency_ms), percentiles: [50, 95])}"]
   end
 
   def conversation_lines(rows)

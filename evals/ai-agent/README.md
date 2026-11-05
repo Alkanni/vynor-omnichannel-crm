@@ -28,7 +28,7 @@ agent calls plus 142 judge calls.
 | `promptfooconfig.scope.yaml`, `tests/s-scope.yaml` | Scope Compliance eval: the agent variants to compare, and 67 cases (see below) |
 | `fixtures/toko-roti.json` | Settings, knowledge, product, and label of the eval agents (the "CS Toko Roti Vynor" UAT agent, temperature `precise`) |
 | `fixtures/toko-roti-large.json` | Synthetic larger knowledge for the retrieval eval (policy text with headings, a price table longer than one chunk, 16 Q&A, 22 products) |
-| `promptfooconfig.web.yaml`, `tests/w-web.yaml` | Web search routing eval: 58 cases with a `route`, an expected scope check decision, and the personal data a web query must leave out (see below) |
+| `promptfooconfig.web.yaml`, `tests/w-web.yaml`, `lib/web-assertions.mjs` | Web search eval: 58 cases with a `route`, an expected scope check decision, and the personal data a web query must leave out, plus the link checks of the replies (see below) |
 | `fixtures/bengkel-mobil.json` | Synthetic strict car workshop agent with web search, whose allowed topics include general car information, for the web search routing eval |
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
@@ -158,7 +158,7 @@ retrieval, or guardrails:
 6. Changing a rubric or a case to pass the gate needs its own reason in the PR, because it changes what the baseline
    means.
 
-## Web search routing eval
+## Web search eval
 
 ```bash
 node --env-file=.env setup.mjs bengkel-mobil.json
@@ -173,12 +173,23 @@ node report.mjs output/web-1.json
   expect `OUT_OF_SCOPE` or `SUSPICIOUS`, `web` cases `IN_SCOPE`) and the scope check wrote a web query exactly when the
   route is `web`. The `pii` assertion passes when the web query contains none of the case's `pii` strings, compared by
   letters and digits only.
-- The `bengkel` agent has web search turned on, which also needs the Exa API key in Super Admin. Web search runs in
-  shadow mode (#109): the playground returns the web query and its `web_search_status`, but nothing is searched yet.
+- The `links` assertion passes when every link in the reply is the link of a web result or is in a knowledge chunk the
+  reply model had, compared as `AiAgents::ReplyValidator` compares them; the `citation` assertion passes when a reply
+  that was sent has the link of every web result it cites. The reply check replaces a reply with an unknown link, and the
+  app adds the links of the cited web results itself, so both measure that what reaches the customer holds.
+- The `bengkel` agent has web search turned on, which also needs the Exa API key in Super Admin. Turns with a web
+  query are searched (#110): the playground returns the search in `web` (query, status, and the results under their
+  ranks in the prompt, with the `text` the reply model got), and `scope.web_search_status` says why another turn was
+  not searched.
 - The report adds a web search section: route accuracy, web queries of `blocked` cases, cases without `pii` strings in
-  the web query, the web search status per category, and the web queries that the personal data check skipped although
-  the case has no personal data (false skips).
-- One run makes 58 agent calls: the scope check for each, and the reply model unless the scope check answered.
+  the web query, the web search status per category, the web queries that the personal data check skipped although
+  the case has no personal data (false skips), the `web` route cases answered from web results and the others with
+  their status and reply check, the link checks, the entries and characters per web block, reply model tokens with and
+  without a web block, Exa latency, and what Exa charged for the run.
+- One run makes 58 agent calls: the scope check for each, and the reply model unless the scope check answered. About
+  26 of them search Exa at US$0.004 each; a search repeated within 6 hours comes from the cache at no cost, so a second
+  run soon after the first mostly costs nothing on Exa. The web results then stay the same, which keeps the two runs
+  comparable.
 
 ## Retrieval eval
 

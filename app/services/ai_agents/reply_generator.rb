@@ -1,8 +1,11 @@
 # Builds the LLM request for an AI Agent (behavior, local time, relevant knowledge, actions, history) and returns
 # the reply as chat bubbles plus the actions it takes and a trace of how it was made. A strict agent runs the scope
 # check first (see AiAgents::ScopeGuard); a turn the check answers gets the agent's own text, without the knowledge
-# search and the reply model. The reply of a strict agent is checked against the knowledge it cites before it is sent
-# (see AiAgents::ReplyValidator), and one that fails gets the agent's knowledge gap message.
+# search and the reply model. When the check wrote a web query that may be searched, the web results go into the prompt
+# after the knowledge (see AiAgents::WebSearch); a search that fails or is skipped leaves the reply to the knowledge. The
+# reply of a strict agent is checked against the knowledge and web results it cites before it is sent (see
+# AiAgents::ReplyValidator), and one that fails gets the agent's knowledge gap message. The links of the web results a
+# reply cites are added to it after the check, so the model never writes them.
 # Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
@@ -18,24 +21,34 @@ class AiAgents::ReplyGenerator
     def scope_reply? = trace.scope&.reply_attribute.present?
   end
   # scope is an AiAgents::ScopeGuard::Result, nil when the check did not run; retrieval is an
-  # AiAgents::KnowledgeRetriever::Result, nil for a scope reply; validation is an AiAgents::ReplyValidator::Result for a
-  # reply of a strict agent's reply model, nil otherwise. Tokens add up the scope check and the reply model (see
-  # AiAgents::LlmClient::Completion for cached_input_tokens), and latency_ms covers the scope check, the knowledge search,
-  # and the model call.
-  Trace = Data.define(:scope, :retrieval, :validation, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
-    # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content, and the web query is
-    # not kept at all.
+  # AiAgents::KnowledgeRetriever::Result, nil for a scope reply; web_search is the AiAgents::WebSearch::Result of a turn
+  # that was searched, with the ranks its results had in the prompt, nil otherwise; validation is an
+  # AiAgents::ReplyValidator::Result for a reply of a strict agent's reply model, nil otherwise. Tokens add up the scope
+  # check and the reply model (see AiAgents::LlmClient::Completion for cached_input_tokens), and latency_ms covers the
+  # scope check, the knowledge search, the web search, and the model call.
+  Trace = Data.define(:scope, :retrieval, :web_search, :validation, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
+    # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content, web results as their
+    # rank and URL, and the web query is not kept at all.
     def attributes
       { retrieval_mode: retrieval&.mode, embedding_model: retrieval&.embedding_model, retrieved: retrieved, **scope_attributes,
-        input_tokens: input_tokens, output_tokens: output_tokens, cached_input_tokens: cached_input_tokens, latency_ms: latency_ms,
-        **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks) }
+        **web_attributes, input_tokens: input_tokens, output_tokens: output_tokens, cached_input_tokens: cached_input_tokens,
+        latency_ms: latency_ms, **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks) }
     end
+
+    # What became of web search for the turn: the status of the search, else the scope check's (see
+    # AiAgents::ScopeGuard::Result); nil for an agent without web search.
+    def web_search_status = web_search&.status || scope&.web_search_status
 
     private
 
     def scope_attributes
       { scope_decision: scope&.decision, scope_latency_ms: scope&.latency_ms, scope_input_tokens: scope&.input_tokens,
-        scope_output_tokens: scope&.output_tokens, web_search_status: scope&.web_search_status }
+        scope_output_tokens: scope&.output_tokens }
+    end
+
+    def web_attributes
+      { web_search_status: web_search_status, web_results: Array(web_search&.results).map { |item| { rank: item.rank, url: item.url } },
+        web_latency_ms: web_search&.latency_ms, web_cost_usd: web_search&.cost_usd }
     end
 
     def retrieved
@@ -90,9 +103,8 @@ class AiAgents::ReplyGenerator
     content = completion.content
     content = {} unless content.is_a?(Hash)
     validation = validate(content) if ai_agent.scope_strict?
-    messages = validation&.knowledge_gap? ? [ai_agent.knowledge_gap_message] : reply_messages(content)
     # The actions still apply to a reply that failed the check, because they state nothing to the customer.
-    Reply.new(messages: messages, **actions.parse(content), trace: trace(completion, validation))
+    Reply.new(messages: sent_messages(content, validation), **actions.parse(content), trace: trace(completion, validation))
   end
 
   def reply_properties
@@ -100,18 +112,20 @@ class AiAgents::ReplyGenerator
   end
 
   def validate(content)
-    AiAgents::ReplyValidator.new(content: content, replies: reply_messages(content), hits: retrieval.hits, messages: messages,
+    AiAgents::ReplyValidator.new(content: content, replies: reply_messages(content), hits: retrieval.hits,
+                                 web_results: (Array(web_search&.results) if ai_agent.web_search?), messages: messages,
                                  current_time: current_time).perform
   end
 
   def scope_reply
-    trace = Trace.new(scope: @scope, retrieval: nil, validation: nil, input_tokens: @scope.input_tokens, output_tokens: @scope.output_tokens,
-                      cached_input_tokens: @scope.cached_input_tokens, latency_ms: elapsed_ms)
+    trace = Trace.new(scope: @scope, retrieval: nil, web_search: nil, validation: nil, input_tokens: @scope.input_tokens,
+                      output_tokens: @scope.output_tokens, cached_input_tokens: @scope.cached_input_tokens, latency_ms: elapsed_ms)
     Reply.new(messages: [ai_agent.public_send(@scope.reply_attribute)], handoff: false, labels: [], trace: trace)
   end
 
   def trace(completion, validation)
-    Trace.new(scope: @scope, retrieval: retrieval, validation: validation, input_tokens: tokens(@scope&.input_tokens, completion.input_tokens),
+    Trace.new(scope: @scope, retrieval: retrieval, web_search: web_search, validation: validation,
+              input_tokens: tokens(@scope&.input_tokens, completion.input_tokens),
               output_tokens: tokens(@scope&.output_tokens, completion.output_tokens),
               cached_input_tokens: tokens(@scope&.cached_input_tokens, completion.cached_input_tokens), latency_ms: elapsed_ms)
   end
@@ -125,13 +139,29 @@ class AiAgents::ReplyGenerator
     Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - @started_at
   end
 
+  # The knowledge gap message for a reply that failed the check. Otherwise the model's bubbles, with the links of the web
+  # results the reply cites under the last one.
+  def sent_messages(content, validation)
+    return [ai_agent.knowledge_gap_message] if validation&.knowledge_gap?
+
+    replies = reply_messages(content)
+    links = web_links(replies, validation&.sources)
+    links.empty? || replies.empty? ? replies : [*replies[0...-1], [replies.last, *links].join("\n")]
+  end
+
+  # The URLs of the web results the reply cites that it does not have yet, so every link of a web answer is one the search
+  # returned, whatever the model would have copied.
+  def web_links(replies, sources)
+    Array(web_search&.results).filter_map { |item| item.url if sources.include?(item.rank) && replies.none? { |reply| reply.include?(item.url) } }
+  end
+
   def reply_messages(content)
     Array(content['messages']).grep(String).map(&:strip).compact_blank.first(MAX_REPLY_MESSAGES)
   end
 
   def instructions
-    [ai_agent.behavior.presence, scope_policy, current_time, knowledge, actions.instructions, reply_rules, RESPONSE_INSTRUCTIONS]
-      .compact.join("\n\n")
+    [ai_agent.behavior.presence, scope_policy, current_time, knowledge, web_results, actions.instructions, reply_rules,
+     RESPONSE_INSTRUCTIONS].compact.join("\n\n")
   end
 
   # Comes after the behavior, so the rules in code outrank whatever the behavior says.
@@ -163,6 +193,27 @@ class AiAgents::ReplyGenerator
 
   def retrieval
     @retrieval ||= AiAgents::KnowledgeRetriever.new(ai_agent: ai_agent, messages: messages).perform
+  end
+
+  # Each entry has its angle brackets escaped like a strict agent's chunks, so no page can close the <web_results> block.
+  def web_results
+    return if web_search.nil? || web_search.results.empty?
+
+    entries = web_search.results.map do |item|
+      ["[#{item.rank}] #{item.title}", "URL: #{item.url}", ("Published: #{item.published_at.iso8601}" if item.published_at), item.text]
+        .compact.join("\n").gsub(/[<>]/, ESCAPED_MARKUP)
+    end
+    "#{AiAgents::ReplyValidator::WEB_INSTRUCTIONS}\n<web_results>\n#{entries.join("\n\n")}\n</web_results>"
+  end
+
+  # The search of a web query the scope check let through, with the ranks of its results moved after the knowledge
+  # ranks, so a reply cites both the same way.
+  def web_search
+    return unless @scope&.web_search_status == 'pending'
+
+    @web_search ||= AiAgents::WebSearch.new(query: @scope.web_query, domains: ai_agent.web_search_domain_list).perform.then do |result|
+      result.with(results: result.results.map { |item| item.with(rank: retrieval.hits.size + item.rank) })
+    end
   end
 
   def llm_messages

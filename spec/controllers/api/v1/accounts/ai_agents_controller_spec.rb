@@ -313,8 +313,8 @@ RSpec.describe 'AI Agents API', type: :request do
                                                            hits: hits)
       reply = AiAgents::ReplyGenerator::Reply.new(
         messages: ['Kami buka 07.30 - 18.00.'], handoff: true, labels: ['booking'],
-        trace: AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, validation: nil, input_tokens: 120, output_tokens: 30,
-                                                   cached_input_tokens: 64, latency_ms: 850)
+        trace: AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, web_search: nil, validation: nil, input_tokens: 120,
+                                                   output_tokens: 30, cached_input_tokens: 64, latency_ms: 850)
       )
       generator = instance_double(AiAgents::ReplyGenerator, perform: reply)
       allow(AiAgents::ReplyGenerator).to receive(:new).and_return(generator)
@@ -324,7 +324,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
         'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'model' => ai_agent.model,
-        'scope' => nil, 'validation' => nil,
+        'scope' => nil, 'validation' => nil, 'web' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
@@ -363,6 +363,42 @@ RSpec.describe 'AI Agents API', type: :request do
                                               'scope' => { 'decision' => 'AMBIGUOUS', 'web_query' => '', 'web_search_status' => 'not_needed',
                                                            'latency_ms' => be >= 0, 'input_tokens' => 900, 'output_tokens' => 5 },
                                               'validation' => nil, 'tokens' => { 'input' => 900, 'output' => 5, 'cached_input' => 0 })
+    end
+
+    it 'returns the web search of a reply with its query, status, and results under their ranks in the prompt' do
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Servis dan info umum mobil',
+                       off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Mobil yang mana, Kak?',
+                       knowledge_gap_message: 'Maaf, info itu belum tersedia.', web_search_enabled: true)
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      cached = []
+      Redis::Alfred.scan_each(match: 'ai_agents:web_search:*') { |key| cached << key }
+      cached.each { |key| Redis::Alfred.delete(key) }
+      reply_text = 'Menurut info dari internet, aki cepat soak karena umurnya: https://otomotif.example/aki'
+      arguments = { 'ai_agent_scope' => { decision: 'IN_SCOPE', web_query: 'penyebab aki mobil cepat soak' },
+                    'ai_agent_reply' => { decision: 'answer', sources: [1], messages: [reply_text] } }
+      stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
+        name = JSON.parse(request.body)['tools'].sole['function']['name']
+        { status: 200, headers: { 'Content-Type' => 'application/json' },
+          body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: { role: 'assistant', content: nil, tool_calls: [
+            { id: 'call_1', type: 'function', function: { name: name, arguments: arguments.fetch(name).to_json } }
+          ] } }] }.to_json }
+      end
+      stub_request(:post, 'https://api.exa.ai/search').to_return(
+        status: 200, headers: { 'Content-Type' => 'application/json' },
+        body: { results: [{ title: 'Aki soak', url: 'https://otomotif.example/aki', publishedDate: '2026-10-01T00:00:00.000Z',
+                            highlights: ['Aki cepat soak karena umurnya.'] }], costDollars: { total: 0.004 } }.to_json
+      )
+
+      post url, params: { messages: [{ role: 'user', content: 'Kenapa aki mobil cepat soak?' }] }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include(
+        'messages' => [reply_text], 'validation' => { 'decision' => 'answer', 'sources' => [1], 'blocked_reason' => nil },
+        'web' => { 'query' => 'penyebab aki mobil cepat soak', 'status' => 'searched', 'latency_ms' => be >= 0, 'cost_usd' => 0.004,
+                   'results' => [{ 'rank' => 1, 'title' => 'Aki soak', 'url' => 'https://otomotif.example/aki', 'published_at' => '2026-10-01',
+                                   'highlights' => ['Aki cepat soak karena umurnya.'], 'text' => 'Aki cepat soak karena umurnya.' }] }
+      )
     end
 
     it 'returns the check of a strict reply, and the knowledge gap message for an answer that cites no knowledge' do
@@ -531,7 +567,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response.parsed_body['web']).to include('status' => 'searched', 'cost_usd' => 0.004, 'latency_ms' => be >= 0)
       expect(response.parsed_body['web']['results']).to eq(
         [{ 'rank' => 1, 'title' => 'Jam buka', 'url' => 'https://example.com/jam', 'published_at' => '2026-10-01',
-           'highlights' => ['Buka pukul 08.00.'] }]
+           'highlights' => ['Buka pukul 08.00.'], 'text' => 'Buka pukul 08.00.' }]
       )
     end
 

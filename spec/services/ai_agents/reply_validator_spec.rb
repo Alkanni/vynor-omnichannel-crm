@@ -126,4 +126,145 @@ RSpec.describe AiAgents::ReplyValidator do
       expect(result.blocked_reason).to be_nil
     end
   end
+
+  describe 'web results' do
+    let(:web_results) do
+      [AiAgents::WebSearch::Item.new(rank: 3, title: 'Aki soak', url: 'https://otomotif.example/aki-soak', published_at: nil,
+                                     highlights: ['Aki biasanya soak setelah 2 tahun pemakaian.']),
+       AiAgents::WebSearch::Item.new(rank: 4, title: 'Aki', url: 'https://id.wikipedia.org/wiki/Aki_(otomotif)', published_at: nil,
+                                     highlights: ['Aki menyimpan energi listrik.'])]
+    end
+    let(:content) { { 'decision' => 'answer', 'sources' => [3] } }
+    let(:replies) { ['Menurut info di internet, aki biasanya soak setelah 2 tahun: https://otomotif.example/aki-soak'] }
+    let(:result) do
+      described_class.new(content: content, replies: replies, hits: hits, web_results: web_results, messages: messages, current_time: '').perform
+    end
+
+    it 'passes an answer that cites only a web result, with a number of that result and its link' do
+      expect(result).to have_attributes(decision: 'answer', sources: [3], blocked_reason: nil)
+    end
+
+    it 'blocks a number that the web results it cites do not have' do
+      replies.replace(['Aki biasanya soak setelah 3 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to eq('unsupported_number')
+    end
+
+    it 'blocks a citation of a rank that neither the knowledge nor the web results had' do
+      content['sources'] = [3, 5]
+
+      expect(result.blocked_reason).to eq('unknown_source')
+    end
+
+    it 'leaves the links of the web results it cites to the reply generator' do
+      content['sources'] = [3, 4]
+      replies.replace(['Aki biasanya soak setelah 2 tahun dan menyimpan energi listrik.'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'blocks a link that is not one of the web results, the knowledge, or the conversation, also one that extends a known link' do
+      replies.replace(['Aki soak setelah 2 tahun: https://otomotif.example/aki-soak, lihat juga https://palsu.example/aki'])
+      expect(result.blocked_reason).to eq('unknown_url')
+
+      replies.replace(['Aki soak setelah 2 tahun: https://otomotif.example/aki-soak-murah'])
+      expect(described_class.new(content: content, replies: replies, hits: hits, web_results: web_results, messages: messages,
+                                 current_time: '').perform.blocked_reason).to eq('unknown_url')
+    end
+
+    it 'passes the link of a web result it does not cite, and links from the knowledge or the conversation' do
+      hits.first.chunk.content += "\nKatalog: https://toko.example/katalog"
+      messages.replace([{ role: :user, content: 'Ini fotonya www.foto.example/aki-saya.jpg, kenapa ya?' }])
+      replies.replace(["Aki soak setelah 2 tahun: https://otomotif.example/aki-soak\nBaca juga https://id.wikipedia.org/wiki/Aki_(otomotif), " \
+                       'katalog https://toko.example/katalog, dan foto www.foto.example/aki-saya.jpg.'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    ['https://www.otomotif.example/aki-soak/', '(https://otomotif.example/aki-soak).', '*https://otomotif.example/aki-soak*',
+     'HTTPS://Otomotif.example/aki-soak', 'otomotif.example/aki-soak'].each do |link|
+      it "reads #{link} as the link of the web result" do
+        replies.replace(["Aki biasanya soak setelah 2 tahun #{link}"])
+
+        expect(result.blocked_reason).to be_nil
+      end
+    end
+
+    it 'blocks a domain without a scheme or the domain of an e-mail address that is not known' do
+      replies.replace(['Aki soak setelah 2 tahun: https://otomotif.example/aki-soak. Promo ganti aki di promo-palsu.example'])
+      expect(result.blocked_reason).to eq('unknown_url')
+
+      replies.replace(['Aki soak setelah 2 tahun: https://otomotif.example/aki-soak. Tanya cs@palsu.example'])
+      expect(described_class.new(content: content, replies: replies, hits: hits, web_results: web_results, messages: messages,
+                                 current_time: '').perform.blocked_reason).to eq('unknown_url')
+    end
+
+    it 'passes the name of the site of a web result' do
+      replies.replace(['Menurut Otomotif.example dan Wikipedia.org, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'does not let a web result back a phone number, which only the knowledge or the conversation can' do
+      web_results[0] = web_results[0].with(highlights: ['Aki soak setelah 2 tahun. Derek 24 jam: 0812-3456-7890.'])
+      replies.replace(['Derek 24 jam di 0812-3456-7890, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+      expect(result.blocked_reason).to eq('unsupported_number')
+
+      hits.first.chunk.content += "\nDerek bengkel: 0812-3456-7890"
+      content['sources'] = [1, 3]
+      expect(described_class.new(content: content, replies: replies, hits: hits, web_results: web_results, messages: messages,
+                                 current_time: '').perform.blocked_reason).to be_nil
+    end
+
+    it 'does not let a web result back a long number from parts it holds apart' do
+      web_results[0] = web_results[0].with(highlights: ['Aki soak setelah 2 tahun. Kode 0812, seri 3456, dan nomor 7890.'])
+      replies.replace(['Hubungi 0812-3456-7890, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to eq('unsupported_number')
+    end
+
+    it 'reads a range of years as two numbers of the web result, not as a long number' do
+      web_results[0] = web_results[0].with(highlights: ['Recall Xpander | 139,111 unit | produksi 2017 - 2019. Aki soak setelah 2 tahun.'])
+      replies.replace(['Recall untuk Xpander produksi 2017-2019, aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'passes the published date of a web result it cites' do
+      web_results[0] = web_results[0].with(published_at: Date.new(2022, 5, 10))
+      replies.replace(['Artikel 10 Mei 2022 menyebut aki soak setelah 2 tahun: https://otomotif.example/aki-soak'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'does not read the digits of a link as numbers' do
+      web_results[0] = web_results[0].with(url: 'https://otomotif.example/read/2025/09/16/112200115/aki-soak')
+      replies.replace(['Aki biasanya soak setelah 2 tahun: https://otomotif.example/read/2025/09/16/112200115/aki-soak'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'keeps the parentheses of a link that has them' do
+      content['sources'] = [4]
+      replies.replace(['Aki menyimpan energi listrik (lihat https://id.wikipedia.org/wiki/Aki_(otomotif)).'])
+
+      expect(result.blocked_reason).to be_nil
+    end
+
+    it 'checks the links of a reply without web results too' do
+      content.replace('decision' => 'conversational', 'sources' => [])
+      replies.replace(['Silakan cek https://palsu.example/promo'])
+
+      expect(described_class.new(content: content, replies: replies, hits: hits, web_results: [], messages: messages, current_time: '').perform)
+        .to have_attributes(blocked_reason: 'unknown_url')
+    end
+
+    it 'checks no link for an agent without web search' do
+      content.replace('decision' => 'conversational', 'sources' => [])
+      replies.replace(['Silakan cek https://palsu.example/promo'])
+
+      expect(described_class.new(content: content, replies: replies, hits: hits, messages: messages, current_time: '').perform)
+        .to have_attributes(blocked_reason: nil)
+    end
+  end
 end

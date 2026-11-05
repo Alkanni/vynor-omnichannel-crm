@@ -40,7 +40,7 @@ RSpec.describe AiAgents::UsageReport do
       '| Watcher | 1 | total 300, p50 300, p90 300 (n=1) | total 8, p50 8, p90 8 (n=1) |',
       '- Cached input tokens of the scope check and reply model: 100 of 5000 input tokens (2%, n=2)',
       '- Cached input tokens of the Watcher: 0 of 300 input tokens (0%, n=1)',
-      '- Reply latency in ms (scope check, knowledge search, and reply model): p50 3000, p95 4000 (n=4)',
+      '- Reply latency in ms (scope check, knowledge search, web search, and reply model): p50 3000, p95 4000 (n=4)',
       '- Scope check latency in ms: p50 1200, p95 1300 (n=2)',
       '- Knowledge chunks sent per reply model call: p50 3, p90 3 (n=3)',
       '- Scope check decisions: HANDOFF_REQUEST 1, IN_SCOPE 2, OUT_OF_SCOPE 1',
@@ -63,6 +63,22 @@ RSpec.describe AiAgents::UsageReport do
     expect(single).not_to include('CS Toko Roti')
     expect(described_class.new(from: Time.utc(2026, 9, 1), to: Time.utc(2026, 9, 8), ai_agent_id: other_agent.id).perform)
       .to end_with("## CS Bengkel (id #{other_agent.id})\n\nNo reply traces.")
+  end
+
+  it 'sums up web search for an agent with it, and leaves it out for the others' do
+    web_agent = create(:ai_agent, name: 'CS Bengkel')
+    { 'not_needed' => [nil, nil], 'searched' => [600, 0.004], 'cached' => [nil, 0], 'failed_timeout' => [4000, 0],
+      'skipped_personal_data' => [nil, nil] }.each do |status, (latency, cost)|
+      create(:ai_agent_reply_trace, ai_agent: web_agent, created_at: in_period, scope_decision: 'IN_SCOPE', web_search_status: status,
+                                    web_latency_ms: latency, web_cost_usd: cost)
+    end
+
+    expect(described_class.new(from: Time.utc(2026, 11, 1), to: Time.utc(2026, 11, 8), ai_agent_id: web_agent.id).perform.lines(chomp: true))
+      .to include('- Turns routed to web search: 4 of 5 turns with web search (80%)',
+                  '- Web search statuses: cached 1, failed_timeout 1, not_needed 1, searched 1, skipped_personal_data 1',
+                  '- Exa requests: 2, spend US$0.004', '- Exa request latency in ms: p50 600, p95 4000 (n=2)')
+    expect(described_class.new(from: Time.utc(2026, 11, 1), to: Time.utc(2026, 11, 8), ai_agent_id: ai_agent.id).perform)
+      .not_to include('Turns routed to web search', 'Exa requests')
   end
 
   it 'says when the gateway reported no cached input' do

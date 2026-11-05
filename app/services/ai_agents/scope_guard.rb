@@ -4,8 +4,8 @@
 # answers the decisions in REPLY_ATTRIBUTES with the agent's own text; the others go on to the reply model, where the
 # transfer conditions stay the only handoff trigger.
 # For an agent with web search (see AiAgent#web_search?), the check also writes the query to search the web with, if the
-# turn needs one, under the rules of docs/ai-agent-web-search-decisions.md. A query with personal data is never searched.
-# Web search runs in shadow mode for now: the result says whether the turn would be searched, but nothing is searched.
+# turn needs one, under the rules of docs/ai-agent-web-search-decisions.md. A query with personal data is never searched;
+# AiAgents::ReplyGenerator searches the others.
 # Messages are { role: :user | :assistant, content:, attachments: }, as for AiAgents::ReplyGenerator.
 class AiAgents::ScopeGuard
   DECISIONS = %w[SUSPICIOUS HANDOFF_REQUEST AMBIGUOUS IN_SCOPE GREETING OUT_OF_SCOPE].freeze
@@ -61,8 +61,10 @@ class AiAgents::ScopeGuard
   # The backstop to the rule against personal data in WEB_INSTRUCTIONS: a query that matches any of these is never searched,
   # and neither is one longer than AiAgents::WebSearch::MAX_QUERY_CHARACTERS, which likely copies the customer's message.
   # Names cannot be told apart from other words, so only the rule keeps them out.
+  # Phone numbers, NIK, and any other 8 or more digits, also with spaces, dots, dashes, or parentheses between them.
+  LONG_NUMBER = /\d(?:[\s.()-]*\d){7,}/
   PERSONAL_DATA_PATTERNS = [
-    /\d(?:[\s.()-]*\d){7,}/, # phone numbers, NIK, and any other 8 or more digits, also with spaces, dots, dashes, or parentheses between
+    LONG_NUMBER,
     /[^\s@]+@[^\s@]+\.[^\s@]+/, # e-mail addresses
     /\b[A-Z]{1,2} ?\d{1,4} ?[A-Z]{1,3}\b/, # Indonesian plates such as D 1234 ABC, which some model names (XL7 AT) also match
     /\b(?=[A-HJ-NPR-Z]*\d)[A-HJ-NPR-Z\d]{17}\b/i # VINs: 17 letters and digits, without I, O, and Q
@@ -70,7 +72,7 @@ class AiAgents::ScopeGuard
   # Token counts are nil when the gateway does not report usage (see AiAgents::LlmClient::Completion). web_query and
   # web_search_status are nil for an agent without web search. Otherwise web_query is what the model wrote, blank when the
   # turn needs no web search, and web_search_status is not_needed (no query, or the turn gets a scope reply),
-  # skipped_personal_data (see PERSONAL_DATA_PATTERNS), or shadow (it would be searched).
+  # skipped_personal_data (see PERSONAL_DATA_PATTERNS), or pending (the reply searches it and traces how that went).
   Result = Data.define(:decision, :web_query, :web_search_status, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
     # The agent setting whose text answers the turn, or nil when the turn goes on to the reply model.
     def reply_attribute = REPLY_ATTRIBUTES[decision]
@@ -115,7 +117,7 @@ class AiAgents::ScopeGuard
     return 'skipped_personal_data' if web_query.length > AiAgents::WebSearch::MAX_QUERY_CHARACTERS
     return 'skipped_personal_data' if PERSONAL_DATA_PATTERNS.any? { |pattern| pattern.match?(web_query) }
 
-    'shadow'
+    'pending'
   end
 
   # The customer messages since the last message from the agent's side.

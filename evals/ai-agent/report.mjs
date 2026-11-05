@@ -2,7 +2,8 @@
 // rate per category, agent tokens per model call and latency, the decisions of the scope check and of the reply (also per
 // category), why replies were replaced with the knowledge gap message, failing cases and, given two runs, the cases whose
 // result changed between them (flaky candidates). For an agent with web search (promptfooconfig.web.yaml), it also reports
-// route accuracy, web queries of blocked cases and with personal data, and the web search status per category.
+// route accuracy, web queries of blocked cases and with personal data, the web search status per category, the web route
+// cases answered from web results, the link checks, and the web results, tokens, latency, and spend of the searches.
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
 import { readFileSync } from 'node:fs';
 
@@ -65,6 +66,10 @@ function loadRun(file) {
       scopeDecision: result.response?.metadata?.scopeDecision,
       webQuery: result.response?.metadata?.webQuery,
       webSearchStatus: result.response?.metadata?.webSearchStatus,
+      webResults: result.response?.metadata?.webResults || [],
+      webLatencyMs: result.response?.metadata?.webLatencyMs,
+      webCostUsd: result.response?.metadata?.webCostUsd,
+      citedRanks: result.response?.metadata?.citedRanks || [],
       scopeLatencyMs: result.response?.metadata?.scopeLatencyMs,
       scopeInputTokens: result.response?.metadata?.scopeInputTokens,
       scopeOutputTokens: result.response?.metadata?.scopeOutputTokens,
@@ -185,8 +190,46 @@ const caseList = (testCases, describe = testCase => testCase.id) =>
     ? `${testCases.length}: ${testCases.map(describe).join(', ')}`
     : '0';
 
+// A reply that was sent and cites a web result, so it answered from the web.
+const answeredFromWeb = testCase =>
+  !testCase.blockedReason &&
+  testCase.webResults.some(({ rank }) => testCase.citedRanks.includes(rank));
+
+// The searched turns: replies from web results, link checks, entries, tokens, latency, and what Exa charged.
+function searchReport(answered, routedToWeb) {
+  const withResults = answered.filter(testCase => testCase.webResults.length);
+  const spend = answered.reduce(
+    (sum, testCase) => sum + (testCase.webCostUsd || 0),
+    0
+  );
+  return [
+    `- Kasus route web yang dijawab dari hasil web (target ≥ 18/26): ${routedToWeb.filter(answeredFromWeb).length}/${routedToWeb.length}`,
+    `- Kasus route web tanpa jawaban dari web: ${caseList(
+      routedToWeb.filter(testCase => !answeredFromWeb(testCase)),
+      testCase =>
+        `${testCase.id} (${[testCase.webSearchStatus, testCase.replyDecision, testCase.blockedReason].filter(Boolean).join(' · ')})`
+    )}`,
+    `- Link dari hasil web atau knowledge (target 100%): ${checkRate(answered, 'links')}`,
+    `- Hasil web yang dikutip disertai link (target 100%): ${checkRate(answered, 'citation')}`,
+    `- Entri web per turn yang punya hasil (maksimal 3): ${stats(withResults.map(testCase => testCase.webResults.length))}`,
+    `- Karakter teks per entri web (maksimal 800): ${stats(withResults.flatMap(testCase => testCase.webResults.map(({ textLength }) => textLength)))}`,
+    `- Input tokens reply model, turn dengan blok web: ${stats(replyModelTokens(withResults, 'inputTokens', 'scopeInputTokens'))}`,
+    `- Input tokens reply model, turn tanpa blok web: ${stats(
+      replyModelTokens(
+        answered.filter(testCase => !testCase.webResults.length),
+        'inputTokens',
+        'scopeInputTokens'
+      )
+    )}`,
+    `- Output tokens reply model, turn dengan blok web: ${stats(replyModelTokens(withResults, 'outputTokens', 'scopeOutputTokens'))}`,
+    `- Latency request Exa (ms): ${stats(answered.map(testCase => testCase.webLatencyMs))}`,
+    `- Biaya Exa run ini: US$${spend.toFixed(3)}`,
+  ];
+}
+
 // For a run whose agent has web search: the targets of docs/ai-agent-web-search-decisions.md, the web search status per
-// category, and the web queries that the personal data check skipped in cases without personal data (false skips).
+// category, the web queries that the personal data check skipped in cases without personal data (false skips), and how
+// the searched turns went.
 function webReport(cases) {
   const answered = cases.filter(testCase => !testCase.error);
   const searches = testCase => Boolean(testCase.webQuery?.trim());
@@ -206,6 +249,7 @@ function webReport(cases) {
       skipped.filter(testCase => testCase.category !== 'pii'),
       testCase => `${testCase.id} "${testCase.webQuery}"`
     )}`,
+    ...searchReport(answered, routedToWeb),
   ];
   const categories = [
     ...new Set(cases.map(testCase => testCase.category)),

@@ -100,7 +100,7 @@ RSpec.describe AiAgents::ScopeGuard do
     it 'adds the web rules and the web query to the check, and searches nothing yet' do
       result = guard.perform
 
-      expect(result).to have_attributes(decision: 'IN_SCOPE', web_query: web_query, web_search_status: 'shadow', reply_attribute: nil)
+      expect(result).to have_attributes(decision: 'IN_SCOPE', web_query: web_query, web_search_status: 'pending', reply_attribute: nil)
       request = requests.sole
       expect(request['messages'].first['content']).to eq(
         "#{described_class::INSTRUCTIONS}\n#{described_class::WEB_INSTRUCTIONS}\n<business_scope>\nBusiness: Bengkel cuci mobil di Bandung\n" \
@@ -154,7 +154,7 @@ RSpec.describe AiAgents::ScopeGuard do
         let(:web_query) { query }
 
         it 'would search it' do
-          expect(guard.perform.web_search_status).to eq('shadow')
+          expect(guard.perform.web_search_status).to eq('pending')
         end
       end
     end
