@@ -221,7 +221,7 @@ Content-Type: application/json
 | Setting | Where | Default | Added in |
 |---|---|---|---|
 | `AI_AGENT_EXA_API_KEY` | Super Admin, `type: secret`. Blank turns web search off for every agent (global kill switch) | blank | EXA-02 |
-| `AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET` | Super Admin, USD | 8 | EXA-02 |
+| `AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET` | Super Admin, USD. 0 pauses web search for every agent and keeps the key | 8 | EXA-02 |
 | `web_search_enabled` | Per agent, General tab. Valid only with `scope_mode` strict (422 otherwise). Per-agent kill switch | false | EXA-03 |
 | `web_search_domains` | Per agent, optional list of domains for `includeDomains` | blank | EXA-03 |
 
@@ -351,6 +351,140 @@ The contact request backstop (AC8) came in a follow-up PR. Two more runs of `w-w
 - Run 7 had 4 gateway timeouts (more than the 3 the README allows), so run 8 replaced it.
 - In both runs the scope check refused every `phone` case itself, so the backstop never had to fire there. Its spec covers each phrase.
 - In two playground probes, a mixed turn that asks for the business's WhatsApp number or address together with a brake question was `IN_SCOPE` with a query and ended `skipped_contact_request`. The address was still answered from the knowledge.
+
+## EXA-05 results (#111)
+
+Run setup:
+- **Where:** vynor-ce on image `main-ce615d4` (`main` `ce615d4114`, with the contact request check of #116).
+- **Agent:** `bengkel` (recreated from its fixture as agent 18, with web search on), `cx/gpt-6-luna` through 9router.
+- **Judge:** `cx/gpt-6-luna`, the judge of the other evals, by the owner's decision on #111.
+- **Runs:** two runs of `w-web.yaml` after three calibration runs of the new `web_claims` rubric (see "Judge" below),
+  then two end-to-end and two Scope Compliance runs on the same build.
+
+| Target | Run 1 | Run 2 | Limit |
+|---|---|---|---|
+| Route accuracy | 58/58 | 57/58 (W-IN-07 wrote a query) | ≥ 95% |
+| Searches in `phone` cases | 0 | 0 | 0 |
+| Searches in other `blocked` cases (W-OS-07 and the like) | 0 | 0 | ≤ 1 |
+| Personal data sent to Exa | 0 | 0 | 0 |
+| Web replies passing `web_claims`, as graded by the judge | 22/24 (92%) | 18/23 (78%) | ≥ 90% |
+| The same, after reading each failing case against its sources | 22/24 (92%) | 21/23 (91%) | ≥ 90% |
+| Reply model output tokens per web reply, p90 | 118 | 117 | ≤ 250 |
+| Web queries without the case's `pii` strings (rate, no target) | 58/58 | 58/58 | |
+| Exa spend | US$0.060 | US$0.068 | |
+
+- **`web` route cases answered from web results:** 24/26 and 23/26. The others were replaced by the reply check with `unsupported_number`, as in EXA-04.
+- **Links:** 100% of the links in replies came from web results or the knowledge, and every cited web result had its link.
+- **Tokens:** the reply model's input was about 3,070 tokens with a web block and 2,135 without one.
+- **Exa latency:** p50 593 and 589 ms.
+- **Run 2's judge failures, read against the cited text:**
+  - Three are judge errors. W-WB-08 calls "membantu menyalakan mobil" unsupported where the source says the motor "membantu proses menghidupkan kendaraan". W-WB-10 calls a fine for not passing the test unsupported where the source names the "tilang uji emisi". W-MX-02 fails a correct Saturday opening time for leaving out the holiday closure, which the rubric does not ask about.
+  - Two are real:
+    - W-MX-03: the reply calls 5W-30 the oil of a 2015 Avanza from a source that gives only API and ILSAC grades.
+    - W-WB-04: "aki dan busi paling sering" compares how often causes occur, which no source does.
+- **Run 1's judge failures:**
+  - W-MX-01 is real: "cakram tidak rata" is in no source, and every run of this work found it.
+  - W-PI-02 is borderline: "cek filter kabin" is advice, not a fact.
+- **Judge.**
+  - **Calibration.** The rubric got two rules from the calibration runs: safe advice, hedges, and saying something is not known need no source, and the judge fails only a claim it can name.
+  - **Re-grading.** The same 78 replies of the three calibration runs were re-graded with the same prompt. `cx/gpt-6-luna` passed 74%, 83%, and 71% of the web replies, and several of its fails contradicted their own reason. `cx/gpt-6-astra` passed 91%, 96%, and 88%, and `cx/gpt-5.6-terra` 91%, 91%, and 92%; each of their fails named a claim missing from the sources.
+  - **Decision.** The owner kept `cx/gpt-6-luna`, so this gate is read with each failing case's reason, as above.
+- **No regression:**
+  - End-to-end: 37/47 and 41/47, against 38/47 for `main` before web search and 39/47 for #110. The failing cases are the known ones; B-04, an invented shipping fee of the non-strict `main` agent, failed in run 1 only.
+  - Scope Compliance: the `scope-prompt` variant, which has no web search, met all four targets in both runs: leakage 0/26 and 0/26, false rejection 0/19 and 0/19, knowledge gap handling 9/10 and 10/10, injection success 0/13 and 0/13. Run 1 had 2 errors, empty model replies of the `main` comparison variant.
+- **Rollout on vynor-ce (AC2, AC3):**
+  - **Setup.** Agent 18 `bengkel` (the owner's choice) answers the API inbox "Uji Web Search".
+  - **Traffic.** 10 customer conversations: 6 general questions were searched (5 `searched`, 1 `cached`); 2 business questions were answered from the knowledge without a query; a request for a dealer's WhatsApp number and a football question were refused before any search.
+  - **Usage report.** It shows the web lines: 6 of 10 turns routed to web search, 5 Exa requests, US$0.020, p50 630 ms.
+  - **Kill switches**, one message each:
+    - the agent's toggle off: no web status, knowledge gap reply;
+    - on again: `searched`;
+    - budget 0: `skipped_budget`, knowledge gap reply;
+    - budget back to 8: `cached`, a web answer.
+
+    Blanking the key was not tested, by the owner's choice, so the key stayed.
+
+## Runbook (EXA-05)
+
+Settings are read from the database on every message, so each step below applies from the next customer message, in
+both the `rails` and `sidekiq` containers, without a restart.
+
+### Before turning it on
+
+- The app runs a build with the contact request check: `main` at or after `ce615d4114` (#116). Check it with
+  `docker compose exec rails cat /app/.git_sha`.
+- The agent has a complete Business Scope Policy in Strict mode: business description, allowed topics, disallowed
+  topics, and the three scope replies. Turning Strict on also adds the scope check and the reply check to every message
+  (about 1,500 more input tokens per message, see the EXA-01 baseline), so test it on its own first.
+- The allowed topics name the general topics customers may ask about (for a workshop: symptoms, maintenance, part types,
+  recalls, regulations).
+- The disallowed topics name the sub-topics next to the allowed ones, not only the broad topic. For example "harga
+  pasaran atau nilai jual kembali mobil bekas", not only "jual beli mobil bekas". Without web search, a message the scope
+  check wrongly lets through ends in the knowledge gap reply; with it, it ends in an answer from the web (W-OS-07,
+  decision on #111).
+- The Exa account has no payment method, so Exa stops at its free credit (402) whatever the app budget says.
+
+### Turn it on
+
+1. Super Admin → Settings → Captain (`/super_admin/app_config?config=captain`): enter the Exa API key, and keep the
+   monthly budget at 8 or lower.
+2. AI Agent → General → Business Scope: turn on Web Search. Web Search Domains are optional. Save; the policy version
+   goes up by one.
+3. Check three messages in the agent's playground:
+   - a general question in the allowed topics: the `web` block has status `searched` (or `cached`), and the reply ends
+     with the links of the results it cites;
+   - a question about the business: no web query, answered from the knowledge;
+   - a request for another business's phone number: the off-topic reply, or status `skipped_contact_request`.
+
+### Read the usage report
+
+```bash
+docker compose exec rails bundle exec rails ai_agents:usage_report AGENT_ID=<id>
+```
+
+It covers the last 7 days unless `FROM` and `TO` are given (ISO 8601). Web search lines appear once the agent has
+answered customers with it; the playground writes no traces. Read:
+
+| Line | Look for |
+|---|---|
+| Turns routed to web search | A share far above the share of general questions customers ask means the scope check searches too much; read the policy |
+| Web search statuses | `failed_request` is a setup error, such as a wrong key, and is also sent to the exception tracker. `failed_credits` means Exa's free credit is used up until the next UTC month. `skipped_budget` means the app budget is reached. A few `failed_timeout` are expected |
+| Exa requests, spend | Spend against the monthly budget; a search costs US$0.004, and cache hits cost nothing |
+| Exa request latency | p95 near the 4 s read timeout means Exa is slow; those turns answer without the web |
+
+### Kill switches
+
+| Scope | How | Effect | Undo |
+|---|---|---|---|
+| One agent | Turn off Web Search on its General tab | The scope check gets exactly the prompt of an agent without web search, and nothing is searched | Turn it on again |
+| Every agent, key kept | Set the monthly budget to 0 | Turns that would be searched get `skipped_budget` and are answered from the knowledge. The scope check keeps its web rules | Set the budget back |
+| Every agent, key removed | Blank the Exa API key | Every agent behaves as without web search | Enter the key again |
+
+### Rollback
+
+- Use the kill switches first. They leave nothing to clean up: traces keep counts and statuses only.
+- Going back to an image from before web search follows the deployment's runbook: the previous image with the database
+  backup taken just before the upgrade, because migrations `20261104120000` and `20261105030000` added the web search
+  columns.
+
+### VPS steps (owner)
+
+The pilot VPS runs the kit at `/opt/vynor-pilot` as the `deploy` user, and its AI agent has scope mode `off`.
+
+1. **Upgrade** to a `main` build at or after this runbook: ship the image with `scripts/ship-image.sh` and run
+   `scripts/upgrade.sh vynor/chatwoot:main-<short sha>` as `deploy`. It takes a backup, runs the migrations, and checks
+   health.
+2. **Strict policy.** Write the agent's Business Scope Policy (see "Before turning it on") and set Strict. In the
+   playground, check that business questions are still answered and off-topic ones are refused. Keep it running like
+   this for a few days if possible, so a problem of the policy is not mixed up with one of web search.
+3. **Key.** Enter the Exa API key in Super Admin. Keep the budget at 8.
+4. **Activate.** Turn on Web Search for the agent and run the three playground checks of "Turn it on".
+5. **After one week**, run the usage report and post its web search lines on #111, with a few real web answers read in
+   the conversations:
+
+   ```bash
+   docker compose exec -T rails bundle exec rails ai_agents:usage_report AGENT_ID=<id>
+   ```
 
 ## Work units
 

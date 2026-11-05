@@ -1,10 +1,10 @@
 // Promptfoo provider that sends a dataset conversation to the AI Agent playground of the app under test.
 // Each line of `conversation` is one message; lines starting with "AI:" are earlier agent replies.
 // The reply text is the output; handoff, labels, the scope check (with the web query of an agent with web search), what
-// became of web search with the rank and URL of each web result, the reply check, retrieval with the links in its chunks,
-// model, latency and the tokens per model call go to metadata for assertions and report.mjs. Retrieval is empty when the
-// scope check answered the turn, so the reply model ran only when it is there, and the reply check runs only for a strict
-// agent's reply model. The token usage adds up the scope check and the reply model; cached input tokens are not part of it.
+// became of web search with each web result as the reply model got it, the reply check, retrieval with the content and
+// links of its chunks, model, latency and the tokens per model call go to metadata for assertions and report.mjs.
+// Retrieval is empty when the scope check answered the turn, so the reply model ran only when it is there, and the reply
+// check runs only for a strict agent's reply model. The token usage adds up the scope check and the reply model; cached input tokens are not part of it.
 import { readFileSync } from 'node:fs';
 import { AGENTS_FILE, appApi } from './lib/app-api.mjs';
 import { toMessages } from './lib/conversation.mjs';
@@ -45,11 +45,15 @@ export default class AiAgentPlaygroundProvider {
           webQuery: reply.scope?.web_query,
           // The search's status when the turn was searched, else the scope check's.
           webSearchStatus: reply.web?.status ?? reply.scope?.web_search_status,
-          webResults: (reply.web?.results || []).map(({ rank, url, text }) => ({
-            rank,
-            url,
-            textLength: text.length,
-          })),
+          webResults: (reply.web?.results || []).map(
+            ({ rank, title, url, published_at: publishedAt, text }) => ({
+              rank,
+              title,
+              url,
+              publishedAt,
+              text,
+            })
+          ),
           webLatencyMs: reply.web?.latency_ms,
           webCostUsd: reply.web?.cost_usd,
           scopeLatencyMs: reply.scope?.latency_ms,
@@ -62,7 +66,12 @@ export default class AiAgentPlaygroundProvider {
           blockedReason: reply.validation?.blocked_reason,
           retrievalMode: reply.retrieval?.mode,
           retrieved: (reply.retrieval?.chunks || []).map(
-            ({ rank, score, source }) => ({ rank, score, source })
+            ({ rank, score, source, content }) => ({
+              rank,
+              score,
+              source,
+              content,
+            })
           ),
           knowledgeLinks: (reply.retrieval?.chunks || []).flatMap(
             ({ content }) => links(content)
