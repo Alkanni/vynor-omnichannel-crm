@@ -159,15 +159,6 @@ class Captain::BaseTaskService
     account.feature_enabled?('captain_tasks')
   end
 
-  # Extension point consulted by the Enterprise quota wrapper. Subclasses
-  # whose calls should not consume captain_responses should override this to
-  # return false. When false, the wrapper neither blocks the call on an
-  # exhausted captain_responses quota nor decrements it on success — the call
-  # participates in the quota system in neither direction.
-  def counts_toward_usage?
-    llm_credential&.dig(:source) != :hook
-  end
-
   def api_key_configured?
     llm_credential.present?
   end
