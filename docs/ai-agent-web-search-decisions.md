@@ -1,8 +1,9 @@
-# AI Agent web search (Exa): decision record
+# AI Agent web search: decision record
 
 - **Status:** proposed in issue #106 (EXA-01). The owner accepts it by merging the PR, and it becomes the contract for EXA-02 to EXA-05.
 - **Scope:** Fase 2D of epic #69.
 - **Verified against:** code on `main` 7e7239786c, and the Exa pages exa.ai/pricing and exa.ai/docs/reference/search, checked 2026-11-04.
+- **Providers:** since #126 other providers than Exa can be chosen; see "Providers (#126)".
 - **Unverified items** are marked **assumption** and listed at the end.
 
 ## Context
@@ -174,7 +175,7 @@ As built in EXA-04 (#110), after its security review and first eval runs:
 
 ```http
 POST https://api.exa.ai/search
-x-api-key: <AI_AGENT_EXA_API_KEY>
+x-api-key: <AI_AGENT_WEB_SEARCH_API_KEY>
 Content-Type: application/json
 
 { "query": "<web_query>", "type": "lite", "numResults": 3, "userLocation": "ID",
@@ -188,18 +189,54 @@ Content-Type: application/json
 - **Normalized result:** `{ rank, title, url, published_at (Date or nil), highlights: [String] }`. `costDollars.total` from the response feeds the budget.
 - **Text in the prompt.** EXA-02 measured that a result's highlight holds up to about three times `maxCharacters`, so the reply prompt gets the highlights of each result joined and cut to 800 characters (`WebSearch::Item#text`, EXA-04). The request keeps `maxCharacters: 800`.
 
+## Providers (#126)
+
+Since #126 the installation chooses the web search API in `AI_AGENT_WEB_SEARCH_PROVIDER` and enters its key in
+`AI_AGENT_WEB_SEARCH_API_KEY`; migration `20261106070000` renamed `AI_AGENT_EXA_API_KEY` to it, and the provider stays
+`exa` until changed, so the Exa request above is unchanged. Each provider is a class under
+`app/services/ai_agents/web_search/` (`AiAgents::WebSearch::Provider`): it builds the request and turns a 200 answer into
+the normalized result, and says what a search cost and whether an answer means its credits are gone. Everything else is
+the same for every provider: the query from the scope check, three results, the 800-character text per result, the
+timeouts, the statuses, the budget, and the cache. Only the query and the agent's domains are sent, whatever the provider.
+Choosing a provider makes it a data processor of the installation (UU PDP), which is the owner's decision.
+
+Provider facts checked on 2026-11-06 in each provider's API reference:
+
+| Provider | Request | Domains | Result text, date | Cost counted | Credits gone |
+|---|---|---|---|---|---|
+| Exa | `POST https://api.exa.ai/search`, `x-api-key` (see above) | `includeDomains` | `highlights`, `publishedDate` | `costDollars.total` | 402 |
+| Tavily | `POST https://api.tavily.com/search`, `Authorization: Bearer`; `search_depth: basic`, `max_results: 3`, `country: indonesia`, `include_published_date: true` | `include_domains` (at most 300) | `content`, `published_date` (RFC 2822) | US$0.008 per search (1 basic credit at the pay-as-you-go price) | 402, 432 (plan limit), 433 (pay-as-you-go limit) |
+| Brave Search | `GET https://api.search.brave.com/res/v1/web/search`, `X-Subscription-Token`; `count=3`, `country=ID` (`search_lang` has no Indonesian) | `site:` operators joined with `OR` in `q` (`q` takes at most 600 characters and 75 words) | `description` and `title` as HTML, turned into text; `page_age` | US$0.005 per search (Search plan, US$5 per 1,000) | 402, or `error.code` `QUOTA_LIMITED`, `USAGE_LIMIT_EXCEEDED`, `CREDIT_EXHAUSTED` (Brave sends 429 for these and for `RATE_LIMITED`) |
+| Perplexity Search | `POST https://api.perplexity.ai/search`, `Authorization: Bearer`; `max_results: 3`, `max_tokens_per_page: 256`, `country: ID` | `search_domain_filter` (at most 20) | `snippet`, `date` | US$0.005 per search (US$5 per 1,000, no token charge) | 402 |
+
+- **Cost.** Exa states the cost of each search. The others charge a fixed price per search, so the app counts their list
+  price. A plan with a lower price per search makes the budget stop early rather than late.
+- **Credits.** The flag that stops searching until the next UTC month is kept per provider
+  (`ai_agents:web_search:credits_gone:<provider>:<YYYY-MM>`), so a provider out of credits does not block the next one
+  chosen. Spend stays one counter for all providers, so the monthly budget is for the installation.
+- **Cache.** The cache key covers the provider, so switching provider never answers from another provider's results.
+- **Errors.** `failed_request` reports the provider name, the HTTP status, and a machine-readable code only (Exa `tag`,
+  Brave `error.code`), never the provider's message.
+- **Limits.** Too many domains for a provider (more than 20 for Perplexity, or a Brave query over 600 characters) are
+  rejected by the provider and end in `failed_request`, which the exception tracker reports.
+- **Adding a provider.** Subclass `AiAgents::WebSearch::Provider`, list an instance in `AiAgents::WebSearch::PROVIDERS`,
+  add it to the options of `AI_AGENT_WEB_SEARCH_PROVIDER`, and add a spec with its request and answers.
+- **Not adopted.** A fallback from one provider to another, several providers in one search, a provider per agent, a
+  provider column in the traces, and a generic provider configured with an endpoint and a JSON mapping: each API differs
+  in its authentication, its errors, and its price, so a tested class per provider is safer.
+
 ## Failures, budget, and cache
 
 | Condition | Behavior | Trace status | Exception tracker |
 |---|---|---|---|
 | Timeout (open 1 s, read 4 s, so the playground's worst case stays under 15 s next to today's 8.8 s) | Reply without web | `failed_timeout` | no |
 | 429 | Reply without web, no retry | `failed_rate_limit` | no |
-| 402 (credits or budget gone) | Reply without web; Redis flag stops calls until the next UTC month | `failed_credits` | no |
+| 402 (credits or budget gone; other providers: see Providers) | Reply without web; Redis flag stops calls to that provider until the next UTC month | `failed_credits` | no |
 | 5xx | Reply without web | `failed_provider` | no |
 | 400, 401, 403 (setup bug) | Reply without web | `failed_request` | yes: fails loudly, the key never appears in the message |
 | Empty results | Reply without a web block | `searched` (0 results) | no |
 
-- **Budget.** Spend is tracked in Redis under `ai_agents:web_search:spend:<YYYY-MM>` (UTC). It is an integer of micro-dollars from `costDollars.total`, added with INCRBY through `Redis::Alfred.with`, and expires after 40 days.
+- **Budget.** Spend is tracked in Redis under `ai_agents:web_search:spend:<YYYY-MM>` (UTC). It is an integer of micro-dollars from `costDollars.total` (other providers: their list price, see Providers), added with INCRBY through `Redis::Alfred.with`, and expires after 40 days.
   - Before each call, spend at or above `AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET` (USD, default 8) means status `skipped_budget`.
   - Concurrent jobs can overshoot by a few searches, which is fine.
   - The Exa account has no payment method, so Exa itself stops at the free credit with 402. The app budget paces usage and keeps US$2 as a buffer; it is not what keeps the cost at zero.
@@ -220,7 +257,8 @@ Content-Type: application/json
 
 | Setting | Where | Default | Added in |
 |---|---|---|---|
-| `AI_AGENT_EXA_API_KEY` | Super Admin, `type: secret`. Blank turns web search off for every agent (global kill switch) | blank | EXA-02 |
+| `AI_AGENT_WEB_SEARCH_PROVIDER` | Super Admin, `type: select`: `exa`, `tavily`, `brave`, or `perplexity` | `exa` | #126 |
+| `AI_AGENT_WEB_SEARCH_API_KEY` | Super Admin, `type: secret`, the key of the chosen provider (named `AI_AGENT_EXA_API_KEY` before #126). Blank turns web search off for every agent (global kill switch) | blank | EXA-02, renamed in #126 |
 | `AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET` | Super Admin, USD. 0 pauses web search for every agent and keeps the key | 8 | EXA-02 |
 | `web_search_enabled` | Per agent, General tab. Valid only with `scope_mode` strict (422 otherwise). Per-agent kill switch | false | EXA-03 |
 | `web_search_domains` | Per agent, optional list of domains for `includeDomains` | blank | EXA-03 |
@@ -422,12 +460,13 @@ both the `rails` and `sidekiq` containers, without a restart.
   pasaran atau nilai jual kembali mobil bekas", not only "jual beli mobil bekas". Without web search, a message the scope
   check wrongly lets through ends in the knowledge gap reply; with it, it ends in an answer from the web (W-OS-07,
   decision on #111).
-- The Exa account has no payment method, so Exa stops at its free credit (402) whatever the app budget says.
+- The Exa account has no payment method, so Exa stops at its free credit (402) whatever the app budget says. The same
+  holds for a Tavily account without a payment method (432 once the 1,000 free credits of the month are used).
 
 ### Turn it on
 
-1. Super Admin → Settings → Captain (`/super_admin/app_config?config=captain`): enter the Exa API key, and keep the
-   monthly budget at 8 or lower.
+1. Super Admin → Settings → Captain (`/super_admin/app_config?config=captain`): choose the web search provider, enter
+   its API key, and keep the monthly budget at 8 or lower.
 2. AI Agent → General → Business Scope: turn on Web Search. Web Search Domains are optional. Save; the policy version
    goes up by one.
 3. Check three messages in the agent's playground:
@@ -448,9 +487,9 @@ answered customers with it; the playground writes no traces. Read:
 | Line | Look for |
 |---|---|
 | Turns routed to web search | A share far above the share of general questions customers ask means the scope check searches too much; read the policy |
-| Web search statuses | `failed_request` is a setup error, such as a wrong key, and is also sent to the exception tracker. `failed_credits` means Exa's free credit is used up until the next UTC month. `skipped_budget` means the app budget is reached. A few `failed_timeout` are expected |
-| Exa requests, spend | Spend against the monthly budget; a search costs US$0.004, and cache hits cost nothing |
-| Exa request latency | p95 near the 4 s read timeout means Exa is slow; those turns answer without the web |
+| Web search statuses | `failed_request` is a setup error, such as a wrong key, and is also sent to the exception tracker. `failed_credits` means the provider's free credit is used up until the next UTC month. `skipped_budget` means the app budget is reached. A few `failed_timeout` are expected |
+| Web search requests, spend | Spend against the monthly budget; a search costs US$0.004 on Exa (see Providers for the others), and cache hits cost nothing |
+| Web search request latency | p95 near the 4 s read timeout means the provider is slow; those turns answer without the web |
 
 ### Kill switches
 
@@ -458,14 +497,15 @@ answered customers with it; the playground writes no traces. Read:
 |---|---|---|---|
 | One agent | Turn off Web Search on its General tab | The scope check gets exactly the prompt of an agent without web search, and nothing is searched | Turn it on again |
 | Every agent, key kept | Set the monthly budget to 0 | Turns that would be searched get `skipped_budget` and are answered from the knowledge. The scope check keeps its web rules | Set the budget back |
-| Every agent, key removed | Blank the Exa API key | Every agent behaves as without web search | Enter the key again |
+| Every agent, key removed | Blank the web search API key | Every agent behaves as without web search | Enter the key again |
 
 ### Rollback
 
 - Use the kill switches first. They leave nothing to clean up: traces keep counts and statuses only.
 - Going back to an image from before web search follows the deployment's runbook: the previous image with the database
   backup taken just before the upgrade, because migrations `20261104120000` and `20261105030000` added the web search
-  columns.
+  columns. Going back to a build from before #126 also needs migration `20261106070000` rolled back first, which
+  renames the key back to `AI_AGENT_EXA_API_KEY`.
 
 ### VPS steps (owner)
 
@@ -477,7 +517,8 @@ The pilot VPS runs the kit at `/opt/vynor-pilot` as the `deploy` user, and its A
 2. **Strict policy.** Write the agent's Business Scope Policy (see "Before turning it on") and set Strict. In the
    playground, check that business questions are still answered and off-topic ones are refused. Keep it running like
    this for a few days if possible, so a problem of the policy is not mixed up with one of web search.
-3. **Key.** Enter the Exa API key in Super Admin. Keep the budget at 8.
+3. **Key.** Enter the Exa API key in Super Admin, or choose another provider and enter its key. An Exa key entered
+   before #126 is moved to the new setting by the upgrade. Keep the budget at 8.
 4. **Activate.** Turn on Web Search for the agent and run the three playground checks of "Turn it on".
 5. **After one week**, run the usage report and post its web search lines on #111, with a few real web answers read in
    the conversations:
@@ -503,7 +544,7 @@ The pilot VPS runs the kit at `/opt/vynor-pilot` as the `deploy` user, and its A
 | Model-driven tool calling | 9router needs the forced function call |
 | A separate classifier call | Token and latency cost |
 | A gate on retrieval scores | Unreliable here |
-| Exa `auto`, Deep, and Agent APIs; multi-provider; self-hosted search or crawler; LangChain, PydanticAI, MCP | Not needed for v1 |
+| Exa `auto`, Deep, and Agent APIs; several providers in one search (one provider at a time since #126); self-hosted search or crawler; LangChain, PydanticAI, MCP | Not needed for v1 |
 | TTL per kind of information; retry on 429 | One TTL and no retry are enough for v1 |
 | A five-level source priority | Replaced by optional `includeDomains` |
 | Prometheus metrics; an Exa dashboard | Traces and the usage report cover it |

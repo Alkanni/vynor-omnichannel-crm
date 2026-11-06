@@ -44,7 +44,7 @@
 # What an AI Agent did for one customer message it answered (see AiAgents::ReplyJob), to explain and evaluate its replies:
 # the decision of the scope check (see AiAgents::ScopeGuard) and how long it took, what became of web search for an agent
 # with web search (web_search_status, see AiAgents::ReplyGenerator::Trace#web_search_status; the query is not kept) with
-# the rank and URL of each web result in the prompt, the search's latency and what Exa charged for it (see
+# the rank and URL of each web result in the prompt, the search's latency and what it cost (see
 # AiAgents::WebSearch), the knowledge chunks it retrieved, kept as references with their rank and score but never their
 # content, the decision of a strict agent's reply, the ranks it cited, and why the reply was replaced with the knowledge
 # gap message (see AiAgents::ReplyValidator), the model and the tokens of all its model calls, how long the reply took

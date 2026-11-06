@@ -157,10 +157,10 @@ RSpec.describe AiAgent do
                        web_search_enabled: true)
     end
 
-    it 'is on for an agent that turned it on while the Exa API key is set' do
+    it 'is on for an agent that turned it on while the web search API key is set' do
       expect(ai_agent.web_search?).to be(false)
 
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-test-key')
       expect(ai_agent.web_search?).to be(true)
 
       ai_agent.web_search_enabled = false
