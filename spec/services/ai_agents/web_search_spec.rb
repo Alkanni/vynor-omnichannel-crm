@@ -16,7 +16,7 @@ RSpec.describe AiAgents::WebSearch do
   let(:spend_key) { "ai_agents:web_search:spend:#{Time.now.utc.strftime('%Y-%m')}" }
 
   before do
-    create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: api_key)
+    create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: api_key)
     keys = []
     Redis::Alfred.scan_each(match: 'ai_agents:web_search:*') { |key| keys << key }
     keys.each { |key| Redis::Alfred.delete(key) }
@@ -100,7 +100,8 @@ RSpec.describe AiAgents::WebSearch do
 
       expect(described_class.new(query: query).perform).to have_attributes(status: 'failed_request', results: [])
       expect(ChatwootExceptionTracker).to have_received(:new)
-        .with(having_attributes(class: described_class::RequestError, message: "Exa rejected the web search request (HTTP #{code}, INVALID_API_KEY)"))
+        .with(having_attributes(class: described_class::RequestError,
+                                message: "Web search provider exa rejected the request (HTTP #{code}, INVALID_API_KEY)"))
     end
     expect(log.string).to include('HTTP 401')
     expect(log.string).not_to include(api_key)
@@ -170,5 +171,151 @@ RSpec.describe AiAgents::WebSearch do
     described_class.new(query: query).perform
     expect(described_class.new(query: query, domains: ['otomotif.example']).perform).to have_attributes(status: 'searched')
     expect(request).to have_been_made.twice
+  end
+
+  describe 'with another provider' do
+    let(:json) { { 'Content-Type' => 'application/json' } }
+    let(:domains) { ['otomotif.example', 'bengkel.example'] }
+
+    it 'searches Tavily with its request and counts 1 credit at the pay-as-you-go price' do
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_PROVIDER', value: 'tavily')
+      request = stub_request(:post, 'https://api.tavily.com/search').with(
+        headers: { 'Authorization' => "Bearer #{api_key}", 'Content-Type' => 'application/json' },
+        body: { query: query, search_depth: 'basic', max_results: 3, country: 'indonesia', include_published_date: true,
+                include_domains: domains }.to_json
+      ).to_return(status: 200, headers: json, body: {
+        query: query, response_time: 0.9, request_id: 'req-1',
+        results: [{ title: 'Mesin overheat', url: 'https://otomotif.example/overheat', content: 'Radiator tersumbat membuat mesin panas.',
+                    score: 0.8, published_date: 'Thu, 01 Oct 2026 03:00:00 GMT' },
+                  { title: 'Cek radiator', url: 'https://bengkel.example/radiator', content: 'Periksa air radiator.', published_date: nil }]
+      }.to_json)
+
+      travel_to(Time.utc(2026, 11, 6, 8, 0)) do
+        result = described_class.new(query: query, domains: domains).perform
+
+        expect(request).to have_been_made.once
+        expect(result).to have_attributes(status: 'searched', cost_usd: 0.008)
+        expect(result.results.map(&:to_h)).to eq(
+          [{ rank: 1, title: 'Mesin overheat', url: 'https://otomotif.example/overheat', published_at: Date.new(2026, 10, 1),
+             highlights: ['Radiator tersumbat membuat mesin panas.'] },
+           { rank: 2, title: 'Cek radiator', url: 'https://bengkel.example/radiator', published_at: nil, highlights: ['Periksa air radiator.'] }]
+        )
+        expect(Redis::Alfred.get('ai_agents:web_search:spend:2026-11')).to eq('8000')
+      end
+    end
+
+    it 'searches Brave with the domains as site: operators and turns its HTML into text' do
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_PROVIDER', value: 'brave')
+      request = stub_request(:get, 'https://api.search.brave.com/res/v1/web/search').with(
+        headers: { 'X-Subscription-Token' => api_key, 'Accept' => 'application/json' },
+        query: { q: "#{query} site:otomotif.example OR site:bengkel.example", count: '3', country: 'ID' }
+      ).to_return(status: 200, headers: json, body: {
+        type: 'search',
+        web: { results: [{ title: 'Mesin <strong>overheat</strong>', url: 'https://otomotif.example/overheat',
+                           description: 'Radiator &amp; kipas <strong>rusak</strong> bikin mesin&#x27;s panas.', page_age: '2026-10-01T03:00:00' },
+                         { title: 'Cek radiator', url: 'https://bengkel.example/radiator' }] }
+      }.to_json)
+
+      result = described_class.new(query: query, domains: domains).perform
+
+      expect(request).to have_been_made.once
+      expect(result).to have_attributes(status: 'searched', cost_usd: 0.005)
+      expect(result.results.map(&:to_h)).to eq(
+        [{ rank: 1, title: 'Mesin overheat', url: 'https://otomotif.example/overheat', published_at: Date.new(2026, 10, 1),
+           highlights: ["Radiator & kipas rusak bikin mesin's panas."] },
+         { rank: 2, title: 'Cek radiator', url: 'https://bengkel.example/radiator', published_at: nil, highlights: [] }]
+      )
+    end
+
+    it 'returns searched with no results when Brave finds nothing' do
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_PROVIDER', value: 'brave')
+      stub_request(:get, 'https://api.search.brave.com/res/v1/web/search').with(query: { q: query, count: '3', country: 'ID' })
+                                                                          .to_return(status: 200, headers: json, body: { type: 'search' }.to_json)
+
+      expect(described_class.new(query: query).perform).to have_attributes(status: 'searched', results: [], cost_usd: 0.005)
+    end
+
+    it 'searches Perplexity with its request' do
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_PROVIDER', value: 'perplexity')
+      request = stub_request(:post, 'https://api.perplexity.ai/search').with(
+        headers: { 'Authorization' => "Bearer #{api_key}", 'Content-Type' => 'application/json' },
+        body: { query: query, max_results: 3, max_tokens_per_page: 256, country: 'ID', search_domain_filter: domains }.to_json
+      ).to_return(status: 200, headers: json, body: {
+        id: 'req-1',
+        results: [{ title: 'Mesin overheat', url: 'https://otomotif.example/overheat', snippet: 'Radiator tersumbat membuat mesin panas.',
+                    date: '2026-10-01', last_updated: '2026-10-02' }]
+      }.to_json)
+
+      result = described_class.new(query: query, domains: domains).perform
+
+      expect(request).to have_been_made.once
+      expect(result).to have_attributes(status: 'searched', cost_usd: 0.005)
+      expect(result.results.map(&:to_h)).to eq(
+        [{ rank: 1, title: 'Mesin overheat', url: 'https://otomotif.example/overheat', published_at: Date.new(2026, 10, 1),
+           highlights: ['Radiator tersumbat membuat mesin panas.'] }]
+      )
+    end
+
+    it 'stops searching a provider whose credits are gone, but not the other providers' do
+      provider = create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_PROVIDER', value: 'tavily')
+      tavily = stub_request(:post, 'https://api.tavily.com/search').to_return(status: 432, headers: json,
+                                                                              body: { detail: { error: 'Plan limit exceeded' } }.to_json)
+      exa = stub_request(:post, url).to_return(exa_response)
+
+      expect(described_class.new(query: query).perform).to have_attributes(status: 'failed_credits', results: [], cost_usd: 0)
+      expect(described_class.new(query: query).perform).to have_attributes(status: 'skipped_budget')
+      expect(tavily).to have_been_made.once
+
+      provider.update!(value: 'exa')
+      expect(described_class.new(query: query).perform).to have_attributes(status: 'searched')
+      expect(exa).to have_been_made.once
+    end
+
+    it 'tells credits that are gone from too many searches by the answer of each provider' do
+      { 'tavily' => [[:post, 'https://api.tavily.com/search', { status: 433 }, 'failed_credits'],
+                     [:post, 'https://api.tavily.com/search', { status: 429 }, 'failed_rate_limit']],
+        'brave' => [[:get, %r{\Ahttps://api\.search\.brave\.com/}, { status: 429, body: { error: { code: 'CREDIT_EXHAUSTED' } } }, 'failed_credits'],
+                    [:get, %r{\Ahttps://api\.search\.brave\.com/}, { status: 429, body: { error: { code: 'RATE_LIMITED' } } }, 'failed_rate_limit']],
+        'perplexity' => [[:post, 'https://api.perplexity.ai/search', { status: 402 }, 'failed_credits'],
+                         [:post, 'https://api.perplexity.ai/search', { status: 429 }, 'failed_rate_limit']] }.each do |name, answers|
+        config = InstallationConfig.find_or_initialize_by(name: 'AI_AGENT_WEB_SEARCH_PROVIDER')
+        config.update!(value: name)
+        answers.each do |verb, endpoint, answer, status|
+          Redis::Alfred.delete("ai_agents:web_search:credits_gone:#{name}:#{Time.now.utc.strftime('%Y-%m')}")
+          stub_request(verb, endpoint).to_return(status: answer[:status], headers: json, body: answer.fetch(:body, {}).to_json)
+
+          expect(described_class.new(query: query).perform).to have_attributes(status: status, results: [])
+        end
+      end
+    end
+
+    it 'reports the error code of a rejected Brave request without the key' do
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_PROVIDER', value: 'brave')
+      allow(ChatwootExceptionTracker).to receive(:new).and_call_original
+      stub_request(:get, %r{\Ahttps://api\.search\.brave\.com/}).to_return(
+        status: 422, headers: json, body: { error: { code: 'SUBSCRIPTION_TOKEN_INVALID', detail: "Invalid token #{api_key}" } }.to_json
+      )
+
+      expect(described_class.new(query: query).perform).to have_attributes(status: 'failed_request')
+      expect(ChatwootExceptionTracker).to have_received(:new).with(
+        having_attributes(message: 'Web search provider brave rejected the request (HTTP 422, SUBSCRIPTION_TOKEN_INVALID)')
+      )
+    end
+
+    it 'does not answer a provider from the cache of another' do
+      provider = create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_PROVIDER', value: 'perplexity')
+      perplexity = stub_request(:post, 'https://api.perplexity.ai/search')
+                   .to_return(status: 200, headers: json, body: { id: 'req-1', results: [] }.to_json)
+      exa = stub_request(:post, url).to_return(exa_response)
+
+      described_class.new(query: query).perform
+      provider.update!(value: 'exa')
+      expect(described_class.new(query: query).perform).to have_attributes(status: 'searched')
+      provider.update!(value: 'perplexity')
+      expect(described_class.new(query: query).perform).to have_attributes(status: 'cached')
+
+      expect(perplexity).to have_been_made.once
+      expect(exa).to have_been_made.once
+    end
   end
 end

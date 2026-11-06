@@ -178,8 +178,8 @@ node report.mjs output/web-1.json
   reply model had, compared as `AiAgents::ReplyValidator` compares them; the `citation` assertion passes when a reply
   that was sent has the link of every web result it cites. The reply check replaces a reply with an unknown link, and the
   app adds the links of the cited web results itself, so both measure that what reaches the customer holds.
-- The `bengkel` agent has web search turned on, which also needs the Exa API key in Super Admin. Turns with a web
-  query are searched (#110): the playground returns the search in `web` (query, status, and the results under their
+- The `bengkel` agent has web search turned on, which also needs a web search provider and its API key in Super Admin
+  (the numbers below were measured with Exa). Turns with a web query are searched (#110): the playground returns the search in `web` (query, status, and the results under their
   ranks in the prompt, with the `text` the reply model got), and `scope.web_search_status` says why another turn was
   not searched.
 - The `web` route cases also have a `web_claims` judge rubric, written once on W-WB-01 and reused through a YAML alias.

@@ -80,7 +80,7 @@ RSpec.describe AiAgents::ScopeGuard do
     expect(requests).to be_empty
   end
 
-  it 'sends the same request when web search is turned on but the Exa API key is blank' do
+  it 'sends the same request when web search is turned on but the web search API key is blank' do
     guard.perform
     ai_agent.update!(web_search_enabled: true)
     described_class.new(ai_agent: ai_agent, messages: messages).perform
@@ -93,7 +93,7 @@ RSpec.describe AiAgents::ScopeGuard do
     let(:arguments) { { decision: 'IN_SCOPE', web_query: web_query }.to_json }
 
     before do
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-test-key')
       ai_agent.update!(web_search_enabled: true)
     end
 

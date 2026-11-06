@@ -76,9 +76,9 @@ RSpec.describe AiAgents::UsageReport do
     expect(described_class.new(from: Time.utc(2026, 11, 1), to: Time.utc(2026, 11, 8), ai_agent_id: web_agent.id).perform.lines(chomp: true))
       .to include('- Turns routed to web search: 4 of 5 turns with web search (80%)',
                   '- Web search statuses: cached 1, failed_timeout 1, not_needed 1, searched 1, skipped_personal_data 1',
-                  '- Exa requests: 2, spend US$0.004', '- Exa request latency in ms: p50 600, p95 4000 (n=2)')
+                  '- Web search requests: 2, spend US$0.004', '- Web search request latency in ms: p50 600, p95 4000 (n=2)')
     expect(described_class.new(from: Time.utc(2026, 11, 1), to: Time.utc(2026, 11, 8), ai_agent_id: ai_agent.id).perform)
-      .not_to include('Turns routed to web search', 'Exa requests')
+      .not_to include('Turns routed to web search', 'Web search requests')
   end
 
   it 'says when the gateway reported no cached input' do

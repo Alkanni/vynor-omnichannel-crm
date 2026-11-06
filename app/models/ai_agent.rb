@@ -53,7 +53,7 @@ class AiAgent < ApplicationRecord
     scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message knowledge_gap_message
     web_search_enabled web_search_domains
   ].freeze
-  # A host name such as kompas.com or otomotif.kompas.com, as Exa's includeDomains takes it (see AiAgents::WebSearch).
+  # A host name such as kompas.com or otomotif.kompas.com, as the web search providers take it (see AiAgents::WebSearch).
   WEB_SEARCH_DOMAIN = /\A(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\z/i
   TRAINING_DELAY = 10.seconds
 
@@ -126,7 +126,7 @@ class AiAgent < ApplicationRecord
     scope_mode == 'strict'
   end
 
-  # Only strict agents can turn web search on, and it stays off for every agent while the Exa API key is blank (see
+  # Only strict agents can turn web search on, and it stays off for every agent while the web search API key is blank (see
   # AiAgents::WebSearch.configured?).
   def web_search?
     web_search_enabled && AiAgents::WebSearch.configured?

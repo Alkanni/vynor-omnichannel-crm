@@ -67,20 +67,20 @@ class AiAgents::UsageReport
   end
 
   # The turns with web search (see AiAgents::ReplyGenerator::Trace#web_search_status): the share that needed the web, what
-  # became of them, and the requests made to Exa.
+  # became of them, and the requests made to the web search provider.
   def web_lines(rows)
     web_rows = rows.select(&:web_search_status)
     return [] if web_rows.empty?
 
     routed = web_rows.count { |row| row.web_search_status != 'not_needed' }
     ["- Turns routed to web search: #{routed} of #{web_rows.size} turns with web search (#{(routed * 100.0 / web_rows.size).round}%)",
-     "- Web search statuses: #{counts(web_rows.map(&:web_search_status))}", *exa_lines(web_rows.select(&:web_latency_ms))]
+     "- Web search statuses: #{counts(web_rows.map(&:web_search_status))}", *request_lines(web_rows.select(&:web_latency_ms))]
   end
 
-  # requests: the traces of the turns whose search made a request to Exa.
-  def exa_lines(requests)
-    ["- Exa requests: #{requests.size}, spend US$#{format('%.3f', requests.sum(&:web_cost_usd))}",
-     "- Exa request latency in ms: #{stats(requests.map(&:web_latency_ms), percentiles: [50, 95])}"]
+  # requests: the traces of the turns whose search made a request to the web search provider.
+  def request_lines(requests)
+    ["- Web search requests: #{requests.size}, spend US$#{format('%.3f', requests.sum(&:web_cost_usd))}",
+     "- Web search request latency in ms: #{stats(requests.map(&:web_latency_ms), percentiles: [50, 95])}"]
   end
 
   def conversation_lines(rows)

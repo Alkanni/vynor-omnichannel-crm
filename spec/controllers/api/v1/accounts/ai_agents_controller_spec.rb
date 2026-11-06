@@ -346,7 +346,7 @@ RSpec.describe 'AI Agents API', type: :request do
                        off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?',
                        knowledge_gap_message: 'Maaf, info itu belum tersedia.', web_search_enabled: true)
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-test-key')
       stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return(
         status: 200, headers: { 'Content-Type' => 'application/json' },
         body: { id: 'chatcmpl-1', model: ai_agent.model,
@@ -370,7 +370,7 @@ RSpec.describe 'AI Agents API', type: :request do
                        off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Mobil yang mana, Kak?',
                        knowledge_gap_message: 'Maaf, info itu belum tersedia.', web_search_enabled: true)
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-test-key')
       cached = []
       Redis::Alfred.scan_each(match: 'ai_agents:web_search:*') { |key| cached << key }
       cached.each { |key| Redis::Alfred.delete(key) }
@@ -552,7 +552,7 @@ RSpec.describe 'AI Agents API', type: :request do
     end
 
     it 'also searches the web for an optional web query' do
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-key')
       exa_request = stub_request(:post, 'https://api.exa.ai/search').with(body: hash_including(query: 'jam buka bengkel umum')).to_return(
         status: 200, headers: { 'Content-Type' => 'application/json' },
         body: { results: [{ title: 'Jam buka', url: 'https://example.com/jam', publishedDate: '2026-10-01', highlights: ['Buka pukul 08.00.'] }],
@@ -572,7 +572,7 @@ RSpec.describe 'AI Agents API', type: :request do
     end
 
     it 'rejects a blank, non-text, or too long web query' do
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-key')
       ['', '   ', ['jam buka'], 5, 'a' * 201].each do |web_query|
         post url, params: { query: 'Jam buka?', web_query: web_query }, headers: admin.create_new_auth_token, as: :json
 

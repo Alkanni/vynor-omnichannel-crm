@@ -1,16 +1,16 @@
-# Searches the web through Exa (https://exa.ai) for a query written for it, as agreed in docs/ai-agent-web-search-decisions.md.
-# Only the query (and the optional domains) leaves the installation. perform never raises for Exa: every outcome is a Result
-# whose status says where the results came from or why there are none, so a reply can always go on with the knowledge only.
+# Searches the web for a query written for it, as agreed in docs/ai-agent-web-search-decisions.md, through the provider set in
+# AI_AGENT_WEB_SEARCH_PROVIDER (see AiAgents::WebSearch::Provider). Only the query (and the optional domains) leaves the
+# installation. perform never raises for the provider: every outcome is a Result whose status says where the results came
+# from or why there are none, so a reply can always go on with the knowledge only.
 #
 # Spend and the cache are kept in Redis, because Rails.cache is not shared between the web and worker containers. Spend is
-# counted per UTC month in micro-dollars from Exa's costDollars.total. No request is made once it reaches
-# AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET, or after Exa answered 402 in the same month: the Exa account has no payment method,
-# so Exa stops at its free credit anyway and the budget paces usage within it. Concurrent searches can overshoot it a little.
+# counted per UTC month in micro-dollars, for all providers together, from what each search cost. No request is made once it
+# reaches AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET, or after the provider said in the same month that its credits are gone, so the
+# budget paces usage within a provider's free credit. Concurrent searches can overshoot it a little.
 class AiAgents::WebSearch
-  ENDPOINT = 'https://api.exa.ai/search'.freeze
+  PROVIDERS = { 'exa' => Exa.new, 'tavily' => Tavily.new, 'brave' => Brave.new, 'perplexity' => Perplexity.new }.freeze
+  DEFAULT_PROVIDER = 'exa'.freeze
   MAX_QUERY_CHARACTERS = 200
-  # lite costs the same for up to 10 results, but every result costs prompt tokens.
-  REQUEST = { type: 'lite', numResults: 3, userLocation: 'ID', contents: { highlights: { maxCharacters: 800 } } }.freeze
   # Short enough that the playground's worst case stays within Rack::Timeout next to the model calls.
   OPEN_TIMEOUT = 1
   READ_TIMEOUT = 4
@@ -19,30 +19,33 @@ class AiAgents::WebSearch
   # Monthly keys outlive their month a little, so the spend of the month just ended can still be read.
   MONTH_KEY_TTL = 40.days
 
-  # An Exa answer that means the request or the key is wrong. Its message never holds the key.
+  # A provider answer that means the request or the key is wrong. Its message never holds the key.
   class RequestError < StandardError; end
 
-  # Exa returns up to about three times highlights.maxCharacters per result (measured in #108), so the text of a result
-  # that a prompt gets is cut to this.
+  # Exa returns up to about three times highlights.maxCharacters per result (measured in #108), and other providers return
+  # whole passages, so the text of a result that a prompt gets is cut to this.
   MAX_TEXT_CHARACTERS = 800
 
-  # rank starts at 1. published_at is a Date when Exa gives one, never guessed.
+  # rank starts at 1. published_at is a Date when the provider gives one, never guessed. highlights are the excerpts of the
+  # page that the provider returned.
   Item = Data.define(:rank, :title, :url, :published_at, :highlights) do
     # The highlights as one text of at most MAX_TEXT_CHARACTERS, as a reply prompt gets them.
     def text = highlights.join(' ').squish.truncate(MAX_TEXT_CHARACTERS, separator: ' ')
   end
   # status is one of searched, cached, skipped_budget, failed_timeout, failed_rate_limit, failed_credits, failed_provider, or
-  # failed_request. latency_ms is the Exa request's, nil when none was made. cost_usd is what Exa charged for this search.
+  # failed_request. latency_ms is the provider request's, nil when none was made. cost_usd is what this search cost.
   Result = Data.define(:status, :results, :latency_ms, :cost_usd)
 
   class << self
     # Blank turns web search off for every agent.
     def configured? = api_key.present?
-    def api_key = AiAgents::LlmClient.setting('AI_AGENT_EXA_API_KEY')
+    def api_key = AiAgents::LlmClient.setting('AI_AGENT_WEB_SEARCH_API_KEY')
+    # One of the keys of PROVIDERS.
+    def provider_name = AiAgents::LlmClient.setting('AI_AGENT_WEB_SEARCH_PROVIDER') || DEFAULT_PROVIDER
     def monthly_budget = Float(AiAgents::LlmClient.setting('AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET') || DEFAULT_MONTHLY_BUDGET)
   end
 
-  # domains: optional list of domains to search only, sent as includeDomains.
+  # domains: optional list of domains to search only.
   pattr_initialize [:query!, :domains]
 
   def perform
@@ -59,13 +62,13 @@ class AiAgents::WebSearch
 
   private
 
-  # Returns the status, Exa's results, and what Exa charged in USD. There is no retry, also not on 429.
+  # Returns the status, the provider's results, and what the search cost in USD. There is no retry, also not on 429.
   def search
-    response = connection.post(ENDPOINT, request_body)
+    response = connection.run_request(request.verb, request.url, request.body, nil)
     return [failure_status(response), [], 0] unless response.status == 200
 
-    results = response.body.fetch('results').map { |result| result.slice('title', 'url', 'publishedDate', 'highlights') }
-    cost = response.body.dig('costDollars', 'total').to_f
+    results = provider.results(response.body)
+    cost = provider.cost(response.body)
     record_spend(cost)
     Redis::Alfred.setex(cache_key, results.to_json, CACHE_TTL)
     ['searched', results, cost]
@@ -79,24 +82,25 @@ class AiAgents::WebSearch
   end
 
   def failure_status(response)
+    body = response.body.is_a?(Hash) ? response.body : {}
+    if provider.credits_gone?(response.status, body)
+      Redis::Alfred.set(credits_gone_key, 1, ex: MONTH_KEY_TTL)
+      return 'failed_credits'
+    end
+
     case response.status
-    when 402
-      Redis::Alfred.set(format(Redis::Alfred::AI_AGENT_WEB_SEARCH_CREDITS_GONE, month: month), 1, ex: MONTH_KEY_TTL)
-      'failed_credits'
     when 429 then 'failed_rate_limit'
     when 500.. then 'failed_provider'
     else
-      # Exa's error text could echo the key, so only its machine-readable tag is kept.
-      tag = response.body['tag'] if response.body.is_a?(Hash)
-      ChatwootExceptionTracker.new(RequestError.new("Exa rejected the web search request (HTTP #{response.status}, #{tag || 'no tag'})"))
-                              .capture_exception
+      ChatwootExceptionTracker.new(RequestError.new("Web search provider #{provider_name} rejected the request " \
+                                                    "(HTTP #{response.status}, #{provider.error_tag(body) || 'no tag'})")).capture_exception
       'failed_request'
     end
   end
 
   def budget_exhausted?
     spend, credits_gone = Redis::Alfred.with do |conn|
-      conn.mget(format(Redis::Alfred::AI_AGENT_WEB_SEARCH_SPEND, month: month), format(Redis::Alfred::AI_AGENT_WEB_SEARCH_CREDITS_GONE, month: month))
+      conn.mget(format(Redis::Alfred::AI_AGENT_WEB_SEARCH_SPEND, month: month), credits_gone_key)
     end
     credits_gone.present? || spend.to_i >= self.class.monthly_budget * 1_000_000
   end
@@ -113,26 +117,39 @@ class AiAgents::WebSearch
 
   def items(results)
     results.each.with_index(1).map do |result, rank|
-      Item.new(rank: rank, title: result['title'], url: result['url'], published_at: result['publishedDate']&.then { |date| Date.parse(date) },
-               highlights: Array(result['highlights']))
+      Item.new(rank: rank, title: result['title'], url: result['url'], published_at: result['published']&.then { |date| Date.parse(date) },
+               highlights: result['snippets'])
     end
   end
 
   def connection
-    Faraday.new(headers: { 'x-api-key' => self.class.api_key, 'Content-Type' => 'application/json' }) do |faraday|
+    Faraday.new(headers: provider.headers(self.class.api_key)) do |faraday|
       faraday.response :json
       faraday.options.open_timeout = OPEN_TIMEOUT
       faraday.options.read_timeout = READ_TIMEOUT
     end
   end
 
-  # The cache key covers every request parameter, domains included.
+  # The cache key covers the provider and every request parameter, domains included.
   def cache_key
-    @cache_key ||= format(Redis::Alfred::AI_AGENT_WEB_SEARCH_CACHE, digest: Digest::SHA256.hexdigest(request_body))
+    @cache_key ||= format(Redis::Alfred::AI_AGENT_WEB_SEARCH_CACHE,
+                          digest: Digest::SHA256.hexdigest("#{provider_name} #{request.url} #{request.body}"))
   end
 
-  def request_body
-    @request_body ||= { query: query, **REQUEST, includeDomains: domains.presence }.compact.to_json
+  def credits_gone_key
+    format(Redis::Alfred::AI_AGENT_WEB_SEARCH_CREDITS_GONE, provider: provider_name, month: month)
+  end
+
+  def request
+    @request ||= provider.request(query, domains)
+  end
+
+  def provider
+    @provider ||= PROVIDERS.fetch(provider_name)
+  end
+
+  def provider_name
+    @provider_name ||= self.class.provider_name
   end
 
   def month

@@ -293,7 +293,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     end
 
     before do
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-test-key')
       ai_agent.update!(scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Servis dan info umum mobil',
                        off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Mobil yang mana, Kak?',
                        knowledge_gap_message: 'Maaf, info itu belum tersedia.', web_search_enabled: true,

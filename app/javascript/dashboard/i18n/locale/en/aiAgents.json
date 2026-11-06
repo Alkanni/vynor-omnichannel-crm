@@ -112,7 +112,7 @@
         },
         "WEB_SEARCH": {
           "TITLE": "Web Search",
-          "DESCRIPTION": "When a message asks for general information within the allowed topics, such as symptoms, maintenance, or recalls, the AI searches the web with a query it writes without personal data, and adds the links of the results it uses to its reply. Business facts still come only from the knowledge, and contact requests are never searched. Needs the Exa API key in Super Admin."
+          "DESCRIPTION": "When a message asks for general information within the allowed topics, such as symptoms, maintenance, or recalls, the AI searches the web with a query it writes without personal data, and adds the links of the results it uses to its reply. Business facts still come only from the knowledge, and contact requests are never searched. Needs a web search provider and its API key in Super Admin."
         },
         "WEB_SEARCH_DOMAINS": {
           "TITLE": "Web Search Domains",
@@ -450,19 +450,19 @@
         "SCORE": "Score {score}",
         "WEB_QUERY_LABEL": "Web search query (optional)",
         "WEB_QUERY_PLACEHOLDER": "For example: causes of an overheating car engine",
-        "WEB_QUERY_HELP": "Searched on the internet with Exa exactly as written. Name only the subject, without names, phone numbers, or other personal data. Each search counts against the monthly web search budget, except the same search again within 6 hours.",
+        "WEB_QUERY_HELP": "Searched on the internet with the web search provider set in Super Admin, exactly as written. Name only the subject, without names, phone numbers, or other personal data. Each search counts against the monthly web search budget, except the same search again within 6 hours.",
         "WEB": {
           "TITLE": "Web results",
-          "NO_RESULTS": "Exa found nothing for this query.",
+          "NO_RESULTS": "The web search found nothing for this query.",
           "STATUS": {
-            "SEARCHED": "Searched with Exa in {latency} ms for {cost}.",
+            "SEARCHED": "Searched the web in {latency} ms for {cost}.",
             "CACHED": "Taken from the same search in the last 6 hours, at no cost.",
-            "SKIPPED_BUDGET": "Not searched: the monthly web search budget is used up, or Exa ran out of credits this month (UTC).",
-            "FAILED_TIMEOUT": "Exa did not answer in time. A reply would go on with the knowledge only.",
-            "FAILED_RATE_LIMIT": "Exa refused the search because too many were made. Try again later.",
-            "FAILED_CREDITS": "Exa has no credits left, so the web is not searched until next month (UTC).",
-            "FAILED_PROVIDER": "Exa could not be reached or had an error. Try again later.",
-            "FAILED_REQUEST": "Exa rejected the request. Ask the installation administrator to check the Exa API key in Super Admin."
+            "SKIPPED_BUDGET": "Not searched: the monthly web search budget is used up, or the web search provider ran out of credits this month (UTC).",
+            "FAILED_TIMEOUT": "The web search provider did not answer in time. A reply would go on with the knowledge only.",
+            "FAILED_RATE_LIMIT": "The web search provider refused the search because too many were made. Try again later.",
+            "FAILED_CREDITS": "The web search provider has no credits left, so the web is not searched until next month (UTC).",
+            "FAILED_PROVIDER": "The web search provider could not be reached or had an error. Try again later.",
+            "FAILED_REQUEST": "The web search provider rejected the request. Ask the installation administrator to check the web search provider and its API key in Super Admin."
           }
         }
       }
