@@ -7,7 +7,7 @@
 # AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET, or after Exa answered 402 in the same month: the Exa account has no payment method,
 # so Exa stops at its free credit anyway and the budget paces usage within it. Concurrent searches can overshoot it a little.
 class AiAgents::WebSearch
-  ENDPOINT = 'https://api.tavily.com/search'.freeze
+  ENDPOINT = 'https://api.exa.ai/search'.freeze
   MAX_QUERY_CHARACTERS = 200
   # lite costs the same for up to 10 results, but every result costs prompt tokens.
   REQUEST = { type: 'lite', numResults: 3, userLocation: 'ID', contents: { highlights: { maxCharacters: 800 } } }.freeze
