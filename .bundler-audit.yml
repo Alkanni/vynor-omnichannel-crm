@@ -5,25 +5,6 @@ ignore:
   # Devise 5 is currently blocked by devise-secure_password/devise_token_auth/devise-two-factor.
   # Chatwoot does not enable Timeoutable, so the timeout redirect path is not reachable.
   - GHSA-jp94-3292-c3xv
-  # Rails 7.1 has no patched release for the Active Storage proxy range
-  # advisories. Chatwoot limits proxy range requests locally.
-  - CVE-2026-33658
-  # Rails 7.1 has no patched release for this Active Storage direct-upload
-  # advisory. Chatwoot filters internal metadata keys locally.
-  - CVE-2026-33173
-  - CVE-2026-33174
-  # Rails 7.1 has no patched release for these Rails advisories. These are not
-  # reachable through Chatwoot's current usage patterns and should be removed
-  # once we upgrade to Rails 7.2.3.1+.
-  - CVE-2026-33168
-  - CVE-2026-33169
-  - CVE-2026-33170
-  - CVE-2026-33176
-  - CVE-2026-33195
-  - CVE-2026-33202
-  # No Rails 7.1 patch for this Active Storage advisory; mitigated locally.
-  # Remove once on Rails 7.2.3.1+.
-  - CVE-2026-66066
   # RubyLLM's name-normalization ReDoS is reported on Ruby 3.1; we require Ruby 3.4.4.
   # Built-in tool names are fixed; custom tools use bounded slugs and override normalization.
   # Patched 2.0 releases need an ai-agents migration (currently constrained to RubyLLM 1.x).
@@ -35,42 +16,3 @@ ignore:
   # reassess if the supported Ruby runtime changes.
   - CVE-2026-67987
   - CVE-2026-67989
-  # Rails advisories published on 2026-11-04 have no patched Rails 7.2 release, and Rails 7.2 is
-  # past its security support. Reachability for this fork is analysed in #114.
-  # Remove every entry below when upgrading to Rails 8.0.5.2 or later (#129).
-
-  # Reachable through public Action Cable channel names; fixed locally by the backport in
-  # config/initializers/monkey_patches/safe_constantize.rb, which #129 removes as well.
-  - GHSA-8474-xrp6-wh69
-  # Accepted residual risk: the Active Storage proxy routes stream with ActionController::Live, so a
-  # client holding a blob URL can hold threads on blobs above ~50 MB (attachments default to 40 MB).
-  - GHSA-rwvh-fw6r-pwvp
-  # Variants and analysis use libvips (load_defaults 7.0) with VIPS_BLOCK_UNTRUSTED=1, so ImageMagick
-  # never processes uploads.
-  - GHSA-f3w6-w445-fwh9
-  # The Docker image has no FFmpeg, previewers are disabled, and images go through libvips.
-  - GHSA-v924-7rp8-4mxh
-  - GHSA-3f4q-8x5m-76v8
-  # No application code passes the return value of Parameters#each_key to mass assignment.
-  - GHSA-wm3x-v3qw-4jh3
-  # No negotiated response is marked public; only static files get a public Cache-Control.
-  - GHSA-r9jg-fmfx-2gv6
-  # Sessions use CookieStore (with same_site: :lax), not CacheStore or another server-side store.
-  - GHSA-2586-8ghr-69fj
-  - GHSA-gmj8-hvj3-49mw
-  # Cookies use the :json serializer with no rotations, so no old-format cookie is rewritten.
-  - GHSA-x6mj-8jx9-qhqv
-  # The application does not call highlight or strip_tags, and tag helpers get literal attribute names.
-  - GHSA-v6rj-xm57-3p59
-  - GHSA-rq8q-p985-fjq7
-  - GHSA-68p9-83h6-5wpj
-  # Nokogiri 1.19.7 already escapes < and > in attribute values, and the sanitizer vendor is HTML4.
-  - GHSA-2p2f-4rq4-gjwc
-  # PostgreSQL rejects the NUL-containing filenames this DoS needs.
-  - GHSA-p2pm-g2h6-7j5j
-  # Deployments store files on local Disk; only GCS direct uploads are affected, and the GCS service
-  # in config/storage.yml sets no cache_control.
-  - GHSA-hfr4-8rjc-97m2
-  - GHSA-3w93-6hmw-whh4
-  # Inbound email uses the relay ingress; only the Mailgun ingress is affected.
-  - GHSA-5957-c7qm-m469

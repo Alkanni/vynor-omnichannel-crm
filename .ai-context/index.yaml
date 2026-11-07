@@ -18,6 +18,7 @@ documents:
     path: repository-inventory.md
     purpose: Environment/tooling assessment, directory map, tech stack, process topology
     source_refs: [Gemfile, package.json, Procfile, Procfile.dev, config/sidekiq.yml, config/schedule.yml]
+    last_analyzed_commit: 9f920b549c (+ issue #129: Rails 8.0.5.2, Administrate 1.0)
     verification: VERIFIED
 
   - id: system-overview
