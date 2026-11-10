@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Multi-chunk context eval (issue #133): questions whose answer is spread over consecutive chunks of one source, against
+# the `konteks` agent of fixtures/toko-roti-konteks.json. The `context` assertion passes when every fact of the case was
+# in a chunk sent to the reply model, `noise` (control cases) when none of the noise texts was, and the `completeness`
+# rubric when the reply has what the question needs. context-report.mjs reads the output. Run from this directory; see
+# README.md.
+description: AI Agent multi-chunk context
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://provider.mjs
+    label: konteks
+    config:
+      agent: konteks
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 2
+
+defaultTest: file://judge.yaml
+
+tests:
+  - file://tests/c-context.yaml
