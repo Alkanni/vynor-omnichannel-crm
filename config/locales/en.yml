@@ -213,6 +213,7 @@ en:
       invalid_token: Invalid or expired MFA token
       invalid_credentials: Invalid credentials or verification code
       feature_unavailable: MFA feature is not available. Please configure encryption keys.
+      interactive_session_required: Two-factor authentication settings cannot be managed with an API access token. Sign in to the dashboard instead.
     billing:
       invalid_currency: Invalid billing currency
       currency_locked: Billing currency cannot be changed after billing has been set up
