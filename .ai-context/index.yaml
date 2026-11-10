@@ -115,8 +115,8 @@ documents:
   - id: flow-request-auth
     path: flows/request-auth.md
     purpose: AuthN/AuthZ/tenancy for API, widget, platform, realtime
-    source_refs: [app/controllers/application_controller.rb, app/controllers/api/base_controller.rb, app/controllers/concerns/, app/policies/, app/channels/room_channel.rb]
-    verification: VERIFIED (SAML/OAuth/MFA located only)
+    source_refs: [app/controllers/application_controller.rb, app/controllers/api/base_controller.rb, app/controllers/concerns/, app/policies/, app/channels/room_channel.rb, app/controllers/api/v1/profile/mfa_controller.rb]
+    verification: VERIFIED (SAML/OAuth located only; MFA token rejection verified for issue #135)
 
   - id: flow-conversation-assignment
     path: flows/conversation-assignment.md
