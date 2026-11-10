@@ -9,7 +9,7 @@ Commit `9f920b54` · Phase 0–1 output (environment, capability, structure).
 | Working dir | `/home/acgix/vynor-omnichannel-crm` (git repo, branch `main`, tree clean before analysis) |
 | Size | 9,281 tracked files. By ext: 2,784 json (mostly i18n), 2,647 rb, 1,187 vue, 1,127 js, 481 yml, 372 jbuilder |
 | Top dirs (files) | `app` 6,482 · `spec` 1,090 · `enterprise` 557 · `swagger` 310 · `config` 193 · `db` 182 · `public` 152 · `lib` 146 |
-| Existing AI docs | `AGENTS.md` (`CLAUDE.md` is a symlink to it), `.windsurf/rules/chatwoot.md`, `docs/rails_upgrade_assessment.md`, `docs/rails_upgrades/7_2.md` |
+| Existing AI docs | `AGENTS.md` (`CLAUDE.md` is a symlink to it), `.windsurf/rules/chatwoot.md`, `docs/rails_upgrade_assessment.md`, `docs/rails_upgrades/7_2.md`, `docs/rails_upgrades/8_0.md` |
 | Ruby / Bundler | **not installed** on host → no `rails runner`, no `rspec`, no Ruby LSP |
 | Node / pnpm | installed (v24.19.0) — not used (no scripts executed) |
 | ripgrep | available — primary analysis tool |
@@ -51,7 +51,7 @@ Generated/vendored boundaries: `db/schema.rb` (generated), `app/javascript/dashb
 
 | Concern | Technology | Evidence |
 |---|---|---|
-| Web framework | Rails (schema 7.1), Puma | `Gemfile`, `db/schema.rb:13` |
+| Web framework | Rails 8.0.5.2 (`load_defaults 7.0`, schema header 7.1), Puma | `Gemfile`, `config/application.rb`, `db/schema.rb:13` |
 | DB | PostgreSQL; extensions pg_stat_statements, pg_trgm, pgcrypto, plpgsql, vector | `db/schema.rb:15-19` |
 | DB triggers | `hairtrigger` gem (per-account display_id sequences) | `db/schema.rb` tail, `app/models/conversation.rb:430` |
 | Background jobs | Sidekiq + sidekiq-cron | `config/sidekiq.yml`, `config/schedule.yml` |
@@ -66,7 +66,7 @@ Generated/vendored boundaries: `db/schema.rb` (generated), `app/javascript/dashb
 | Storage | ActiveStorage (S3, Azure, GCS) | `config/storage.yml` |
 | Email in | ActionMailbox (+ SES, IMAP polling) | `app/mailboxes/` |
 | Billing | Stripe (enterprise) | `enterprise/app/services/enterprise/billing/` |
-| Admin UI | administrate (Super Admin) | `app/dashboards/`, `app/controllers/super_admin/` |
+| Admin UI | administrate 1.0 (Super Admin); its Turbo/Stimulus bundle is replaced by the 0.20 Sprockets pipeline (jQuery, jquery_ujs, selectize) | `app/dashboards/`, `app/controllers/super_admin/`, `app/assets/javascripts/administrate/` |
 | Audit | audited (enterprise `Audit` concern) | `Gemfile`, `Enterprise::Audit::*` |
 | Frontend | Vue 3, Vite (vite_rails), vue-router, Vuex + Pinia, vue-i18n, Tailwind, FormKit | `app/javascript/entrypoints/dashboard.js` |
 | APM (optional) | Datadog, Elastic APM, Scout, New Relic, Sentry, OpenTelemetry | `config/application.rb:11-34` |
