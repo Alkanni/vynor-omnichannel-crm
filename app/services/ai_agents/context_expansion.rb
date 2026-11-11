@@ -12,7 +12,8 @@
 # rank of their best match, so the model reads each part of a document in one piece. Ranks number the chunks in that
 # order.
 class AiAgents::ContextExpansion
-  # Chosen with evals/ai-agent (issue #134).
+  # Chosen with evals/ai-agent (issue #134): step 0 pushed out the answer of control questions at Context Limits 3 and 5,
+  # and with step 2 or more limit 3 sent no neighbor at all, because the matches kept every place.
   NEIGHBOR_STEP = 1
   SECTION_COLUMNS = %i[chunkable_type chunkable_id section].freeze
   Hit = AiAgents::KnowledgeRetriever::Hit

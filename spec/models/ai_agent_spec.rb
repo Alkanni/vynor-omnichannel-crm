@@ -9,7 +9,7 @@ RSpec.describe AiAgent do
       expect(ai_agent).to have_attributes(
         model: Llm::Models.default_model_for('assistant'),
         stop_ai_after_handoff: true, silent_handoff: false, history_limit: 30, read_file_limit: 3,
-        context_limit: 8, context_expansion_radius: 1, temperature: 'balanced', message_await: 10, message_limit: 10,
+        context_limit: 8, context_expansion_radius: 0, temperature: 'balanced', message_await: 10, message_limit: 10,
         watcher_enabled: false, timezone: 'Asia/Jakarta', session_only_memory: false,
         ignore_team_handoff: false, allowed_label_ids: [], scope_mode: 'off', scope_policy_version: 0, web_search_enabled: false,
         web_search_domains: nil

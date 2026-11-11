@@ -449,7 +449,7 @@
         "MODE_HYBRID": "Searched by meaning with {model} and by keywords, then combined. The score is the combined rank: higher is closer.",
         "MODE_KEYWORD": "Searched by keywords. The score is the rank in the keyword match: higher is closer.",
         "LIMIT": "Up to {count} chunks are sent with a reply (Context Limit).",
-        "EXPANSION": "Each match brings up to {count} chunks before and after it from the same part of its document (Context Expansion), within that limit. Chunks of one part are shown in document order.",
+        "EXPANSION": "Context Expansion is {count}: each match also brings the chunks next to it from the same part of its document, within that limit. Chunks of one part are shown in document order.",
         "NEIGHBOR": "Next to #{rank}",
         "NO_RESULTS": "No knowledge was found. The AI agent would answer this question without knowledge.",
         "RANK": "#{rank}",

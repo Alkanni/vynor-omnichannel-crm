@@ -320,7 +320,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_100100) do
     t.text "knowledge_gap_message"
     t.boolean "web_search_enabled", default: false, null: false
     t.text "web_search_domains"
-    t.integer "context_expansion_radius", default: 1, null: false
+    t.integer "context_expansion_radius", default: 0, null: false
     t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 

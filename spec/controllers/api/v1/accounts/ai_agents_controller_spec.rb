@@ -489,7 +489,7 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       body = response.parsed_body
-      expect(body).to include('context_limit' => 2, 'context_expansion_radius' => 1, 'mode' => 'keyword', 'embedding_model' => nil)
+      expect(body).to include('context_limit' => 2, 'context_expansion_radius' => 0, 'mode' => 'keyword', 'embedding_model' => nil)
       expect(body['chunks'].map { |chunk| [chunk['rank'], chunk['content'], chunk['source']] })
         .to eq([[1, 'Jam buka toko: Senin sampai Sabtu', text_source], [2, 'Alamat toko: Jalan Merdeka 10', text_source]])
       expect(body['chunks'].pluck('score')).to all(be > 0)
@@ -501,6 +501,7 @@ RSpec.describe 'AI Agents API', type: :request do
     end
 
     it 'marks the chunks sent as neighbors of a match, in document order' do
+      ai_agent.update!(context_expansion_radius: 1)
       ai_agent.knowledge_chunks.update_all(section: 0) # rubocop:disable Rails/SkipsModelValidations
 
       post url, params: { query: 'Ada promo bulan ini?' }, headers: admin.create_new_auth_token, as: :json
