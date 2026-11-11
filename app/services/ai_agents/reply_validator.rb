@@ -7,7 +7,7 @@
 # when it has a link that is not one of the web results, the knowledge, or the conversation of the prompt, or the site
 # of a web result; the links of the web results it cites are added after the check (see AiAgents::ReplyGenerator).
 # AiAgents::ReplyGenerator sends the agent's knowledge gap message instead of a reply that fails and of a knowledge_gap
-# decision.
+# decision, after asking the model once more for a reply that fails with invalid_decision.
 # The check is deterministic: it traces numbers and links to a source, but cannot tell whether the rest of the reply is
 # true, or whether a number from a web result is presented as the business's own.
 class AiAgents::ReplyValidator
@@ -57,6 +57,7 @@ class AiAgents::ReplyValidator
   # Without content, so a trace can keep it: blocked_reason is nil when the reply may be sent.
   Result = Data.define(:decision, :sources, :blocked_reason) do
     def knowledge_gap? = decision == 'knowledge_gap' || blocked_reason.present?
+    def invalid_decision? = blocked_reason == 'invalid_decision'
   end
 
   # content: the arguments of the reply function. replies: its messages. hits: the AiAgents::KnowledgeRetriever hits the
@@ -64,6 +65,15 @@ class AiAgents::ReplyValidator
   # search, whose links are not checked. messages: the conversation, as for AiAgents::ReplyGenerator. current_time: the
   # time line of the prompt.
   pattr_initialize [:content!, :replies!, :hits!, :web_results, :messages!, :current_time!]
+
+  # How an output of the reply model failed with invalid_decision, without its content (see AiAgents::ReplyGenerator::Trace):
+  # text instead of the reply function (see AiAgents::LlmClient::Completion), the function without a decision, or with one
+  # outside DECISIONS.
+  def self.output_shape(content)
+    return 'text' unless content.is_a?(Hash)
+
+    content['decision'].nil? ? 'missing_decision' : 'unknown_decision'
+  end
 
   def perform
     Result.new(decision: (decision if DECISIONS.include?(decision)), sources: sources.grep(Integer), blocked_reason: blocked_reason)
