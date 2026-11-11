@@ -272,6 +272,12 @@ node --env-file=.env context-report.mjs output/context-1.json
 - The chunks sent come from the search, which is deterministic for the same knowledge, so context recall and the
   distances should repeat between two runs; completeness depends on the reply model and the judge. Pass two outputs to
   list the cases whose full context or completeness changed. The baseline of `main` is on issue #133.
+- Since issue #134 an agent can also send the chunks next to its matches (Context Expansion Radius, see
+  `AiAgents::ContextExpansion`). The `konteks` agent has the default radius 0; to measure expansion, set
+  `context_expansion_radius` (and `context_limit` when needed) on the agent in the General tab or with
+  `PATCH /api/v1/accounts/:account_id/ai_agents/:id`, run the eval, and compare with a run at radius 0. Neighbors take
+  slots of the Context Limit, so a run with expansion can send fewer matches. The results and the slot sweep are on
+  issue #134.
 
 ## Retrieval eval
 
@@ -297,6 +303,10 @@ node retrieval-report.mjs output/retrieval-vector.json
 - Each case costs one embedding call in hybrid mode and no LLM call in keyword mode. Results are deterministic for the
   same knowledge, so two runs that differ point to a setup problem. Latency is the whole Retrieval Test request as the
   eval sees it, including the embedding call, so compare runs made under the same conditions.
+- With a Context Expansion Radius above 0 (#134), `rank` is the place of a chunk in the prompt, where a neighbor that
+  comes before its match in the document comes first, so hit@1 and MRR drop although the matches rank the same. Measure
+  the ranking at radius 0, which the eval agents have by default, or rank only the chunks that have a score (neighbors
+  have none).
 - Pass two outputs to `retrieval-report.mjs` to list the cases whose result changed, for example before and after a
   retrieval change.
 

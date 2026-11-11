@@ -4,6 +4,7 @@
 # so vector search finds what means the same and keywords find exact names and numbers. Without one only the words count.
 # Chunks that are not relevant enough are left out of their list: those sharing no word with the question, and those
 # farther than AI_AGENT_EMBEDDING_MAX_DISTANCE when it is set. No chunk at all means the model answers without knowledge.
+# With a Context Expansion Radius the chunks next to the matches are sent too (see AiAgents::ContextExpansion).
 #
 # A follow-up question often leaves out its subject ("How much for 4?"), so a conversation with earlier customer turns
 # is searched twice: with the latest turn, and with that turn joined to the ones before it. The first keeps a change of
@@ -25,8 +26,14 @@ class AiAgents::KnowledgeRetriever
   KEYWORD_WEIGHT = 0.5
   QUERY_WEIGHTS = [1.0, 4.0].freeze
 
-  # rank starts at 1. score is the RRF score: higher is closer, and it says nothing about relevance on its own.
-  Hit = Data.define(:chunk, :rank, :score)
+  # rank starts at 1 and orders the chunks in the prompt. score is the RRF score: higher is closer, and it says nothing
+  # about relevance on its own. A chunk sent as the neighbor of a match (see AiAgents::ContextExpansion) has no score, and
+  # neighbor_of is the rank of that match.
+  Hit = Data.define(:chunk, :rank, :score, :neighbor_of) do
+    def initialize(chunk:, rank:, score:, neighbor_of: nil)
+      super
+    end
+  end
   # queries: the latest customer turn, then that turn with the earlier ones when there are any.
   Result = Data.define(:mode, :embedding_model, :queries, :hits)
 
@@ -63,8 +70,11 @@ class AiAgents::KnowledgeRetriever
     return [] if queries.empty? || !chunks.exists?
 
     vectors = embedding_model ? AiAgents::LlmClient.new.embed(queries, input_type: :query) : []
-    scores = fused(chunks, queries, vectors).first(ai_agent.context_limit)
-    scores.map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) }
+    matches = fused(chunks, queries, vectors).first(ai_agent.context_limit)
+    radius = ai_agent.context_expansion_radius
+    return matches.map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) } if radius.zero?
+
+    AiAgents::ContextExpansion.new(chunks: chunks, matches: matches, radius: radius, limit: ai_agent.context_limit).perform
   end
 
   # A chunk scores weight / (RRF_K + rank) for each list it is in, so one found by several searches ranks above one found

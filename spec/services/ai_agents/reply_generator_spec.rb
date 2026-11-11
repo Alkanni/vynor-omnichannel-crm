@@ -462,7 +462,19 @@ RSpec.describe AiAgents::ReplyGenerator do
                                         cached_input_tokens: 4, scope_input_tokens: nil, scope_output_tokens: nil,
                                         retrieved: [{ chunk_id: ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').id,
                                                       chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: source.id, rank: 1,
-                                                      score: be_within(1e-9).of(7.5 / 21) }])
+                                                      score: be_within(1e-9).of(7.5 / 21), neighbor_of: nil }])
+  end
+
+  it 'sends the neighbors of a match with ranks of their own and traces the match each was sent for' do
+    create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
+    ai_agent.update!(context_limit: 2, context_expansion_radius: 1)
+    ai_agent.knowledge_chunks.update_all(section: 0) # rubocop:disable Rails/SkipsModelValidations
+
+    trace = described_class.new(ai_agent: ai_agent, messages: messages).perform.trace
+
+    expect(chat_requests.sole['messages'].first['content']).to include("[1] Jam buka: setiap hari 07.30 - 18.00\n\n[2] Harga detailing: Rp750.000")
+    expect(trace.attributes[:retrieved].map { |chunk| chunk.slice(:rank, :score, :neighbor_of) })
+      .to match([{ rank: 1, score: be > 0, neighbor_of: nil }, { rank: 2, score: nil, neighbor_of: 1 }])
   end
 
   it 'asks only for messages when the agent has no transfer conditions or allowed labels' do

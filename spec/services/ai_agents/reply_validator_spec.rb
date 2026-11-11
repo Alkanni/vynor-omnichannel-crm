@@ -20,6 +20,15 @@ RSpec.describe AiAgents::ReplyValidator do
     expect(result).not_to be_knowledge_gap
   end
 
+  it 'passes an answer citing a chunk sent as the neighbor of a match, with the numbers it has' do
+    hits << AiAgents::KnowledgeRetriever::Hit.new(chunk: AiAgent::KnowledgeChunk.new(content: "Profil toko\n\nParkir gratis 2 jam."), rank: 3,
+                                                  score: nil, neighbor_of: 1)
+    content['sources'] = [1, 3]
+    replies.replace(['Buka 08.00-20.00 WIB, parkir gratis 2 jam.'])
+
+    expect(result).to have_attributes(decision: 'answer', sources: [1, 3], blocked_reason: nil)
+  end
+
   it 'blocks a decision outside the list, without keeping it' do
     content['decision'] = 'out_of_scope'
 

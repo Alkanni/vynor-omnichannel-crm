@@ -172,6 +172,10 @@
           "TITLE": "AI Context Limit",
           "DESCRIPTION": "The number of knowledge entries sent to the AI with each reply. Increase this if replies to questions about several things at once leave some of them out."
         },
+        "CONTEXT_EXPANSION_RADIUS": {
+          "TITLE": "AI Context Expansion",
+          "DESCRIPTION": "The number of knowledge chunks before and after each match, from the same part of the same document, sent with it. This helps when the answer continues in the next chunk. They count toward the AI Context Limit. Set 0 to send only the matches."
+        },
         "TEMPERATURE": {
           "TITLE": "AI Temperature",
           "DESCRIPTION": "The creativity level of the AI when responding to user messages.",
@@ -445,6 +449,8 @@
         "MODE_HYBRID": "Searched by meaning with {model} and by keywords, then combined. The score is the combined rank: higher is closer.",
         "MODE_KEYWORD": "Searched by keywords. The score is the rank in the keyword match: higher is closer.",
         "LIMIT": "Up to {count} chunks are sent with a reply (Context Limit).",
+        "EXPANSION": "Context Expansion is {count}: each match also brings the chunks next to it from the same part of its document, within that limit. Chunks of one part are shown in document order.",
+        "NEIGHBOR": "Next to #{rank}",
         "NO_RESULTS": "No knowledge was found. The AI agent would answer this question without knowledge.",
         "RANK": "#{rank}",
         "SCORE": "Score {score}",

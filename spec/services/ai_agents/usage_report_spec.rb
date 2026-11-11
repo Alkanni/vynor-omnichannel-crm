@@ -10,7 +10,8 @@ RSpec.describe AiAgents::UsageReport do
     # A strict reply with a Watcher run, and a scope reply, in a conversation without a handoff.
     create(:ai_agent_reply_trace, ai_agent: ai_agent, conversation: conversations[0], created_at: in_period, scope_decision: 'IN_SCOPE',
                                   scope_input_tokens: 900, scope_output_tokens: 5, input_tokens: 2400, output_tokens: 65, cached_input_tokens: 100,
-                                  latency_ms: 3000, scope_latency_ms: 1200, retrieved: Array.new(3) { |index| { 'rank' => index + 1 } },
+                                  latency_ms: 3000, scope_latency_ms: 1200,
+                                  retrieved: [{ 'rank' => 1 }, { 'rank' => 2, 'neighbor_of' => 1 }, { 'rank' => 3 }],
                                   reply_decision: 'answer',
                                   watcher_input_tokens: 300, watcher_output_tokens: 8, watcher_cached_input_tokens: 0)
     create(:ai_agent_reply_trace, ai_agent: ai_agent, conversation: conversations[0], created_at: in_period, scope_decision: 'OUT_OF_SCOPE',
@@ -43,6 +44,7 @@ RSpec.describe AiAgents::UsageReport do
       '- Reply latency in ms (scope check, knowledge search, web search, and reply model): p50 3000, p95 4000 (n=4)',
       '- Scope check latency in ms: p50 1200, p95 1300 (n=2)',
       '- Knowledge chunks sent per reply model call: p50 3, p90 3 (n=3)',
+      '- Of which neighbors of a match: p50 0, p90 1 (n=3)',
       '- Scope check decisions: HANDOFF_REQUEST 1, IN_SCOPE 2, OUT_OF_SCOPE 1',
       '- Reply decisions: answer 1, conversational 1',
       '- Conversations: 3, without a handoff: 1 (33%)',

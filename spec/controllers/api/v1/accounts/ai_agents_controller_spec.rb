@@ -108,7 +108,7 @@ RSpec.describe 'AI Agents API', type: :request do
         behavior: 'Kamu adalah Customer Service', welcome_message: 'Halo Kak', transfer_conditions: 'Minta bicara dengan CS',
         stop_ai_after_handoff: false, silent_handoff: true, pending_assigned_message: 'Mohon tunggu',
         pending_unassigned_message: 'Sedang dicarikan CS', allowed_label_ids: [label.id], label_conditions: 'Label booking',
-        model: 'gpt-4.1-mini', history_limit: 20, read_file_limit: 2, context_limit: 50, temperature: 'precise',
+        model: 'gpt-4.1-mini', history_limit: 20, read_file_limit: 2, context_limit: 50, context_expansion_radius: 3, temperature: 'precise',
         message_await: 5, message_limit: 25, watcher_enabled: true, timezone: 'Asia/Makassar',
         session_only_memory: true, ignore_team_handoff: true, scope_mode: 'strict', business_description: 'Toko roti di Bandung',
         allowed_topics: 'Harga dan stok', disallowed_topics: 'Politik', off_topic_message: 'Maaf, di luar layanan kami.',
@@ -176,12 +176,13 @@ RSpec.describe 'AI Agents API', type: :request do
 
     it 'returns unprocessable entity for out of range values and foreign labels' do
       patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
-            params: { history_limit: 500, model: 'unknown-model', timezone: 'Nowhere', allowed_label_ids: [create(:label).id],
-                      behavior: 'a' * 15_001 },
+            params: { history_limit: 500, context_expansion_radius: -1, model: 'unknown-model', timezone: 'Nowhere',
+                      allowed_label_ids: [create(:label).id], behavior: 'a' * 15_001 },
             headers: admin.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body['attributes']).to contain_exactly('history_limit', 'model', 'timezone', 'allowed_label_ids', 'behavior')
+      expect(response.parsed_body['attributes']).to contain_exactly('history_limit', 'context_expansion_radius', 'model', 'timezone',
+                                                                    'allowed_label_ids', 'behavior')
       expect(ai_agent.reload.history_limit).to eq(30)
     end
 
@@ -303,11 +304,11 @@ RSpec.describe 'AI Agents API', type: :request do
       ai_agent.update!(history_limit: 2)
       source = create(:ai_agent_knowledge_source, ai_agent: ai_agent, title: 'Jam operasional')
       product = create(:ai_agent_product, ai_agent: ai_agent, name: 'Detailing interior')
-      hits = [[source, "Jam operasional\n\nBuka 07.30 - 18.00", 0.12], [product, 'Product: Detailing interior', 0.34]]
-             .map.with_index(1) do |(chunkable, content, score), rank|
+      hits = [[source, "Jam operasional\n\nBuka 07.30 - 18.00", 0.12, nil], [source, "Jam operasional\n\nLibur nasional tutup", nil, 1],
+              [product, 'Product: Detailing interior', 0.34, nil]].map.with_index(1) do |(chunkable, content, score, neighbor_of), rank|
         chunk = ai_agent.knowledge_chunks.create!(account: account, chunkable: chunkable, chunkable_updated_at: chunkable.updated_at,
                                                   content: content)
-        AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: rank, score: score)
+        AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: rank, score: score, neighbor_of: neighbor_of)
       end
       retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'hybrid', embedding_model: 'text-embedding-3-small', queries: ['Jam buka?'],
                                                            hits: hits)
@@ -328,9 +329,11 @@ RSpec.describe 'AI Agents API', type: :request do
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
-            { 'rank' => 1, 'score' => 0.12, 'distance' => nil, 'content' => "Jam operasional\n\nBuka 07.30 - 18.00",
+            { 'rank' => 1, 'score' => 0.12, 'distance' => nil, 'neighbor_of' => nil, 'content' => "Jam operasional\n\nBuka 07.30 - 18.00",
               'source' => { 'id' => source.id, 'type' => 'text', 'title' => 'Jam operasional' } },
-            { 'rank' => 2, 'score' => 0.34, 'distance' => nil, 'content' => 'Product: Detailing interior',
+            { 'rank' => 2, 'score' => nil, 'distance' => nil, 'neighbor_of' => 1, 'content' => "Jam operasional\n\nLibur nasional tutup",
+              'source' => { 'id' => source.id, 'type' => 'text', 'title' => 'Jam operasional' } },
+            { 'rank' => 3, 'score' => 0.34, 'distance' => nil, 'neighbor_of' => nil, 'content' => 'Product: Detailing interior',
               'source' => { 'id' => product.id, 'type' => 'product', 'title' => 'Detailing interior' } }
           ]
         },
@@ -486,7 +489,7 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       body = response.parsed_body
-      expect(body).to include('context_limit' => 2, 'mode' => 'keyword', 'embedding_model' => nil)
+      expect(body).to include('context_limit' => 2, 'context_expansion_radius' => 0, 'mode' => 'keyword', 'embedding_model' => nil)
       expect(body['chunks'].map { |chunk| [chunk['rank'], chunk['content'], chunk['source']] })
         .to eq([[1, 'Jam buka toko: Senin sampai Sabtu', text_source], [2, 'Alamat toko: Jalan Merdeka 10', text_source]])
       expect(body['chunks'].pluck('score')).to all(be > 0)
@@ -495,6 +498,19 @@ RSpec.describe 'AI Agents API', type: :request do
       AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Toko buka jam berapa?' }]).perform
       prompt = chat_requests.sole['messages'].first['content']
       expect(prompt.scan(/^\[(\d+)\] (.+)$/)).to eq(body['chunks'].map { |chunk| [chunk['rank'].to_s, chunk['content']] })
+    end
+
+    it 'marks the chunks sent as neighbors of a match, in document order' do
+      ai_agent.update!(context_expansion_radius: 1)
+      ai_agent.knowledge_chunks.update_all(section: 0) # rubocop:disable Rails/SkipsModelValidations
+
+      post url, params: { query: 'Ada promo bulan ini?' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['chunks'].map { |chunk| chunk.slice('rank', 'content', 'neighbor_of') }).to eq(
+        [{ 'rank' => 1, 'content' => 'Alamat toko: Jalan Merdeka 10', 'neighbor_of' => 2 },
+         { 'rank' => 2, 'content' => 'Promo bulan ini', 'neighbor_of' => nil }]
+      )
+      expect(response.parsed_body['chunks'].pluck('score')).to match([nil, be > 0])
     end
 
     it 'searches by embedding and keywords when an embedding model is set' do

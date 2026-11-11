@@ -45,7 +45,8 @@ RSpec.describe AiAgents::ReplyJob do
       latency_ms: 850, labels: [], error_class: nil, scope_decision: nil, scope_latency_ms: nil, scope_input_tokens: nil, scope_output_tokens: nil,
       reply_decision: nil, cited_ranks: [], blocked_reason: nil, watcher_input_tokens: nil, watcher_output_tokens: nil,
       watcher_cached_input_tokens: nil, web_search_status: nil, web_results: [], web_latency_ms: nil, web_cost_usd: nil,
-      retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12 }]
+      retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12,
+                    'neighbor_of' => nil }]
     )
   end
 

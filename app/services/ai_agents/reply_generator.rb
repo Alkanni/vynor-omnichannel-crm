@@ -53,7 +53,8 @@ class AiAgents::ReplyGenerator
 
     def retrieved
       Array(retrieval&.hits).map do |hit|
-        { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score }
+        { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score,
+          neighbor_of: hit.neighbor_of }
       end
     end
   end

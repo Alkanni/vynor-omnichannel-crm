@@ -14,6 +14,7 @@ json.model ai_agent.model
 json.history_limit ai_agent.history_limit
 json.read_file_limit ai_agent.read_file_limit
 json.context_limit ai_agent.context_limit
+json.context_expansion_radius ai_agent.context_expansion_radius
 json.temperature ai_agent.temperature
 json.message_await ai_agent.message_await
 json.message_limit ai_agent.message_limit
