@@ -9,7 +9,7 @@ RSpec.describe AiAgent do
       expect(ai_agent).to have_attributes(
         model: Llm::Models.default_model_for('assistant'),
         stop_ai_after_handoff: true, silent_handoff: false, history_limit: 30, read_file_limit: 3,
-        context_limit: 8, temperature: 'balanced', message_await: 10, message_limit: 10,
+        context_limit: 8, context_expansion_radius: 1, temperature: 'balanced', message_await: 10, message_limit: 10,
         watcher_enabled: false, timezone: 'Asia/Jakarta', session_only_memory: false,
         ignore_team_handoff: false, allowed_label_ids: [], scope_mode: 'off', scope_policy_version: 0, web_search_enabled: false,
         web_search_domains: nil
@@ -45,11 +45,12 @@ RSpec.describe AiAgent do
     end
 
     it 'enforces numeric ranges' do
-      ai_agent.assign_attributes(history_limit: 0, read_file_limit: 11, context_limit: 101, message_await: -1, message_limit: 1001)
+      ai_agent.assign_attributes(history_limit: 0, read_file_limit: 11, context_limit: 101, context_expansion_radius: 4, message_await: -1,
+                                 message_limit: 1001)
 
       expect(ai_agent).not_to be_valid
       expect(ai_agent.errors.attribute_names).to contain_exactly(
-        :history_limit, :read_file_limit, :context_limit, :message_await, :message_limit
+        :history_limit, :read_file_limit, :context_limit, :context_expansion_radius, :message_await, :message_limit
       )
     end
 
@@ -246,7 +247,8 @@ RSpec.describe AiAgent do
 
     it 'copies the settings under a new name' do
       label = create(:label, account: account)
-      ai_agent.update!(welcome_message: 'Halo', allowed_label_ids: [label.id], history_limit: 12, temperature: 'creative', scope_mode: 'strict',
+      ai_agent.update!(welcome_message: 'Halo', allowed_label_ids: [label.id], history_limit: 12, context_expansion_radius: 2,
+                       temperature: 'creative', scope_mode: 'strict',
                        business_description: 'Toko roti', allowed_topics: 'Harga', disallowed_topics: 'Politik', off_topic_message: 'Maaf.',
                        clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.')
 

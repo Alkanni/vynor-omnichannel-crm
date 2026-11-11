@@ -8,6 +8,7 @@
 #  behavior                   :text
 #  business_description       :text
 #  clarification_message      :text
+#  context_expansion_radius   :integer          default(1), not null
 #  context_limit              :integer          default(8), not null
 #  disallowed_topics          :text
 #  history_limit              :integer          default(30), not null
@@ -87,6 +88,7 @@ class AiAgent < ApplicationRecord
   validates :history_limit, numericality: { only_integer: true, in: 1..100 }
   validates :read_file_limit, numericality: { only_integer: true, in: 0..10 }
   validates :context_limit, numericality: { only_integer: true, in: 1..100 }
+  validates :context_expansion_radius, numericality: { only_integer: true, in: 0..3 }
   validates :message_await, numericality: { only_integer: true, in: 0..300 }
   validates :message_limit, numericality: { only_integer: true, in: 1..1000 }
   validates :temperature, inclusion: { in: TEMPERATURES }

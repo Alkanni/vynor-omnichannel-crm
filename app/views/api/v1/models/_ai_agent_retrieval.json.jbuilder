@@ -6,6 +6,7 @@ json.chunks retrieval.hits do |hit|
   json.rank hit.rank
   json.score hit.score
   json.distance hit.chunk.try(:neighbor_distance)
+  json.neighbor_of hit.neighbor_of
   json.content hit.chunk.content
   json.source do
     json.id source.id

@@ -58,12 +58,18 @@ class AiAgents::UsageReport
   end
 
   def detail_lines(rows)
-    reply_calls = rows.select { |row| reply_model?(row) }
     ["- Reply latency in ms (scope check, knowledge search, web search, and reply model): #{stats(rows.map(&:latency_ms), percentiles: [50, 95])}",
      "- Scope check latency in ms: #{stats(rows.map(&:scope_latency_ms), percentiles: [50, 95])}",
-     "- Knowledge chunks sent per reply model call: #{stats(reply_calls.map { |row| row.retrieved.size })}",
+     *chunk_lines(rows.select { |row| reply_model?(row) }),
      "- Scope check decisions: #{counts(rows.filter_map(&:scope_decision))}",
      "- Reply decisions: #{counts(rows.filter_map(&:reply_decision))}"]
+  end
+
+  # The knowledge chunks of each reply model call, and how many of them were sent as neighbors of a match (see
+  # AiAgents::ContextExpansion).
+  def chunk_lines(reply_calls)
+    ["- Knowledge chunks sent per reply model call: #{stats(reply_calls.map { |row| row.retrieved.size })}",
+     "- Of which neighbors of a match: #{stats(reply_calls.map { |row| row.retrieved.count { |chunk| chunk['neighbor_of'] } })}"]
   end
 
   # The turns with web search (see AiAgents::ReplyGenerator::Trace#web_search_status): the share that needed the web, what

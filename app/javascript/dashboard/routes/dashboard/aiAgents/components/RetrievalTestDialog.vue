@@ -227,6 +227,13 @@ defineExpose({ open });
             })
           }}
         </p>
+        <p v-if="result.context_expansion_radius">
+          {{
+            t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.EXPANSION', {
+              count: result.context_expansion_radius,
+            })
+          }}
+        </p>
       </div>
       <p
         v-if="!result.chunks.length"
@@ -259,6 +266,17 @@ defineExpose({ open });
               {{ chunk.source.title }}
             </span>
             <span
+              v-if="chunk.neighbor_of"
+              class="shrink-0 tabular-nums text-label-small text-n-slate-11"
+            >
+              {{
+                t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.NEIGHBOR', {
+                  rank: chunk.neighbor_of,
+                })
+              }}
+            </span>
+            <span
+              v-else
               class="shrink-0 tabular-nums text-label-small text-n-slate-11"
             >
               {{

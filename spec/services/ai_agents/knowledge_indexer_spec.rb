@@ -30,6 +30,18 @@ RSpec.describe AiAgents::KnowledgeIndexer do
     expect(ai_agent.reload.trained_at).to be_present
   end
 
+  it 'stores the section of each chunk of a text source, and none for a Q&A entry or a product' do
+    content = "Pembuka.\n\n# Syarat\n\n#{(['kata'] * 400).join(' ')}\n\n# Biaya\n\nRp10.000"
+    text = create(:ai_agent_knowledge_source, ai_agent: ai_agent, content: content)
+    create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+    create(:ai_agent_product, ai_agent: ai_agent)
+
+    indexer.perform
+
+    expect(ai_agent.knowledge_chunks.where(chunkable: text).order(:id).pluck(:section)).to eq([0, 1, 1, 2])
+    expect(ai_agent.knowledge_chunks.where.not(chunkable: text).pluck(:section)).to eq([nil, nil])
+  end
+
   it 'embeds chunks again when the embedding model changes, whatever its vector size' do
     create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
     indexer.perform

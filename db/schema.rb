@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_06_070000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_10_100100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -209,6 +209,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_070000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "embedding_model"
+    t.integer "section"
     t.index ["account_id"], name: "index_ai_agent_knowledge_chunks_on_account_id"
     t.index ["ai_agent_id"], name: "index_ai_agent_knowledge_chunks_on_ai_agent_id"
     t.index ["chunkable_type", "chunkable_id"], name: "index_ai_agent_knowledge_chunks_on_chunkable"
@@ -319,6 +320,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_070000) do
     t.text "knowledge_gap_message"
     t.boolean "web_search_enabled", default: false, null: false
     t.text "web_search_domains"
+    t.integer "context_expansion_radius", default: 1, null: false
     t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 
