@@ -36,10 +36,11 @@ context run makes 26 agent calls plus 26 judge calls.
 | `promptfooconfig.web.yaml`, `tests/w-web.yaml`, `lib/web-assertions.mjs` | Web search eval: 58 cases with a `route`, an expected scope check decision, and the personal data a web query must leave out, the link checks of the replies, and the `web_claims` judge with its prompt (see below) |
 | `fixtures/bengkel-mobil.json` | Synthetic strict car workshop agent with web search, whose allowed topics include general car information, for the web search routing eval |
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
+| `fixtures/bengkel-qa.json` | Synthetic car care business for the retrieval eval whose knowledge is 195 Q&A: the same questions (price, duration, warranty, booking, …) for each of 30 services, plus general questions, like a Q&A list written per service (issue #141) |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
 | `report.mjs` | Markdown summary per agent variant: Scope Compliance metrics, pass rate and decisions per category, tokens per model call, latency, failures, and results that changed between two runs |
-| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 107 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, long document, no answer) |
+| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 141 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, long document, topic change and follow-up on Q&A, no answer) |
 | `retrieval-provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/retrieval_test` |
 | `retrieval-report.mjs` | Markdown summary: hit@1, hit@5, MRR per category, chunks retrieved, score distribution of relevant vs irrelevant chunks, and request latency |
 | `promptfooconfig.context.yaml`, `tests/c-context.yaml`, `lib/context-assertions.mjs` | Multi-chunk context eval: 26 cases with the facts the answer needs and the chunk each sits in, the `context` and `noise` assertions over the chunks sent to the reply model (see below) |
@@ -73,8 +74,8 @@ node report.mjs output/run-1.json
 `node --env-file=.env setup.mjs toko-roti-large.json`). It deletes and recreates only the agents named in those
 fixtures, creates the `komplain` label if it is missing, and merges the agent ids into `.eval-agents.json`. Run it
 again after changing a fixture. The `injection` agent has an extra knowledge source with an embedded instruction and
-is used only by A2-09; the `large` and `dokumen` agents are used by the retrieval eval, and `konteks` by the
-multi-chunk context eval; the `scope-prompt` agent is
+is used only by A2-09; the `large`, `dokumen`, and `bengkel-qa` agents are used by the retrieval eval, and `konteks`
+by the multi-chunk context eval; the `scope-prompt` agent is
 `main` with a strict Business Scope Policy (`settings` in the fixture), for the Scope Compliance eval. Since issue #96 a
 strict agent also runs the scope check before each reply, and since issue #97 the reply check after it, so
 `scope-prompt` measures the prompt rule and both checks together.
@@ -294,6 +295,10 @@ node retrieval-report.mjs output/retrieval-vector.json
 - A case runs against the `large` agent unless it sets `agent`.
 - Multi-turn and topic change cases send the messages up to the last `AI:` line as the Retrieval Test `history`, and
   the customer messages after it as `query`, so they search with the queries a reply builds.
+- `ganti-topik-qa` and `lanjutan-qa` (issue #141) run against `bengkel-qa`, where an earlier question about one service
+  also matches the Q&A of the same question about another. In `ganti-topik-qa` the customer moves to a new topic, and the
+  Q&A of the new question should rank first (hit@1); in `lanjutan-qa` the latest message leaves out its service, so only
+  the query with the earlier turns can find it.
 - The mode follows `AI_AGENT_EMBEDDING_MODEL` in Super Admin: hybrid when it is set, keyword when it is blank. To
   measure keyword mode, blank it, run the eval, and set it back. This affects every agent of the installation while it
   is blank, but no re-index is needed. Scores are Reciprocal Rank Fusion scores in both modes: higher is closer, but they

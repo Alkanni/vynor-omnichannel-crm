@@ -79,7 +79,17 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       result = described_class.new(ai_agent: ai_agent, messages: messages).perform
 
       expect(embedding_requests.sole['input']).to eq(['query: Kalau beli 4?', "query: Ada Roti Keju?\nKalau beli 4?"])
+      # Only the vector search of the latest turn finds the chunk, so the query with earlier turns counts four times.
       expect(result.hits.sole).to have_attributes(chunk: chunk, rank: 1, score: be_within(1e-9).of(5 / 21.0))
+    end
+
+    it 'counts the query with earlier turns no more than the latest turn when both searches of the latest turn rank the same chunk first' do
+      chunk = create_chunk('Tempat parkir luas', embedding: query_vector, embedding_model: 'text-embedding-3-small')
+      messages = [{ role: :user, content: 'Ada Roti Keju?' }, { role: :assistant, content: 'Ada.' }, { role: :user, content: 'Tempat parkir?' }]
+
+      result = described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+      expect(result.hits.sole).to have_attributes(chunk: chunk, rank: 1, score: be_within(1e-9).of(3 / 21.0))
     end
 
     it 'does not embed the query when no chunk uses the current embedding model' do

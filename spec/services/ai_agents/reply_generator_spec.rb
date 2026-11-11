@@ -462,7 +462,7 @@ RSpec.describe AiAgents::ReplyGenerator do
                                         cached_input_tokens: 4, scope_input_tokens: nil, scope_output_tokens: nil,
                                         retrieved: [{ chunk_id: ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').id,
                                                       chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: source.id, rank: 1,
-                                                      score: be_within(1e-9).of(7.5 / 21), neighbor_of: nil }])
+                                                      score: be_within(1e-9).of(3 / 21.0), neighbor_of: nil }])
   end
 
   it 'sends the neighbors of a match with ranks of their own and traces the match each was sent for' do
