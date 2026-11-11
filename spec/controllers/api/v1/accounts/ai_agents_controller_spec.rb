@@ -340,7 +340,7 @@ RSpec.describe 'AI Agents API', type: :request do
         'tokens' => { 'input' => 120, 'output' => 30, 'cached_input' => 64 }, 'latency_ms' => 850
       )
       expect(AiAgents::ReplyGenerator).to have_received(:new)
-        .with(ai_agent: ai_agent, messages: [{ role: :assistant, content: 'Halo Kak' }, { role: :user, content: 'Jam buka?' }])
+        .with(ai_agent: ai_agent, messages: [{ role: :assistant, content: 'Halo Kak' }, { role: :user, content: 'Jam buka?' }], deadline_ms: 14_000)
       expect(AiAgent::ReplyTrace.count).to eq(0)
     end
 
@@ -397,7 +397,7 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to include(
-        'messages' => [reply_text], 'validation' => { 'decision' => 'answer', 'sources' => [1], 'blocked_reason' => nil },
+        'messages' => [reply_text], 'validation' => { 'decision' => 'answer', 'sources' => [1], 'blocked_reason' => nil, 'retry_skipped' => false },
         'web' => { 'query' => 'penyebab aki mobil cepat soak', 'status' => 'searched', 'latency_ms' => be >= 0, 'cost_usd' => 0.004,
                    'results' => [{ 'rank' => 1, 'title' => 'Aki soak', 'url' => 'https://otomotif.example/aki', 'published_at' => '2026-10-01',
                                    'highlights' => ['Aki cepat soak karena umurnya.'], 'text' => 'Aki cepat soak karena umurnya.' }] }
@@ -423,38 +423,57 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to include('messages' => ['Maaf, info itu belum tersedia.'], 'scope' => hash_including('decision' => 'IN_SCOPE'),
-                                              'validation' => { 'decision' => 'answer', 'sources' => [], 'blocked_reason' => 'missing_sources' })
+                                              'validation' => { 'decision' => 'answer', 'sources' => [], 'blocked_reason' => 'missing_sources',
+                                                                'retry_skipped' => false })
       expect(AiAgent::ReplyTrace.count).to eq(0)
     end
 
-    it 'asks the reply model of a strict agent once more, as a live reply does, when it writes text instead of the reply function' do
-      ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga',
-                       off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?',
-                       knowledge_gap_message: 'Maaf, info itu belum tersedia.')
-      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
-      arguments = { 'ai_agent_scope' => { decision: 'GREETING' },
-                    'ai_agent_reply' => { decision: 'conversational', sources: [], messages: ['Halo, ada yang bisa dibantu?'] } }
-      reply_calls = 0
-      stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
-        name = JSON.parse(request.body)['tools'].sole['function']['name']
-        reply_calls += 1 if name == 'ai_agent_reply'
-        message = if reply_calls == 1 && name == 'ai_agent_reply'
-                    { role: 'assistant', content: 'Halo, Kak!' }
-                  else
-                    { role: 'assistant', content: nil,
-                      tool_calls: [{ id: 'call_1', type: 'function', function: { name: name, arguments: arguments.fetch(name).to_json } }] }
-                  end
-        { status: 200, headers: { 'Content-Type' => 'application/json' },
-          body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: message }] }.to_json }
+    context 'when the reply model of a strict agent writes text instead of the reply function' do
+      let(:reply_requests) { [] }
+
+      before do
+        ai_agent.update!(scope_mode: 'strict', business_description: 'Toko roti', allowed_topics: 'Harga',
+                         off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Produk yang mana, Kak?',
+                         knowledge_gap_message: 'Maaf, info itu belum tersedia.')
+        create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+        arguments = { 'ai_agent_scope' => { decision: 'GREETING' },
+                      'ai_agent_reply' => { decision: 'conversational', sources: [], messages: ['Halo, ada yang bisa dibantu?'] } }
+        stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
+          name = JSON.parse(request.body)['tools'].sole['function']['name']
+          reply_requests << request if name == 'ai_agent_reply'
+          message = if reply_requests.one? && name == 'ai_agent_reply'
+                      { role: 'assistant', content: 'Halo, Kak!' }
+                    else
+                      { role: 'assistant', content: nil,
+                        tool_calls: [{ id: 'call_1', type: 'function', function: { name: name, arguments: arguments.fetch(name).to_json } }] }
+                    end
+          { status: 200, headers: { 'Content-Type' => 'application/json' },
+            body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: message }] }.to_json }
+        end
       end
 
-      post url, params: { messages: [{ role: 'user', content: 'Halo' }] }, headers: admin.create_new_auth_token, as: :json
+      it 'asks it once more, as a live reply does, while the request has time for it' do
+        post url, params: { messages: [{ role: 'user', content: 'Halo' }] }, headers: admin.create_new_auth_token, as: :json
 
-      expect(response).to have_http_status(:success)
-      expect(response.parsed_body).to include('messages' => ['Halo, ada yang bisa dibantu?'],
-                                              'validation' => { 'decision' => 'conversational', 'sources' => [], 'blocked_reason' => nil })
-      expect(reply_calls).to eq(2)
-      expect(AiAgent::ReplyTrace.count).to eq(0)
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body).to include('messages' => ['Halo, ada yang bisa dibantu?'],
+                                                'validation' => { 'decision' => 'conversational', 'sources' => [], 'blocked_reason' => nil,
+                                                                  'retry_skipped' => false })
+        expect(reply_requests.size).to eq(2)
+        expect(AiAgent::ReplyTrace.count).to eq(0)
+      end
+
+      it 'answers with the knowledge gap message without asking again when another call would run past the deadline' do
+        stub_const('Api::V1::Accounts::AiAgentsController::PLAYGROUND_REPLY_DEADLINE_MS', 0)
+
+        post url, params: { messages: [{ role: 'user', content: 'Halo' }] }, headers: admin.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body).to include('messages' => ['Maaf, info itu belum tersedia.'],
+                                                'validation' => { 'decision' => nil, 'sources' => [], 'blocked_reason' => 'invalid_decision',
+                                                                  'retry_skipped' => true })
+        expect(reply_requests.size).to eq(1)
+      end
     end
 
     it 'returns unprocessable entity for invalid messages' do

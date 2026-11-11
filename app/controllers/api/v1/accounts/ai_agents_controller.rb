@@ -10,6 +10,8 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   MAX_PLAYGROUND_MESSAGES = 100
   MAX_PLAYGROUND_MESSAGE_LENGTH = 10_000
   PLAYGROUND_ROLES = %w[user assistant].freeze
+  # Rack::Timeout ends a request after 15 s, so a playground reply leaves a second for the rest of the request (#145).
+  PLAYGROUND_REPLY_DEADLINE_MS = 14_000
 
   # inbox_ids is not a column, so the default JSON wrapping into ai_agent would drop it.
   wrap_parameters :ai_agent, include: SETTINGS + LIST_SETTINGS
@@ -55,7 +57,8 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     messages = conversation_messages(params.require(:messages))
     return render_could_not_create_error('Invalid messages') if messages.nil?
 
-    @reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages.last(@ai_agent.history_limit)).perform
+    @reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages.last(@ai_agent.history_limit),
+                                          deadline_ms: PLAYGROUND_REPLY_DEADLINE_MS).perform
   rescue AiAgents::LlmError => e
     render_could_not_create_error(e.message)
   end
