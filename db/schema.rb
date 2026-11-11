@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_10_100100) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_11_080000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -278,6 +278,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_100100) do
     t.jsonb "web_results", default: [], null: false
     t.integer "web_latency_ms"
     t.decimal "web_cost_usd", precision: 10, scale: 6
+    t.jsonb "invalid_outputs", default: [], null: false
     t.index ["ai_agent_id", "created_at"], name: "index_ai_agent_reply_traces_on_ai_agent_id_and_created_at"
     t.index ["conversation_id"], name: "index_ai_agent_reply_traces_on_conversation_id"
   end

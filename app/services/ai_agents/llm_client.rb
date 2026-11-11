@@ -7,7 +7,10 @@ class AiAgents::LlmClient
   EMBEDDING_PREFIXES = { query: 'query: ', passage: 'passage: ' }.freeze
   # Token counts are nil when the gateway does not report usage. input_tokens leaves out cached_input_tokens, the input
   # the provider read from its prompt cache, as RubyLLM reports them apart; together they are the whole prompt.
-  Completion = Data.define(:content, :input_tokens, :output_tokens, :cached_input_tokens)
+  Completion = Data.define(:content, :input_tokens, :output_tokens, :cached_input_tokens) do
+    # The arguments of the function, empty when the model wrote text instead of calling it.
+    def arguments = content.is_a?(Hash) ? content : {}
+  end
 
   class << self
     def configured? = api_key.present?

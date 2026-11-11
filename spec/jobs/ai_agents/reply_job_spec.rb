@@ -10,8 +10,8 @@ RSpec.describe AiAgents::ReplyJob do
     chunk = AiAgent::KnowledgeChunk.new(id: 7, chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: 3)
     retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'hybrid', embedding_model: 'text-embedding-3-small', queries: ['Jam buka?'],
                                                          hits: [AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: 1, score: 0.12)])
-    AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, web_search: nil, validation: nil, input_tokens: 120, output_tokens: 30,
-                                        cached_input_tokens: 64, latency_ms: 850)
+    AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, web_search: nil, validation: nil, invalid_outputs: [], input_tokens: 120,
+                                        output_tokens: 30, cached_input_tokens: 64, latency_ms: 850)
   end
   let(:traces) { AiAgent::ReplyTrace.where(conversation: conversation) }
   let(:reply) { AiAgents::ReplyGenerator::Reply.new(messages: ['Halo!', 'Ada yang bisa dibantu?'], handoff: false, labels: [], trace: trace) }
@@ -44,7 +44,7 @@ RSpec.describe AiAgents::ReplyJob do
       retrieval_mode: 'hybrid', embedding_model: 'text-embedding-3-small', input_tokens: 120, output_tokens: 30, cached_input_tokens: 64,
       latency_ms: 850, labels: [], error_class: nil, scope_decision: nil, scope_latency_ms: nil, scope_input_tokens: nil, scope_output_tokens: nil,
       reply_decision: nil, cited_ranks: [], blocked_reason: nil, watcher_input_tokens: nil, watcher_output_tokens: nil,
-      watcher_cached_input_tokens: nil, web_search_status: nil, web_results: [], web_latency_ms: nil, web_cost_usd: nil,
+      watcher_cached_input_tokens: nil, web_search_status: nil, web_results: [], web_latency_ms: nil, web_cost_usd: nil, invalid_outputs: [],
       retrieved: [{ 'chunk_id' => 7, 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => 3, 'rank' => 1, 'score' => 0.12,
                     'neighbor_of' => nil }]
     )
@@ -246,8 +246,8 @@ RSpec.describe AiAgents::ReplyJob do
     it 'is not queued after a reply of the scope check' do
       scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', web_query: nil, web_search_status: nil, input_tokens: 900,
                                                output_tokens: 5, cached_input_tokens: nil, latency_ms: 700)
-      scope_trace = AiAgents::ReplyGenerator::Trace.new(scope: scope, retrieval: nil, web_search: nil, validation: nil, input_tokens: 900,
-                                                        output_tokens: 5, cached_input_tokens: nil, latency_ms: 700)
+      scope_trace = AiAgents::ReplyGenerator::Trace.new(scope: scope, retrieval: nil, web_search: nil, validation: nil, invalid_outputs: [],
+                                                        input_tokens: 900, output_tokens: 5, cached_input_tokens: nil, latency_ms: 700)
       allow(generator).to receive(:perform)
         .and_return(AiAgents::ReplyGenerator::Reply.new(messages: ['Maaf.'], handoff: false, labels: [], trace: scope_trace))
 
@@ -304,6 +304,8 @@ RSpec.describe AiAgents::ReplyJob do
 
   context 'with the reply check of a strict agent' do
     let(:message) { create(:message, **message_attributes, content: 'Saya mau komplain, harga detailing berapa sih?') }
+    # One per call of the reply model, in order: the arguments of the reply function, or the text the model wrote instead.
+    let(:reply_outputs) { [{ decision: 'answer', sources: [], messages: ['Detailing Rp500.000, kami sambungkan ke CS.'], handoff: true }] }
 
     before do
       allow(AiAgents::ReplyGenerator).to receive(:new).and_call_original
@@ -311,14 +313,18 @@ RSpec.describe AiAgents::ReplyJob do
                        off_topic_message: 'Maaf, Kak.', clarification_message: 'Layanan yang mana, Kak?',
                        knowledge_gap_message: 'Maaf, Kak, info itu belum tersedia.', transfer_conditions: 'Alihkan bila pelanggan komplain.')
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
-      reply = { decision: 'answer', sources: [], messages: ['Detailing Rp500.000, kami sambungkan ke CS.'], handoff: true }
-      arguments = { 'ai_agent_scope' => { decision: 'IN_SCOPE' }, 'ai_agent_reply' => reply }
+      reply_calls = 0
       stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return do |request|
         name = JSON.parse(request.body)['tools'].sole['function']['name']
+        output = name == 'ai_agent_reply' ? reply_outputs.fetch((reply_calls += 1) - 1) : { decision: 'IN_SCOPE' }
+        message = if output.is_a?(String)
+                    { role: 'assistant', content: output }
+                  else
+                    { role: 'assistant', content: nil,
+                      tool_calls: [{ id: 'call_1', type: 'function', function: { name: name, arguments: output.to_json } }] }
+                  end
         { status: 200, headers: { 'Content-Type' => 'application/json' },
-          body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: { role: 'assistant', content: nil, tool_calls: [
-            { id: 'call_1', type: 'function', function: { name: name, arguments: arguments.fetch(name).to_json } }
-          ] } }] }.to_json }
+          body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: message }] }.to_json }
       end
     end
 
@@ -329,8 +335,23 @@ RSpec.describe AiAgents::ReplyJob do
       expect(conversation.reload).to be_open
       expect(handoff_activities.sole.additional_attributes).to eq('ai_agent_handoff' => 'transfer_conditions')
       expect(traces.sole).to have_attributes(status: 'handoff', scope_decision: 'IN_SCOPE', reply_decision: 'answer', cited_ranks: [],
-                                             blocked_reason: 'missing_sources')
+                                             blocked_reason: 'missing_sources', invalid_outputs: [])
       expect(traces.sole.attributes.to_json).not_to include('500.000', 'detailing', 'belum tersedia')
+    end
+
+    context 'when the model first writes text instead of the reply function' do
+      let(:reply_outputs) do
+        ['Detailing mulai Rp500.000, Kak.',
+         { decision: 'conversational', sources: [], messages: ['Mohon maaf atas kendalanya, Kak. Kami sambungkan ke CS.'], handoff: true }]
+      end
+
+      it 'sends the reply of the second call and traces the shape of the first output without its content' do
+        described_class.perform_now(message)
+
+        expect(ai_replies.outgoing.pluck(:content)).to eq(['Mohon maaf atas kendalanya, Kak. Kami sambungkan ke CS.'])
+        expect(traces.sole).to have_attributes(status: 'handoff', reply_decision: 'conversational', blocked_reason: nil, invalid_outputs: ['text'])
+        expect(traces.sole.attributes.to_json).not_to include('500.000')
+      end
     end
   end
 
