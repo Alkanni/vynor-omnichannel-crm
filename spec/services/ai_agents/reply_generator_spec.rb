@@ -82,6 +82,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     expect(reply.trace.validation).to be_nil
     expect(reply.trace.attributes.keys).not_to include(:reply_decision, :cited_ranks, :blocked_reason)
     expect(reply.trace.attributes).to include(invalid_outputs: [])
+    expect(reply.trace.retry_skipped?).to be_nil
   end
 
   describe 'business scope' do
@@ -256,6 +257,30 @@ RSpec.describe AiAgents::ReplyGenerator do
           expect(reply.trace.attributes).to include(reply_decision: 'answer', cited_ranks: [1], blocked_reason: nil, invalid_outputs: ['text'],
                                                     input_tokens: 920, output_tokens: 15, cached_input_tokens: 520,
                                                     latency_ms: be >= reply.trace.scope.latency_ms)
+          expect(reply.trace).not_to be_retry_skipped
+        end
+      end
+
+      context 'when the model writes text and another call of the same length would still meet the deadline' do
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }, *super()] }
+        let(:reply) { described_class.new(ai_agent: ai_agent, messages: messages, deadline_ms: 60_000).perform }
+
+        it 'asks it once more' do
+          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+          expect(chat_requests.size).to eq(2)
+          expect(reply.trace).not_to be_retry_skipped
+        end
+      end
+
+      context 'when the model writes text and another call of the same length would miss the deadline' do
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }, *super()] }
+        let(:reply) { described_class.new(ai_agent: ai_agent, messages: messages, deadline_ms: 0).perform }
+
+        it 'sends the knowledge gap message without asking again, and says so' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(1)
+          expect(reply.trace).to be_retry_skipped
+          expect(reply.trace.attributes).to include(blocked_reason: 'invalid_decision', invalid_outputs: ['text'])
         end
       end
 
@@ -273,6 +298,7 @@ RSpec.describe AiAgents::ReplyGenerator do
           expect(chat_requests.size).to eq(2)
           expect(reply.trace.attributes).to include(reply_decision: nil, blocked_reason: 'invalid_decision',
                                                     invalid_outputs: %w[unknown_decision missing_decision])
+          expect(reply.trace).not_to be_retry_skipped
         end
       end
 

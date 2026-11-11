@@ -6,8 +6,9 @@ class AiAgents::LlmClient
   # gateways like 9router drop the input_type parameter, so the role goes into the text the way E5-style models expect.
   EMBEDDING_PREFIXES = { query: 'query: ', passage: 'passage: ' }.freeze
   # Token counts are nil when the gateway does not report usage. input_tokens leaves out cached_input_tokens, the input
-  # the provider read from its prompt cache, as RubyLLM reports them apart; together they are the whole prompt.
-  Completion = Data.define(:content, :input_tokens, :output_tokens, :cached_input_tokens) do
+  # the provider read from its prompt cache, as RubyLLM reports them apart; together they are the whole prompt. latency_ms
+  # is how long the model took to answer.
+  Completion = Data.define(:content, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
     # The arguments of the function, empty when the model wrote text instead of calling it.
     def arguments = content.is_a?(Hash) ? content : {}
   end
@@ -45,17 +46,19 @@ class AiAgents::LlmClient
       chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
                     .with_instructions(instructions).with_temperature(temperature).with_tool(tool, choice: tool.name)
       messages.each { |message| chat.add_message(message) }
-      completion(chat, chat.complete)
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
+      completion(chat, chat.complete, started_at)
     end
   end
 
   private
 
-  def completion(chat, result)
+  def completion(chat, result, started_at)
     # The model's response is the latest assistant message, also when the function call halted the chat.
     response = chat.messages.reverse.find { |message| message.role == :assistant }
     Completion.new(content: result.is_a?(RubyLLM::Tool::Halt) ? result.content.deep_stringify_keys : result.content,
-                   input_tokens: response.input_tokens, output_tokens: response.output_tokens, cached_input_tokens: response.cached_tokens)
+                   input_tokens: response.input_tokens, output_tokens: response.output_tokens, cached_input_tokens: response.cached_tokens,
+                   latency_ms: Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started_at)
   end
 
   def with_context(api_key, endpoint, &)

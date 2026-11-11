@@ -45,6 +45,10 @@ class AiAgents::ReplyGenerator
     # AiAgents::ScopeGuard::Result); nil for an agent without web search.
     def web_search_status = web_search&.status || scope&.web_search_status
 
+    # Whether a strict reply without a valid decision was not asked for again, because the deadline came first: one that
+    # was asked again either has a valid decision or a second invalid output. nil when the reply was not checked.
+    def retry_skipped? = validation&.invalid_decision? && invalid_outputs.one?
+
     private
 
     def scope_attributes
@@ -87,8 +91,11 @@ class AiAgents::ReplyGenerator
     so use more than one item only when separate bubbles help, and never more than #{MAX_REPLY_MESSAGES}.
   TEXT
 
-  # written_rows: the Google Sheets rows already written for the conversation (see AiAgents::ActionSchema).
-  pattr_initialize [:ai_agent!, :messages!, :written_rows]
+  # written_rows: the Google Sheets rows already written for the conversation (see AiAgents::ActionSchema). deadline_ms:
+  # how long a reply made inside a request may take (see Api::V1::Accounts::AiAgentsController#playground); the reply model
+  # is not asked again when the first call took long enough that a second one of the same length would end past it. nil,
+  # as for live replies, always asks again.
+  pattr_initialize [:ai_agent!, :messages!, :written_rows, :deadline_ms]
 
   def perform
     @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
@@ -104,13 +111,14 @@ class AiAgents::ReplyGenerator
 
   private
 
-  # The reply of the last call: a strict reply without a valid decision is asked for once more.
+  # The reply of the last call: a strict reply without a valid decision is asked for once more, in time for the deadline.
   def model_reply
     completions = [complete]
-    validation = validate(completions.last.arguments) if ai_agent.scope_strict?
-    if validation&.invalid_decision?
+    validation = validate(completions.last) if ai_agent.scope_strict?
+    # Another call as long as the first one has to end before the deadline.
+    if validation&.invalid_decision? && (deadline_ms.nil? || elapsed_ms + completions.last.latency_ms < deadline_ms)
       completions << complete
-      validation = validate(completions.last.arguments)
+      validation = validate(completions.last)
     end
     content = completions.last.arguments
     # The actions still apply to a reply that failed the check, because they state nothing to the customer.
@@ -126,8 +134,8 @@ class AiAgents::ReplyGenerator
     ai_agent.scope_strict? ? AiAgents::ReplyValidator::PROPERTIES.merge(MESSAGES_PROPERTY) : MESSAGES_PROPERTY
   end
 
-  def validate(content)
-    AiAgents::ReplyValidator.new(content: content, replies: reply_messages(content), hits: retrieval.hits,
+  def validate(completion)
+    AiAgents::ReplyValidator.new(content: completion.arguments, replies: reply_messages(completion.arguments), hits: retrieval.hits,
                                  web_results: (Array(web_search&.results) if ai_agent.web_search?), messages: messages,
                                  current_time: current_time).perform
   end
