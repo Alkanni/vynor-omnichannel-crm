@@ -27,11 +27,17 @@ class AiAgents::LlmClient
   end
 
   # input_type is :query for a customer question and :passage for knowledge. Vectors keep the model's own size
-  # (e.g. 1536 for text-embedding-3-small, 2048 for NVIDIA nemotron-3-embed-1b).
+  # (e.g. 1536 for text-embedding-3-small, 2048 for NVIDIA nemotron-3-embed-1b). The request log gets the texts as sent, but
+  # not the vectors (see AiAgents::RequestRecorder).
   def embed(texts, input_type:)
     inputs = texts.map { |text| "#{EMBEDDING_PREFIXES.fetch(input_type)}#{text}" }
-    with_context(self.class.embedding_api_key, self.class.setting('AI_AGENT_EMBEDDING_ENDPOINT') || endpoint) do |context|
-      context.embed(inputs, model: self.class.embedding_model, provider: :openai, assume_model_exists: true).vectors
+    model = self.class.embedding_model
+    AiAgents::RequestRecorder.step(:embedding, { input_type: input_type, texts: inputs }, model: model) do |step|
+      vectors = with_context(self.class.embedding_api_key, self.class.setting('AI_AGENT_EMBEDDING_ENDPOINT') || endpoint) do |context|
+        context.embed(inputs, model: model, provider: :openai, assume_model_exists: true).vectors
+      end
+      step.output = { vectors: vectors.size, dimensions: vectors.first&.size }
+      vectors
     end
   end
 
@@ -39,15 +45,21 @@ class AiAgents::LlmClient
   # looked up in the RubyLLM registry. The structured reply comes back as the arguments of a forced function call,
   # because some gateways drop response_format (9router with Codex models answers in plain text) while function calling
   # works on them. The completion's content is the arguments as a Hash, or the text when the model answered without
-  # calling the function.
-  def chat(model:, temperature:, instructions:, messages:, schema:)
-    with_context(self.class.api_key, endpoint) do |context|
-      tool = AiAgents::ReplyTool.new(**schema)
-      chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
-                    .with_instructions(instructions).with_temperature(temperature).with_tool(tool, choice: tool.name)
-      messages.each { |message| chat.add_message(message) }
-      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
-      completion(chat, chat.complete, started_at)
+  # calling the function. step names the call in the request log (see AiAgents::RequestRecorder).
+  def chat(model:, temperature:, instructions:, messages:, schema:, step:) # rubocop:disable Metrics/ParameterLists
+    input = { temperature: temperature, instructions: instructions, messages: messages, schema: schema[:name] }
+    AiAgents::RequestRecorder.step(step, input, model: model) do |recorded|
+      completion = with_context(self.class.api_key, endpoint) do |context|
+        tool = AiAgents::ReplyTool.new(**schema)
+        chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
+                      .with_instructions(instructions).with_temperature(temperature).with_tool(tool, choice: tool.name)
+        messages.each { |message| chat.add_message(message) }
+        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
+        completion(chat, chat.complete, started_at)
+      end
+      recorded.output = completion.content
+      recorded.tokens = { input: completion.input_tokens, output: completion.output_tokens, cached_input: completion.cached_input_tokens }
+      completion
     end
   end
 

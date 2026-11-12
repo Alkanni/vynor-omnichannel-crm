@@ -48,7 +48,21 @@ class AiAgents::WebSearch
   # domains: optional list of domains to search only.
   pattr_initialize [:query!, :domains]
 
+  # The request log gets the query, the domains, and each result with the text a prompt gets, ranked as the provider ranked it
+  # (see AiAgents::RequestRecorder).
   def perform
+    AiAgents::RequestRecorder.step(:web_search, { provider: provider_name, query: query, domains: domains }) do |step|
+      result = fetch
+      items = result.results.map { |item| item.to_h.except(:highlights).merge(text: item.text) }
+      step.output = { status: result.status, results: items, latency_ms: result.latency_ms, cost_usd: result.cost_usd }
+      result
+    end
+  end
+
+  private
+
+  # The cached results of the query, else those of a search, unless the budget is spent.
+  def fetch
     return Result.new(status: 'skipped_budget', results: [], latency_ms: nil, cost_usd: 0) if budget_exhausted?
 
     cached = Redis::Alfred.get(cache_key)
@@ -59,8 +73,6 @@ class AiAgents::WebSearch
     Result.new(status: status, results: items(results), latency_ms: Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started_at,
                cost_usd: cost)
   end
-
-  private
 
   # Returns the status, the provider's results, and what the search cost in USD. There is no retry, also not on 429.
   def search

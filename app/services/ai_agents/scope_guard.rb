@@ -98,7 +98,8 @@ class AiAgents::ScopeGuard
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
     web_search = ai_agent.web_search?
     completion = AiAgents::LlmClient.new.chat(model: ai_agent.model, temperature: 0, instructions: instructions(web_search),
-                                              messages: [{ role: :user, content: transcript }], schema: web_search ? WEB_SCHEMA : SCHEMA)
+                                              messages: [{ role: :user, content: transcript }], schema: web_search ? WEB_SCHEMA : SCHEMA,
+                                              step: :scope_check)
     decision, web_query = decision_and_web_query(completion.content, web_search)
 
     Result.new(decision: decision, web_query: web_query, web_search_status: web_search_status(decision, web_query),

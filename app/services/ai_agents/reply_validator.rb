@@ -76,7 +76,10 @@ class AiAgents::ReplyValidator
   end
 
   def perform
-    Result.new(decision: (decision if DECISIONS.include?(decision)), sources: sources.grep(Integer), blocked_reason: blocked_reason)
+    AiAgents::RequestRecorder.step(:reply_check, { sources: sources }) do |step|
+      Result.new(decision: (decision if DECISIONS.include?(decision)), sources: sources.grep(Integer), blocked_reason: blocked_reason)
+            .tap { |result| step.output = { decision: result.decision, blocked_reason: result.blocked_reason } }
+    end
   end
 
   private
