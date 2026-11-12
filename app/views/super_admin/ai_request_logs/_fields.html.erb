@@ -1,0 +1,16 @@
+<%# The input or output of a run or a step: a text, such as a prompt, keeps its whitespace; anything else is shown as JSON. %>
+<% pre_class = 'font-mono text-xs whitespace-pre-wrap break-words bg-slate-25 border border-slate-100 rounded-md p-3 m-0' %>
+<% if value.blank? %>
+  <p class="text-sm text-slate-400">—</p>
+<% elsif value.is_a?(Hash) %>
+  <dl class="flex flex-col gap-3">
+    <% value.each do |key, item| %>
+      <div>
+        <dt class="mt-0 mb-1 font-mono text-xs text-slate-500"><%= key %></dt>
+        <dd><pre class="<%= pre_class %>"><%= item.is_a?(String) ? item : JSON.pretty_generate(item) %></pre></dd>
+      </div>
+    <% end %>
+  </dl>
+<% else %>
+  <pre class="<%= pre_class %>"><%= value.is_a?(String) ? value : JSON.pretty_generate(value) %></pre>
+<% end %>

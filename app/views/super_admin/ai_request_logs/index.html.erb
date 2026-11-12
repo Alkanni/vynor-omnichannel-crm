@@ -1,0 +1,89 @@
+<% content_for(:title) { t('.title') } %>
+
+<header class="main-content__header" role="banner">
+  <h1 class="main-content__page-title" id="page-title"><%= content_for(:title) %></h1>
+</header>
+
+<section class="main-content__body">
+  <p class="text-sm text-slate-600 mb-6"><%= t('.description', days: AiAgent::RequestLog::RETENTION.in_days.to_i) %></p>
+
+  <%= form_with url: super_admin_ai_request_logs_path, method: :get, local: true, class: 'flex flex-wrap gap-3 items-end mb-6' do |f| %>
+    <% field_class = 'border border-slate-100 p-1.5 rounded-md text-sm' %>
+    <label class="flex flex-col gap-1 text-xs text-slate-600">
+      <%= t('.filters.account') %>
+      <%= f.select :account_id, @ai_agents.map(&:account).uniq.map { |account| ["#{account.name} (#{account.id})", account.id] },
+                   { include_blank: t('.filters.all'), selected: @filters[:account_id] }, class: field_class %>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-slate-600">
+      <%= t('.filters.ai_agent') %>
+      <%= f.select :ai_agent_id, @ai_agents.map { |ai_agent| ["#{ai_agent.name} (#{ai_agent.account.name})", ai_agent.id] },
+                   { include_blank: t('.filters.all'), selected: @filters[:ai_agent_id] }, class: field_class %>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-slate-600">
+      <%= t('.filters.source') %>
+      <%= f.select :source, AiAgent::RequestLog.sources.keys, { include_blank: t('.filters.all'), selected: @filters[:source] }, class: field_class %>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-slate-600">
+      <%= t('.filters.status') %>
+      <%= f.select :status, AiAgent::RequestLog.statuses.keys, { include_blank: t('.filters.all'), selected: @filters[:status] }, class: field_class %>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-slate-600">
+      <%= t('.filters.conversation') %>
+      <%= f.number_field :conversation, value: @filters[:conversation], min: 1, class: "#{field_class} w-28" %>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-slate-600">
+      <%= t('.filters.from') %>
+      <%= f.date_field :from, value: @filters[:from], class: field_class %>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-slate-600">
+      <%= t('.filters.to') %>
+      <%= f.date_field :to, value: @filters[:to], class: field_class %>
+    </label>
+    <%= f.submit t('.filters.apply'), name: nil, class: 'border border-slate-200 bg-slate-50 px-3 py-1.5 rounded-md cursor-pointer text-sm' %>
+    <%= link_to t('.filters.reset'), super_admin_ai_request_logs_path, class: 'px-3 py-1.5 text-sm text-slate-600 hover:text-woot-500' %>
+  <% end %>
+
+  <% if @logs.empty? %>
+    <div class="border border-slate-100 rounded-md p-6 bg-slate-25 text-sm text-slate-600">
+      <% if @filters.present? %>
+        <%= t('.empty.filtered') %>
+      <% else %>
+        <p class="mb-2"><%= t('.empty.none') %></p>
+        <p>
+          <%= t(AiAgents::RequestRecorder.enabled? ? '.empty.recording_on' : '.empty.recording_off') %>
+          <%= link_to t('.empty.settings'), super_admin_app_config_path(config: 'captain'), class: 'text-woot-500' %>
+        </p>
+      <% end %>
+    </div>
+  <% else %>
+    <table class="w-full text-sm border border-slate-100 rounded-md">
+      <thead class="text-xs text-slate-500 bg-slate-25">
+        <tr>
+          <% %w[time account ai_agent source conversation status latency tokens input].each do |column| %>
+            <th class="px-3 py-2 first:!ps-4 last:!pe-4 text-start"><%= t(".columns.#{column}") %></th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+        <% @logs.each do |log| %>
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top whitespace-nowrap">
+              <%= link_to log.created_at.utc.strftime('%Y-%m-%d %H:%M:%S'), super_admin_ai_request_log_path(log), class: 'text-woot-500' %>
+            </td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top"><%= log.account.name %></td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top"><%= log.ai_agent.name %></td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top font-mono text-xs"><%= log.source %></td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top whitespace-nowrap">
+              <%= render 'conversation_link', log: log %>
+            </td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top"><%= render 'status', log: log %></td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top whitespace-nowrap"><%= t('super_admin.ai_request_logs.milliseconds', ms: log.latency_ms) %></td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top"><%= log.total_tokens ? number_with_delimiter(log.total_tokens) : '—' %></td>
+            <td class="px-3 py-2 first:!ps-4 last:!pe-4 align-top break-words"><%= log.last_customer_message.to_s.truncate(120) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= paginate @logs %>
+  <% end %>
+</section>

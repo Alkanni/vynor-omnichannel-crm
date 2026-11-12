@@ -1,0 +1,6 @@
+<% if log.conversation %>
+  <%= link_to "##{log.conversation.display_id}", "/app/accounts/#{log.account_id}/conversations/#{log.conversation.display_id}",
+              target: '_blank', rel: 'noopener', class: 'text-woot-500' %>
+<% else %>
+  —
+<% end %>

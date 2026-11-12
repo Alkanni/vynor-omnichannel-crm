@@ -45,4 +45,19 @@ class AiAgent::RequestLog < ApplicationRecord
 
   enum :source, %w[reply watcher playground retrieval_test indexing].index_by(&:itself)
   enum :status, %w[ok error].index_by(&:itself)
+
+  # The runs without their steps, which hold the prompts, but with total_tokens: the input and output tokens of their model
+  # calls, nil for a run without a model call that returned its tokens.
+  scope :summaries, lambda {
+    select(column_names - ['steps'], <<~SQL.squish)
+      (SELECT SUM(COALESCE((entry #>> '{tokens,input}')::integer, 0) + COALESCE((entry #>> '{tokens,output}')::integer, 0))
+              FILTER (WHERE entry -> 'tokens' <> 'null')
+       FROM jsonb_array_elements(steps) entry) AS total_tokens
+    SQL
+  }
+
+  # The latest message of the customer in the input of a reply, the Watcher, the playground, or a Retrieval Test.
+  def last_customer_message
+    input['messages']&.reverse_each&.find { |message| message['role'] == 'user' }&.dig('content')
+  end
 end
