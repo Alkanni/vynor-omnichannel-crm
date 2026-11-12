@@ -242,6 +242,18 @@
   value: 8
   description: 'AI Agents stop searching the web for the rest of the month (UTC) once their searches have cost this much, and answer from their knowledge only. The cost is what Exa charges, or the list price per search of the other providers (Tavily US$0.008, Brave and Perplexity US$0.005). 0 stops web search. Leave blank for the default of 8.'
   locked: false
+- name: AI_AGENT_REQUEST_LOG_ENABLED
+  display_title: 'AI Agent Request Log'
+  value: false
+  description: 'Keep a log of what goes into and comes out of every step of the AI Agents: customer messages, prompts, model outputs, texts sent for embedding, knowledge chunks, and web results, in replies, the Watcher, the playground, the Retrieval Test, and knowledge indexing. It holds real customer conversations, so only Super Admins can read it, and it is deleted after 30 days. API keys are never kept.'
+  locked: false
+  type: boolean
+- name: AI_AGENT_REQUEST_LOG_MASK_PII
+  display_title: 'AI Agent Request Log: Mask Phone Numbers and E-mails'
+  value: false
+  description: 'Replace phone numbers and e-mail addresses with [phone] and [email] in the AI Agent Request Log before it is saved. What the AI models get stays the same.'
+  locked: false
+  type: boolean
 - name: CAPTAIN_FIRECRAWL_API_KEY
   display_title: 'FireCrawl API Key (optional)'
   description: 'The FireCrawl API key for the Captain AI service'

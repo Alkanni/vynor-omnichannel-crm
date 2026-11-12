@@ -30,10 +30,18 @@ class AiAgents::KnowledgeIndexer
   end
   private_class_method :product_text
 
+  # The request log of the run has a step for each batch it embedded, without the texts, which the chunks keep (see
+  # AiAgents::RequestRecorder).
   def perform
+    @embedding_model = AiAgents::LlmClient.embedding_model
+    AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :indexing, input: { embedding_model: @embedding_model }) { train }
+  end
+
+  private
+
+  def train
     indexable = indexable_versions
     remove_stale_chunks(indexable)
-    @embedding_model = AiAgents::LlmClient.embedding_model
     return record_failure(I18n.t('ai_agents.llm.errors.not_configured')) if @embedding_model && AiAgents::LlmClient.embedding_api_key.blank?
 
     index_changed_records(indexable)
@@ -42,8 +50,6 @@ class AiAgents::KnowledgeIndexer
     record_failure(e.message)
     raise
   end
-
-  private
 
   def index_changed_records(indexable)
     indexed = indexed_chunks.group(:chunkable_type, :chunkable_id).maximum(:chunkable_updated_at)
@@ -79,7 +85,7 @@ class AiAgents::KnowledgeIndexer
     version = record.updated_at
     chunks = self.class.chunks(record)
     texts = chunks.map(&:text)
-    embeddings = @embedding_model ? texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| client.embed(batch, input_type: :passage) } : []
+    embeddings = @embedding_model ? texts.each_slice(EMBEDDING_BATCH_SIZE).flat_map { |batch| embed(record, batch) } : []
 
     record.with_lock do
       # The record changed while it was being embedded; the job queued by that change indexes it.
@@ -90,6 +96,14 @@ class AiAgents::KnowledgeIndexer
         AiAgent::KnowledgeChunk.create!(account_id: ai_agent.account_id, ai_agent: ai_agent, chunkable: record, chunkable_updated_at: version,
                                         content: chunk.text, section: chunk.section, embedding: embedding, embedding_model: @embedding_model)
       end
+    end
+  end
+
+  # The step of the batch holds the embedding step of the client, so its texts stay out of the log.
+  def embed(record, batch)
+    input = { chunkable_type: record.class.name, chunkable_id: record.id, chunks: batch.size }
+    AiAgents::RequestRecorder.step(:embedding, input, model: @embedding_model) do |step|
+      client.embed(batch, input_type: :passage).tap { |vectors| step.output = { vectors: vectors.size, dimensions: vectors.first&.size } }
     end
   end
 

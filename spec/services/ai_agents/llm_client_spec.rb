@@ -4,7 +4,7 @@ RSpec.describe AiAgents::LlmClient do
   let(:usage) { { prompt_tokens: 1200, completion_tokens: 40, prompt_tokens_details: { cached_tokens: 1024 } } }
   let(:completion) do
     described_class.new.chat(model: 'gpt-4.1-mini', temperature: 0, instructions: 'Classify the turn.', messages: [{ role: :user, content: 'Halo' }],
-                             schema: AiAgents::ScopeGuard::SCHEMA)
+                             schema: AiAgents::ScopeGuard::SCHEMA, step: :scope_check)
   end
 
   before do

@@ -35,6 +35,30 @@ RSpec.describe AiAgents::WatchJob do
                                                   watcher_cached_input_tokens: 128)
   end
 
+  it 'logs its run, linked to the trace of the reply, with the request log on' do
+    create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+    create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    allow(AiAgents::Watcher).to receive(:new).and_call_original
+    stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return(
+      status: 200, headers: { 'Content-Type' => 'application/json' },
+      body: { id: 'chatcmpl-1', model: ai_agent.model, usage: { prompt_tokens: 300, completion_tokens: 8 },
+              choices: [{ message: { role: 'assistant', content: nil, tool_calls: [
+                { id: 'call_1', type: 'function', function: { name: 'ai_agent_watch', arguments: { handoff: true }.to_json } }
+              ] } }] }.to_json
+    )
+
+    described_class.perform_now(conversation, reply_trace)
+
+    log = AiAgent::RequestLog.sole
+    expect(log).to have_attributes(source: 'watcher', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: conversation.id,
+                                   message_id: reply_trace.message_id, reply_trace_id: reply_trace.id,
+                                   output: { 'handoff' => true, 'labels' => [], 'sheet_row' => nil })
+    expect(log.input['messages']).to eq([{ 'role' => 'user', 'content' => 'Pelayanannya buruk sekali', 'attachments' => [] }])
+    expect(log.steps.sole).to include('step' => 'watcher', 'model' => ai_agent.model, 'output' => { 'handoff' => true },
+                                      'tokens' => { 'input' => 300, 'output' => 8, 'cached_input' => nil })
+    expect(log.steps.sole['input']['messages']).to eq([{ 'role' => 'user', 'content' => 'Customer: Pelayanannya buruk sekali' }])
+  end
+
   it 'skips conversations a human agent took over meanwhile' do
     conversation.open!
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_11_080000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_12_030000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -281,6 +281,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_080000) do
     t.jsonb "invalid_outputs", default: [], null: false
     t.index ["ai_agent_id", "created_at"], name: "index_ai_agent_reply_traces_on_ai_agent_id_and_created_at"
     t.index ["conversation_id"], name: "index_ai_agent_reply_traces_on_conversation_id"
+  end
+
+  create_table "ai_agent_request_logs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "ai_agent_id", null: false
+    t.string "source", null: false
+    t.bigint "conversation_id"
+    t.bigint "message_id"
+    t.bigint "reply_trace_id"
+    t.string "status", null: false
+    t.string "error_class"
+    t.integer "latency_ms"
+    t.jsonb "input", default: {}, null: false
+    t.jsonb "output", default: {}, null: false
+    t.jsonb "steps", default: [], null: false
+    t.datetime "created_at", null: false
+    t.index ["ai_agent_id", "created_at"], name: "index_ai_agent_request_logs_on_ai_agent_id_and_created_at"
+    t.index ["conversation_id"], name: "index_ai_agent_request_logs_on_conversation_id"
+    t.index ["created_at"], name: "index_ai_agent_request_logs_on_created_at"
   end
 
   create_table "ai_agents", force: :cascade do |t|

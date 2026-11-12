@@ -15,7 +15,7 @@ class AiAgents::Watcher
     completion = AiAgents::LlmClient.new.chat(
       model: ai_agent.model, temperature: AiAgents::ReplyGenerator::TEMPERATURES['precise'],
       instructions: "#{INSTRUCTIONS}\n#{actions.instructions}", messages: [{ role: :user, content: transcript }],
-      schema: actions.json_schema('ai_agent_watch')
+      schema: actions.json_schema('ai_agent_watch'), step: :watcher
     )
     Result.new(actions: actions.parse(completion.content.is_a?(Hash) ? completion.content : {}), input_tokens: completion.input_tokens,
                output_tokens: completion.output_tokens, cached_input_tokens: completion.cached_input_tokens)

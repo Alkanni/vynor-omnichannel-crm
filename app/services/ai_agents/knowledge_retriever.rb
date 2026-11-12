@@ -47,9 +47,9 @@ class AiAgents::KnowledgeRetriever
 
   def perform
     embedding_model = AiAgents::LlmClient.embedding_model
+    mode = embedding_model ? 'hybrid' : 'keyword'
     queries = search_queries
-    Result.new(mode: embedding_model ? 'hybrid' : 'keyword', embedding_model: embedding_model, queries: queries,
-               hits: hits(embedding_model, queries))
+    Result.new(mode: mode, embedding_model: embedding_model, queries: queries, hits: hits(mode, embedding_model, queries))
   end
 
   private
@@ -70,16 +70,31 @@ class AiAgents::KnowledgeRetriever
             .map { |turn| turn.pluck(:content).join("\n") }
   end
 
-  def hits(embedding_model, queries)
+  # The request log gets the search after its embedding step, with the content of each chunk it found (see
+  # AiAgents::RequestRecorder).
+  def hits(mode, embedding_model, queries)
     chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
     return [] if queries.empty? || !chunks.exists?
 
     vectors = embedding_model ? AiAgents::LlmClient.new.embed(queries, input_type: :query) : []
+    AiAgents::RequestRecorder.step(:retrieval, { mode: mode, queries: queries }) do |step|
+      ranked(chunks, queries, vectors).tap { |hits| step.output = { hits: hits.map { |hit| logged_hit(hit) } } }
+    end
+  end
+
+  def ranked(chunks, queries, vectors)
     matches = fused(chunks, queries, vectors).first(ai_agent.context_limit)
     radius = ai_agent.context_expansion_radius
     return matches.map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) } if radius.zero?
 
     AiAgents::ContextExpansion.new(chunks: chunks, matches: matches, radius: radius, limit: ai_agent.context_limit).perform
+  end
+
+  # distance is the cosine distance of a chunk the embedding search found, nil for the others.
+  def logged_hit(hit)
+    chunk = hit.chunk
+    { rank: hit.rank, chunk_id: chunk.id, chunkable_type: chunk.chunkable_type, chunkable_id: chunk.chunkable_id, score: hit.score,
+      distance: chunk.attributes['neighbor_distance'], neighbor_of: hit.neighbor_of, content: chunk.content }
   end
 
   # A chunk scores weight / (RRF_K + rank) for each list it is in, so one found by several searches ranks above one found

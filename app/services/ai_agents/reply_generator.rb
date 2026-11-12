@@ -127,7 +127,7 @@ class AiAgents::ReplyGenerator
 
   def complete
     client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
-                messages: llm_messages, schema: actions.json_schema('ai_agent_reply', reply_properties))
+                messages: llm_messages, schema: actions.json_schema('ai_agent_reply', reply_properties), step: :reply)
   end
 
   def reply_properties

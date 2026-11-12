@@ -503,6 +503,36 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response.parsed_body['error']).to eq('The AI model request failed (UnauthorizedError)')
     end
 
+    it 'logs the run without a conversation, with the request log on' do
+      create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+      stub_request(:post, 'https://api.openai.com/v1/chat/completions').to_return(
+        status: 200, headers: { 'Content-Type' => 'application/json' },
+        body: { id: 'chatcmpl-1', model: ai_agent.model, choices: [{ message: { role: 'assistant', content: nil, tool_calls: [
+          { id: 'call_1', type: 'function', function: { name: 'ai_agent_reply', arguments: { messages: ['Buka 08.00, Kak.'] }.to_json } }
+        ] } }] }.to_json
+      )
+
+      post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      log = AiAgent::RequestLog.sole
+      expect(log).to have_attributes(source: 'playground', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: nil, message_id: nil,
+                                     reply_trace_id: nil, output: { 'messages' => ['Buka 08.00, Kak.'], 'handoff' => false, 'labels' => [],
+                                                                    'sheet_row' => nil })
+      expect(log.input['messages']).to eq(messages.map(&:stringify_keys))
+      expect(log.steps.sole).to include('step' => 'reply', 'output' => { 'messages' => ['Buka 08.00, Kak.'] })
+    end
+
+    it 'logs a run that failed as an error, with the request log on' do
+      create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+
+      post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(AiAgent::RequestLog.sole).to have_attributes(source: 'playground', status: 'error', error_class: 'AiAgents::LlmError')
+    end
+
     it 'returns unauthorized for agents' do
       post url, params: { messages: messages }, headers: agent.create_new_auth_token, as: :json
 
@@ -634,6 +664,29 @@ RSpec.describe 'AI Agents API', type: :request do
         [{ 'rank' => 1, 'title' => 'Jam buka', 'url' => 'https://example.com/jam', 'published_at' => '2026-10-01',
            'highlights' => ['Buka pukul 08.00.'], 'text' => 'Buka pukul 08.00.' }]
       )
+    end
+
+    it 'logs the search and the web search without a conversation, with the request log on' do
+      create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-key')
+      cached = []
+      Redis::Alfred.scan_each(match: 'ai_agents:web_search:*') { |key| cached << key }
+      cached.each { |key| Redis::Alfred.delete(key) }
+      stub_request(:post, 'https://api.exa.ai/search').to_return(
+        status: 200, headers: { 'Content-Type' => 'application/json' },
+        body: { results: [{ title: 'Jam buka', url: 'https://example.com/jam', highlights: ['Buka pukul 08.00.'] }],
+                costDollars: { total: 0.004 } }.to_json
+      )
+
+      post url, params: { query: 'Jam buka toko?', web_query: 'jam buka bengkel umum' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      log = AiAgent::RequestLog.sole
+      expect(log).to have_attributes(source: 'retrieval_test', status: 'ok', conversation_id: nil,
+                                     output: { 'hits' => 2, 'web_search_status' => 'searched' })
+      expect(log.input).to eq('messages' => [{ 'role' => 'user', 'content' => 'Jam buka toko?' }], 'web_query' => 'jam buka bengkel umum')
+      expect(log.steps.pluck('step')).to eq(%w[retrieval web_search])
+      expect(log.steps.first['output']['hits'].pluck('content')).to eq(['Jam buka toko: Senin sampai Sabtu', 'Alamat toko: Jalan Merdeka 10'])
     end
 
     it 'rejects a blank, non-text, or too long web query' do

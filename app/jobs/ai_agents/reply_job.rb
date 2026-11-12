@@ -1,7 +1,7 @@
 # Answers the latest customer message of a conversation the AI agent is handling (see ConversationSession#ai_active?).
 # One job is queued per incoming message (after the agent's Message Await delay), and only the job for the
 # newest message replies, so a burst of messages gets a single answer. Each answered message gets an
-# AiAgent::ReplyTrace.
+# AiAgent::ReplyTrace, and each reply the request log of its run (see AiAgents::RequestRecorder).
 class AiAgents::ReplyJob < ApplicationJob
   queue_as :high
 
@@ -28,15 +28,22 @@ class AiAgents::ReplyJob < ApplicationJob
       return record_trace(ai_agent, message, :message_limit)
     end
 
-    reply = AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: session.history, written_rows: session.sheet_rows).perform
-    # The customer may have written again while the reply was generated; that message's job answers both.
-    deliver(session, ai_agent, message, reply) if answerable?(session, message)
+    history = session.history
+    AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :reply, input: { messages: history }, conversation_id: message.conversation_id,
+                                     message_id: message.id) do |log|
+      reply = AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: history, written_rows: session.sheet_rows).perform
+      # The customer may have written again while the reply was generated; that message's job answers both.
+      deliver(session, ai_agent, message, reply, log) if answerable?(session, message)
+    end
   end
 
-  def deliver(session, ai_agent, message, reply)
-    reply.messages.each { |content| session.reply!(content, to: message) } unless reply.handoff && ai_agent.silent_handoff
+  def deliver(session, ai_agent, message, reply, log)
+    sent = reply.handoff && ai_agent.silent_handoff ? [] : reply.messages
+    sent.each { |content| session.reply!(content, to: message) }
     session.apply!(handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row, reason: :transfer_conditions)
     trace = record_trace(ai_agent, message, reply.handoff ? :handoff : :replied, labels: reply.labels, **reply.trace.attributes)
+    log.output = { messages: sent, handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row }
+    log.reply_trace_id = trace.id
     AiAgents::WatchJob.perform_later(message.conversation, trace) if watch?(ai_agent, reply)
   end
 
