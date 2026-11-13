@@ -9,7 +9,7 @@ Commit `9f920b54` · Phase 0–1 output (environment, capability, structure).
 | Working dir | `/home/acgix/vynor-omnichannel-crm` (git repo, branch `main`, tree clean before analysis) |
 | Size | 9,281 tracked files. By ext: 2,784 json (mostly i18n), 2,647 rb, 1,187 vue, 1,127 js, 481 yml, 372 jbuilder |
 | Top dirs (files) | `app` 6,482 · `spec` 1,090 · `enterprise` 557 · `swagger` 310 · `config` 193 · `db` 182 · `public` 152 · `lib` 146 |
-| Existing AI docs | `AGENTS.md` (`CLAUDE.md` is a symlink to it), `.windsurf/rules/chatwoot.md`, `docs/rails_upgrade_assessment.md`, `docs/rails_upgrades/7_2.md`, `docs/rails_upgrades/8_0.md` |
+| Existing AI docs | `AGENTS.md` (`CLAUDE.md` is a symlink to it), `.windsurf/rules/chatwoot.md`, `docs/rails_upgrade_assessment.md`, `docs/rails_upgrades/7_2.md`, `docs/rails_upgrades/8_0.md`, `docs/rails_upgrades/8_1.md` |
 | Ruby / Bundler | **not installed** on host → no `rails runner`, no `rspec`, no Ruby LSP |
 | Node / pnpm | installed (v24.19.0) — not used (no scripts executed) |
 | ripgrep | available — primary analysis tool |
@@ -51,7 +51,7 @@ Generated/vendored boundaries: `db/schema.rb` (generated), `app/javascript/dashb
 
 | Concern | Technology | Evidence |
 |---|---|---|
-| Web framework | Rails 8.0.5.2 (`load_defaults 7.0`, schema header 7.1), Puma | `Gemfile`, `config/application.rb`, `db/schema.rb:13` |
+| Web framework | Rails 8.1.4.1 (`load_defaults 7.0`, schema header 8.1), Puma | `Gemfile`, `config/application.rb`, `db/schema.rb:13` |
 | DB | PostgreSQL; extensions pg_stat_statements, pg_trgm, pgcrypto, plpgsql, vector | `db/schema.rb:15-19` |
 | DB triggers | `hairtrigger` gem (per-account display_id sequences) | `db/schema.rb` tail, `app/models/conversation.rb:430` |
 | Background jobs | Sidekiq + sidekiq-cron | `config/sidekiq.yml`, `config/schedule.yml` |
