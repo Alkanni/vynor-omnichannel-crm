@@ -40,6 +40,16 @@ describe 'Rack::Attack auth throttles' do
       expect(throttle_key('login/ip', json_env({ email: 'a@b.com', password: 'x' }))).to eq(ip)
     end
 
+    it 'counts sign-ins behind the proxy by the X-Forwarded-For address, whatever Forwarded header the client sends' do
+      keys = %w[198.51.100.1 198.51.100.2 127.0.0.1].map do |claimed|
+        env = form_env({ 'email' => 'a@b.com', 'password' => 'x' })
+        env.merge!('REMOTE_ADDR' => '172.18.0.5', 'HTTP_X_FORWARDED_FOR' => ip, 'HTTP_FORWARDED' => "for=#{claimed}")
+        throttle_key('login/ip', env)
+      end
+
+      expect(keys).to eq([ip] * 3)
+    end
+
     it 'skips form-encoded verification submissions carrying mfa_token' do
       expect(throttle_key('login/ip', form_env({ 'mfa_token' => 'tok', 'otp_code' => '123456' }))).to be_nil
     end
