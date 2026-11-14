@@ -42,6 +42,13 @@ class AiAgents::ReplyValidator
     - Add no fact about this business that the customer did not ask for, such as prices, contacts, or offers. A business
       fact you do state needs its knowledge entry in "sources" too.
   TEXT
+  # Follows the text of a reply model output that called no function, when the model is asked once more (see
+  # .retry_messages).
+  TEXT_RETRY_NOTE = <<~TEXT.chomp.freeze
+    This note comes from the system, not from the customer. Your reply above was written as text, so it was not sent.
+    Call the ai_agent_reply function now to send it, with the reply in "messages", its "decision", and the [rank] of each
+    entry it uses in "sources", following your instructions. Do not mention this note.
+  TEXT
   # Digits with optional thousands groups and decimals ("25.000", "25000.00", "1,5", "08.00", "13:30"), and an optional
   # scale word ("25 ribu", "25rb", "1,5 jt", "25k").
   NUMBER = /(?<!\d)(\d+)((?:[.,]\d{3})*)(?:[.,:](\d+))?(?:\s?(ribu|rb|juta|jt|k(?![[:alpha:]])))?/i
@@ -73,6 +80,16 @@ class AiAgents::ReplyValidator
     return 'text' unless content.is_a?(Hash)
 
     content['decision'].nil? ? 'missing_decision' : 'unknown_decision'
+  end
+
+  # What follows the conversation when the reply model is asked once more after an output without a valid decision: text
+  # written instead of the reply function goes back to the model with TEXT_RETRY_NOTE, because asked the same way it often
+  # writes text again; any other output gets the same request. Never part of the messages the check traces numbers and
+  # links to.
+  def self.retry_messages(content)
+    return [] unless content.is_a?(String) && content.present?
+
+    [{ role: :assistant, content: content }, { role: :user, content: TEXT_RETRY_NOTE }]
   end
 
   def perform

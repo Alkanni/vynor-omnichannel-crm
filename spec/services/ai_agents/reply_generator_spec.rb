@@ -248,16 +248,57 @@ RSpec.describe AiAgents::ReplyGenerator do
       context 'when the model writes text instead of the reply function' do
         let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }, *super()] }
 
-        it 'asks it once more with the same request and sends that reply, tracing the shape of the first and the tokens of both calls' do
-          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+        it 'asks it once more with the same request, followed by its text and a note to call the function' do
+          reply
+
           expect(scope_requests.size).to eq(1)
           expect(embedding_requests.size).to eq(1)
           expect(chat_requests.size).to eq(2)
-          expect(chat_requests.second).to eq(chat_requests.first)
+          expect(chat_requests.second.except('messages')).to eq(chat_requests.first.except('messages'))
+          expect(chat_requests.second['messages']).to eq([*chat_requests.first['messages'],
+                                                          { 'role' => 'assistant', 'content' => 'Kami buka setiap hari pukul 07.30 - 18.00.' },
+                                                          { 'role' => 'user', 'content' => AiAgents::ReplyValidator::TEXT_RETRY_NOTE }])
+        end
+
+        it 'sends the reply of the second call, tracing the shape of the first and the tokens of both calls' do
+          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
           expect(reply.trace.attributes).to include(reply_decision: 'answer', cited_ranks: [1], blocked_reason: nil, invalid_outputs: ['text'],
                                                     input_tokens: 920, output_tokens: 15, cached_input_tokens: 520,
                                                     latency_ms: be >= reply.trace.scope.latency_ms)
           expect(reply.trace).not_to be_retry_skipped
+        end
+
+        it 'records the text and the note in the input of the second reply step of the request log' do
+          create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+
+          AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :playground, input: {}) { reply }
+
+          reply_steps = AiAgent::RequestLog.sole.steps.select { |step| step['step'] == 'reply' }
+          expect(reply_steps.first['input']['messages']).to eq(messages.as_json)
+          expect(reply_steps.second['input']['messages']).to eq([*messages.as_json,
+                                                                 { 'role' => 'assistant', 'content' => 'Kami buka setiap hari pukul 07.30 - 18.00.' },
+                                                                 { 'role' => 'user', 'content' => AiAgents::ReplyValidator::TEXT_RETRY_NOTE }])
+        end
+      end
+
+      context 'when the model writes text twice' do
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }] }
+
+        it 'sends the knowledge gap message without asking a third time, tracing the shape of both outputs' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(2)
+          expect(reply.trace.attributes).to include(reply_decision: nil, blocked_reason: 'invalid_decision', invalid_outputs: %w[text text])
+        end
+      end
+
+      context 'when the reply of the second call states a number that only the text of the first call had' do
+        let(:reply_content) { { decision: 'answer', sources: [1], messages: ['Detailing Rp500.000, kami buka 07.30 - 18.00.'] }.to_json }
+        let(:reply_messages) { [{ role: 'assistant', content: 'Detailing Rp500.000, kami buka 07.30 - 18.00.' }, *super()] }
+
+        it 'checks it against the conversation without that text, and sends the knowledge gap message instead' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(2)
+          expect(reply.trace.attributes).to include(reply_decision: 'answer', blocked_reason: 'unsupported_number', invalid_outputs: ['text'])
         end
       end
 
@@ -293,9 +334,10 @@ RSpec.describe AiAgents::ReplyGenerator do
           end
         end
 
-        it 'sends the knowledge gap message, tracing the shape of both outputs' do
+        it 'asks again with the same request, then sends the knowledge gap message, tracing the shape of both outputs' do
           expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
           expect(chat_requests.size).to eq(2)
+          expect(chat_requests.second).to eq(chat_requests.first)
           expect(reply.trace.attributes).to include(reply_decision: nil, blocked_reason: 'invalid_decision',
                                                     invalid_outputs: %w[unknown_decision missing_decision])
           expect(reply.trace).not_to be_retry_skipped

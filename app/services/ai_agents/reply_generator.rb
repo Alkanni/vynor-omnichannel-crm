@@ -6,7 +6,9 @@
 # reply of a strict agent is checked against the knowledge and web results it cites before it is sent (see
 # AiAgents::ReplyValidator), and one that fails gets the agent's knowledge gap message. A reply without a valid decision,
 # such as text written instead of the reply function, is asked for once more first, since the model usually gives one on
-# the next call. The links of the web results a reply cites are added to it after the check, so the model never writes them.
+# the next call; text goes back to the model with a note to call the function for it (see
+# AiAgents::ReplyValidator.retry_messages). The links of the web results a reply cites are added to it after the check,
+# so the model never writes them.
 # Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
@@ -115,9 +117,8 @@ class AiAgents::ReplyGenerator
   def model_reply
     completions = [complete]
     validation = validate(completions.last) if ai_agent.scope_strict?
-    # Another call as long as the first one has to end before the deadline.
-    if validation&.invalid_decision? && (deadline_ms.nil? || elapsed_ms + completions.last.latency_ms < deadline_ms)
-      completions << complete
+    if validation&.invalid_decision? && in_time_for_another_call?(completions.last)
+      completions << complete(AiAgents::ReplyValidator.retry_messages(completions.last.content))
       validation = validate(completions.last)
     end
     content = completions.last.arguments
@@ -125,9 +126,13 @@ class AiAgents::ReplyGenerator
     Reply.new(messages: sent_messages(content, validation), **actions.parse(content), trace: trace(completions, validation))
   end
 
-  def complete
+  # Another call as long as the last one has to end before the deadline.
+  def in_time_for_another_call?(completion) = deadline_ms.nil? || elapsed_ms + completion.latency_ms < deadline_ms
+
+  # retry_messages follow the conversation when the model is asked once more (see AiAgents::ReplyValidator.retry_messages).
+  def complete(retry_messages = [])
     client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
-                messages: llm_messages, schema: actions.json_schema('ai_agent_reply', reply_properties), step: :reply)
+                messages: llm_messages + retry_messages, schema: actions.json_schema('ai_agent_reply', reply_properties), step: :reply)
   end
 
   def reply_properties
@@ -160,9 +165,7 @@ class AiAgents::ReplyGenerator
   end
 
   # nil when the gateway reported no usage.
-  def tokens(*counts)
-    counts.compact.presence&.sum
-  end
+  def tokens(*counts) = counts.compact.presence&.sum
 
   def elapsed_ms
     Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - @started_at
