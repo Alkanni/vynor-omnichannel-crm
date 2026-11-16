@@ -61,6 +61,9 @@ class AiAgents::ReplyValidator
   # A range of two years ("2017 - 2019", production years in a recall) also has 8 digits, but is no phone, account, or
   # identity number, so the long number rules leave it alone; each year still needs a source.
   YEAR_RANGE = /\A(?:19|20)\d\d\s*-\s*(?:19|20)\d\d\z/
+  # A citation the model may still write in a reply (see .without_rank_markers): ranks in brackets ("[1]", "[1, 2, 5]") or a
+  # Markdown link to a rank ("[Sumber](9)"), with the parentheses around it and the spaces before it.
+  RANK_MARKER = /[ \t]*(?<open>\()?(?:\[(?<ranks>\d+(?:\s*,\s*\d+)*)\]|\[[^\[\]\n]*\]\((?<ranks>\d+)\))(?(<open>)\))/
   # Without content, so a trace can keep it: blocked_reason is nil when the reply may be sent.
   Result = Data.define(:decision, :sources, :blocked_reason) do
     def knowledge_gap? = decision == 'knowledge_gap' || blocked_reason.present?
@@ -90,6 +93,18 @@ class AiAgents::ReplyValidator
     return [] unless content.is_a?(String) && content.present?
 
     [{ role: :assistant, content: content }, { role: :user, content: TEXT_RETRY_NOTE }]
+  end
+
+  # The replies of any agent without the rank markers whose ranks are all entries of the prompt, 1 to last_rank, and without
+  # the spaces around them. The prompt numbers its entries for every agent, and models sometimes cite them in the reply
+  # although told not to: the customer should not see a marker, and the check would read its ranks as numbers of the reply
+  # (unsupported_number on pilot replies whose facts their sources had). A bracket with any other number stays a number.
+  def self.without_rank_markers(replies, last_rank)
+    replies.map do |reply|
+      reply.gsub(RANK_MARKER) do |marker|
+        Regexp.last_match(:ranks).scan(/\d+/).all? { |rank| rank.to_i.between?(1, last_rank) } ? '' : marker
+      end.strip
+    end
   end
 
   def perform

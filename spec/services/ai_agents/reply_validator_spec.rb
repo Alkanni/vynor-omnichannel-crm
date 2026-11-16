@@ -276,4 +276,20 @@ RSpec.describe AiAgents::ReplyValidator do
         .to have_attributes(blocked_reason: nil)
     end
   end
+
+  describe '.without_rank_markers' do
+    it 'takes out ranks in brackets and Markdown links to a rank, with their parentheses and the spaces before them' do
+      expect(described_class.without_rank_markers(
+               ['Hasil tiap injektor dibandingkan. [1,2,5]', 'Noise Detector membantu analisis suara. ([Sumber](9))',
+                '[1, 2] Buka 08.00-20.00 WIB [2] setiap hari.', ' [3] '], 11
+             )).to eq(['Hasil tiap injektor dibandingkan.', 'Noise Detector membantu analisis suara.', 'Buka 08.00-20.00 WIB setiap hari.', ''])
+    end
+
+    it 'keeps a bracket with a number that is no rank of the prompt, and other brackets and links' do
+      replies = ['Lihat [15] dan [1, 12].', 'Produksi [2026], kode [0].', '[Katalog](https://toko.example/katalog) dan [catatan].']
+
+      expect(described_class.without_rank_markers(replies, 11)).to eq(replies)
+      expect(described_class.without_rank_markers(['Buka 08.00 [1].'], 0)).to eq(['Buka 08.00 [1].'])
+    end
+  end
 end

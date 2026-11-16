@@ -8,7 +8,8 @@
 # such as text written instead of the reply function, is asked for once more first, since the model usually gives one on
 # the next call; text goes back to the model with a note to call the function for it (see
 # AiAgents::ReplyValidator.retry_messages). The links of the web results a reply cites are added to it after the check,
-# so the model never writes them.
+# so the model never writes them. The [rank] markers a model still writes in a reply of any agent are taken out of its
+# bubbles before the check and before they are sent (see AiAgents::ReplyValidator.without_rank_markers).
 # Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
@@ -187,8 +188,10 @@ class AiAgents::ReplyGenerator
     Array(web_search&.results).filter_map { |item| item.url if sources.include?(item.rank) && replies.none? { |reply| reply.include?(item.url) } }
   end
 
+  # The bubbles the check reads and the customer gets, without the [rank] of a knowledge or web entry the model wrote.
   def reply_messages(content)
-    Array(content['messages']).grep(String).map(&:strip).compact_blank.first(MAX_REPLY_MESSAGES)
+    last_rank = retrieval.hits.size + Array(web_search&.results).size
+    AiAgents::ReplyValidator.without_rank_markers(Array(content['messages']).grep(String), last_rank).compact_blank.first(MAX_REPLY_MESSAGES)
   end
 
   def instructions
