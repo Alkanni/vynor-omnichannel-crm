@@ -3,6 +3,8 @@ class AiAgentListener < BaseListener
     conversation = extract_conversation_and_account(event)[0]
     ai_agent = conversation.inbox.ai_agent
     return unless ai_agent&.welcome_message.present? && conversation.pending?
+    # A campaign opens the conversation with its own message.
+    return if conversation.campaign_id.present?
 
     conversation.messages.create!(account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :outgoing,
                                   sender: ai_agent, content: ai_agent.welcome_message,

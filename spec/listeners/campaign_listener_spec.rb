@@ -38,4 +38,29 @@ describe CampaignListener do
       end
     end
   end
+
+  describe '#message_updated' do
+    let!(:recipient) { create(:campaign_recipient, campaign: campaign, contact: contact) }
+    let(:conversation) { create(:conversation, account: account, inbox: inbox, contact: contact, contact_inbox: contact_inbox) }
+    let(:message) do
+      create(:message, conversation: conversation, account: account, inbox: inbox, message_type: :outgoing,
+                       additional_attributes: { 'campaign_id' => campaign.id })
+    end
+
+    it 'updates the campaign recipient of the message contact' do
+      message.update!(source_id: 'wamid.delivered', status: :delivered)
+
+      listener.message_updated(Events::Base.new('message.updated', Time.zone.now, message: message))
+
+      expect(recipient.reload).to have_attributes(status: 'delivered', source_id: 'wamid.delivered')
+    end
+
+    it 'ignores messages that do not belong to a campaign' do
+      message.update!(additional_attributes: {}, source_id: 'wamid.other')
+
+      listener.message_updated(Events::Base.new('message.updated', Time.zone.now, message: message))
+
+      expect(recipient.reload).to be_queued
+    end
+  end
 end

@@ -9,7 +9,7 @@ describe Whatsapp::OneoffCampaignService do
   let(:label1) { create(:label, account: account) }
   let(:label2) { create(:label, account: account) }
   let!(:campaign) do
-    create(:campaign, inbox: whatsapp_inbox, account: account,
+    create(:campaign, inbox: whatsapp_inbox, account: account, message: 'Hi {{contact.name}}, your ticket is updated',
                       audience: [{ type: 'Label', id: label1.id }, { type: 'Label', id: label2.id }],
                       template_params: template_params)
   end
@@ -19,24 +19,12 @@ describe Whatsapp::OneoffCampaignService do
       'namespace' => '23423423_2342423_324234234_2343224',
       'category' => 'UTILITY',
       'language' => 'en',
-      'processed_params' => { 'body' => { 'name' => 'John', 'ticket_id' => '2332' } }
+      'processed_params' => { 'body' => { 'name' => '{{contact.name}}', 'ticket_id' => '2332' } }
     }
-  end
-
-  before do
-    # Stub HTTP requests to WhatsApp API
-    stub_request(:post, /graph\.facebook\.com.*messages/)
-      .to_return(status: 200, body: { messages: [{ id: 'message_id_123' }] }.to_json, headers: { 'Content-Type' => 'application/json' })
-
-    # Ensure the service uses our mocked channel object by stubbing the whole delegation chain
-    # Using allow_any_instance_of here because the service is instantiated within individual tests
-    # and we need to mock the delegated channel method for proper test isolation
-    allow_any_instance_of(described_class).to receive(:channel).and_return(whatsapp_channel) # rubocop:disable RSpec/AnyInstance
   end
 
   describe '#perform' do
     before do
-      # Enable WhatsApp campaigns feature flag for all tests
       account.enable_features!(:whatsapp_campaign)
     end
 
@@ -76,257 +64,157 @@ describe Whatsapp::OneoffCampaignService do
     end
 
     context 'when campaign is valid' do
+      let(:contact) { create(:contact, :with_phone_number, account: account, name: 'Jane Smith') }
+
+      before { contact.update_labels([label1.title]) }
+
       it 'marks campaign as completed' do
         described_class.new(campaign: campaign).perform
 
         expect(campaign.reload.completed?).to be true
       end
 
-      it 'marks the campaign completed after processing the audience' do
-        contact = create(:contact, :with_phone_number, account: account)
-        contact.update_labels([label1.title])
-
-        expect(whatsapp_channel).to receive(:send_template) do
-          expect(campaign.reload.completed?).to be false
-        end
-
-        described_class.new(campaign: campaign).perform
-
-        expect(campaign.reload.completed?).to be true
-      end
-
-      it 'processes contacts with matching labels' do
-        contact_with_label1, contact_with_label2, contact_with_both_labels =
-          create_list(:contact, 3, :with_phone_number, account: account)
-        contact_with_label1.update_labels([label1.title])
+      it 'tracks every contact with a matching label as a queued recipient' do
+        contact_with_label2, contact_with_both_labels = create_list(:contact, 2, :with_phone_number, account: account)
         contact_with_label2.update_labels([label2.title])
         contact_with_both_labels.update_labels([label1.title, label2.title])
 
-        expect(whatsapp_channel).to receive(:send_template).exactly(3).times
-
         described_class.new(campaign: campaign).perform
+
+        expect(campaign.campaign_recipients.pluck(:contact_id, :status, :inbox_id, :account_id)).to contain_exactly(
+          [contact.id, 'queued', whatsapp_inbox.id, account.id],
+          [contact_with_label2.id, 'queued', whatsapp_inbox.id, account.id],
+          [contact_with_both_labels.id, 'queued', whatsapp_inbox.id, account.id]
+        )
       end
 
-      it 'skips contacts without phone numbers' do
-        contact_without_phone = create(:contact, account: account, phone_number: nil)
-        contact_without_phone.update_labels([label1.title])
+      it 'queues the template as an outgoing message in the conversation of the contact phone number' do
+        expect { described_class.new(campaign: campaign).perform }.to have_enqueued_job(SendReplyJob)
 
-        expect(whatsapp_channel).not_to receive(:send_template)
+        message = Message.find_by!("additional_attributes->>'campaign_id' = ?", campaign.id.to_s)
+        expect(message).to have_attributes(message_type: 'outgoing', private: false, content: 'Hi Jane Smith, your ticket is updated')
+        expect(message.additional_attributes['template_params']).to eq(
+          template_params.merge('processed_params' => { 'body' => { 'name' => 'Jane Smith', 'ticket_id' => '2332' } })
+        )
+        expect(message.conversation).to have_attributes(contact_id: contact.id, campaign_id: campaign.id)
+        expect(message.conversation.contact_inbox.source_id).to eq(contact.phone_number.delete('+'))
+        expect(campaign.campaign_recipients.sole.message_content).to eq('Hi Jane Smith, your ticket is updated')
+      end
+
+      it 'adds the message to the open conversation the reply lands in' do
+        contact_inbox = create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: contact.phone_number.delete('+'))
+        open_conversation = create(:conversation, account: account, inbox: whatsapp_inbox, contact: contact, contact_inbox: contact_inbox)
+
+        expect { described_class.new(campaign: campaign).perform }.not_to change(Conversation, :count)
+        expect(open_conversation.messages.outgoing.last.additional_attributes['campaign_id']).to eq(campaign.id)
+      end
+
+      it 'starts a new conversation when the last one is resolved' do
+        contact_inbox = create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: contact.phone_number.delete('+'))
+        create(:conversation, account: account, inbox: whatsapp_inbox, contact: contact, contact_inbox: contact_inbox, status: :resolved)
+
+        expect { described_class.new(campaign: campaign).perform }.to change(Conversation, :count).by(1)
+      end
+
+      it 'reuses the resolved conversation when the inbox keeps a single conversation per contact' do
+        whatsapp_inbox.update!(lock_to_single_conversation: true)
+        contact_inbox = create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: contact.phone_number.delete('+'))
+        resolved = create(:conversation, account: account, inbox: whatsapp_inbox, contact: contact, contact_inbox: contact_inbox,
+                                         status: :resolved)
+
+        expect { described_class.new(campaign: campaign).perform }.not_to change(Conversation, :count)
+        expect(resolved.messages.outgoing.count).to eq(1)
+      end
+
+      it 'starts the new conversation pending with the AI agent of the inbox' do
+        ai_agent = create(:ai_agent, account: account)
+        create(:ai_agent_inbox, ai_agent: ai_agent, inbox: whatsapp_inbox)
 
         described_class.new(campaign: campaign).perform
+
+        expect(campaign.conversations.sole).to have_attributes(status: 'pending', ai_assignee: ai_agent)
+      end
+
+      it 'starts the new conversation open when the inbox has no bot' do
+        described_class.new(campaign: campaign).perform
+
+        expect(campaign.conversations.sole).to be_open
       end
 
       it 'sends to the contact BSUID when the contact has no phone number and exactly one WhatsApp identity' do
-        contact = create(:contact, account: account, phone_number: nil)
-        contact.update_labels([label1.title])
-        create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.2081978709342942')
-
-        expect(whatsapp_channel).to receive(:send_template).with(
-          'IN.2081978709342942',
-          hash_including(
-            name: 'ticket_status_updated',
-            namespace: '23423423_2342423_324234234_2343224',
-            lang_code: 'en'
-          ),
-          nil
-        )
+        contact.update!(phone_number: nil)
+        contact_inbox = create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.2081978709342942')
 
         described_class.new(campaign: campaign).perform
+
+        expect(campaign.conversations.sole.contact_inbox).to eq(contact_inbox)
       end
 
-      it 'does not send when the contact has parent and regular BSUID aliases' do
-        contact = create(:contact, account: account, phone_number: nil)
-        contact.update_labels([label1.title])
-        create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.ENT.9081726354')
-        create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.2081978709342942')
-
-        expect(whatsapp_channel).not_to receive(:send_template)
+      it 'skips contacts without a phone number or BSUID' do
+        contact.update!(phone_number: nil)
 
         described_class.new(campaign: campaign).perform
+
+        expect(campaign.campaign_recipients.sole).to have_attributes(status: 'skipped', error_message: 'Phone number and BSUID are missing')
+        expect(Message.where("additional_attributes->>'campaign_id' = ?", campaign.id.to_s)).to be_empty
       end
 
-      it 'does not infer lifecycle rotation from conversation presence alone' do
-        contact = create(:contact, account: account, phone_number: nil)
-        contact.update_labels([label1.title])
-        previous_contact_inbox = create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.PREVIOUSBSUID')
-        create(:conversation, account: account, inbox: whatsapp_inbox, contact: contact, contact_inbox: previous_contact_inbox)
-        create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.CURRENTBSUID')
-
-        expect(whatsapp_channel).not_to receive(:send_template)
-
-        described_class.new(campaign: campaign).perform
-      end
-
-      it 'does not send when a phone-less contact has multiple WhatsApp identities in the campaign inbox' do
-        contact = create(:contact, account: account, phone_number: nil)
-        contact.update_labels([label1.title])
+      it 'skips a phone-less contact with multiple WhatsApp identities in the campaign inbox' do
+        contact.update!(phone_number: nil)
         create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.2081978709342942')
         create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.2081978709342943')
 
-        allow(Rails.logger).to receive(:info)
-        expect(whatsapp_channel).not_to receive(:send_template)
-
         described_class.new(campaign: campaign).perform
+
+        expect(campaign.campaign_recipients.sole).to have_attributes(
+          status: 'skipped', error_message: 'Multiple WhatsApp identities found; refusing to choose a destination'
+        )
       end
 
-      it 'does not submit authentication templates for BSUID-only contacts' do
-        contact = create(:contact, account: account, phone_number: nil)
-        contact.update_labels([label1.title])
+      it 'skips authentication templates for BSUID-only contacts' do
+        contact.update!(phone_number: nil)
         create(:contact_inbox, contact: contact, inbox: whatsapp_inbox, source_id: 'IN.2081978709342942')
-        whatsapp_channel.update!(
-          message_templates: [
-            {
-              'name' => 'ticket_status_updated',
-              'language' => 'en',
-              'category' => 'AUTHENTICATION'
-            }
-          ]
-        )
-
-        allow(Rails.logger).to receive(:info)
-        expect(whatsapp_channel).not_to receive(:send_template)
+        whatsapp_channel.update!(message_templates: [{ 'name' => 'ticket_status_updated', 'language' => 'en', 'category' => 'AUTHENTICATION' }])
 
         described_class.new(campaign: campaign).perform
+
+        expect(campaign.campaign_recipients.sole).to have_attributes(
+          status: 'skipped', error_message: I18n.t('errors.whatsapp.authentication_template_requires_phone')
+        )
       end
 
-      it 'uses template processor service to process templates' do
-        contact = create(:contact, :with_phone_number, account: account)
-        contact.update_labels([label1.title])
-
-        expect(Whatsapp::TemplateProcessorService).to receive(:new)
-          .with(channel: whatsapp_channel, template_params: template_params)
-          .and_call_original
+      it 'skips contacts whose liquid variables resolve to blank values' do
+        campaign.update!(template_params: template_params.merge('processed_params' => { 'body' => { 'email' => '{{contact.email}}' } }))
+        contact.update!(email: nil)
 
         described_class.new(campaign: campaign).perform
+
+        expect(campaign.campaign_recipients.sole).to have_attributes(status: 'skipped', error_message: 'Template variables resolved to blank values')
       end
 
-      it 'sends template message with correct parameters' do
-        contact = create(:contact, :with_phone_number, account: account)
-        contact.update_labels([label1.title])
-
-        expect(whatsapp_channel).to receive(:send_template).with(
-          contact.phone_number,
-          hash_including(
-            name: 'ticket_status_updated',
-            namespace: '23423423_2342423_324234234_2343224',
-            lang_code: 'en',
-            parameters: array_including(
-              hash_including(
-                type: 'body',
-                parameters: array_including(
-                  hash_including(type: 'text', parameter_name: 'name', text: 'John'),
-                  hash_including(type: 'text', parameter_name: 'ticket_id', text: '2332')
-                )
-              )
-            )
-          ),
-          nil
-        )
+      it 'keeps processing the remaining contacts after a skipped one' do
+        contact_without_phone = create(:contact, account: account, phone_number: nil)
+        contact_without_phone.update_labels([label1.title])
 
         described_class.new(campaign: campaign).perform
-      end
 
-      it 'processes liquid variables in template parameters' do
-        contact = create(:contact, :with_phone_number, account: account, name: 'Jane Smith', email: 'jane@example.com')
-        contact.update_labels([label1.title])
-
-        campaign_with_liquid = create(:campaign, inbox: whatsapp_inbox, account: account,
-                                                 audience: [{ type: 'Label', id: label1.id }],
-                                                 template_params: {
-                                                   'name' => 'ticket_status_updated',
-                                                   'namespace' => '23423423_2342423_324234234_2343224',
-                                                   'category' => 'UTILITY',
-                                                   'language' => 'en',
-                                                   'processed_params' => {
-                                                     'body' => {
-                                                       'name' => '{{contact.name}}',
-                                                       'ticket_id' => '{{contact.email}}'
-                                                     }
-                                                   }
-                                                 })
-
-        contact_drop_name = ContactDrop.new(contact).name
-
-        expect(whatsapp_channel).to receive(:send_template).with(
-          contact.phone_number,
-          hash_including(
-            name: 'ticket_status_updated',
-            namespace: '23423423_2342423_324234234_2343224',
-            lang_code: 'en',
-            parameters: array_including(
-              hash_including(
-                type: 'body',
-                parameters: array_including(
-                  hash_including(type: 'text', parameter_name: 'name', text: contact_drop_name),
-                  hash_including(type: 'text', parameter_name: 'ticket_id', text: contact.email)
-                )
-              )
-            )
-          ),
-          nil
+        expect(campaign.campaign_recipients.pluck(:contact_id, :status)).to contain_exactly(
+          [contact.id, 'queued'], [contact_without_phone.id, 'skipped']
         )
-
-        described_class.new(campaign: campaign_with_liquid).perform
-      end
-
-      it 'skips contacts when liquid variables resolve to blank values' do
-        contact = create(:contact, :with_phone_number, account: account, name: 'Jane', email: nil)
-        contact.update_labels([label1.title])
-
-        campaign_with_blank_liquid = create(:campaign, inbox: whatsapp_inbox, account: account,
-                                                       audience: [{ type: 'Label', id: label1.id }],
-                                                       template_params: {
-                                                         'name' => 'test_template',
-                                                         'namespace' => 'test_namespace',
-                                                         'language' => 'en',
-                                                         'processed_params' => {
-                                                           'body' => {
-                                                             'email' => '{{contact.email}}'
-                                                           }
-                                                         }
-                                                       })
-
-        expect(whatsapp_channel).not_to receive(:send_template)
-        expect(Rails.logger).to receive(:info).with("Skipping contact #{contact.name} - liquid variables resolved to blank values")
-        allow(Rails.logger).to receive(:info)
-
-        described_class.new(campaign: campaign_with_blank_liquid).perform
+        expect(campaign.reload).to be_completed
       end
     end
 
     context 'when template_params is missing' do
       let(:template_params) { nil }
 
-      it 'skips contacts and logs error' do
+      it 'skips the contacts' do
         contact = create(:contact, :with_phone_number, account: account)
         contact.update_labels([label1.title])
 
-        expect(Rails.logger).to receive(:error)
-          .with("Skipping contact #{contact.name} - no template_params found for WhatsApp campaign")
-        expect(whatsapp_channel).not_to receive(:send_template)
-
         described_class.new(campaign: campaign).perform
-      end
-    end
 
-    context 'when send_template raises an error' do
-      it 'logs error and continues processing remaining contacts' do
-        contact_error, contact_success = create_list(:contact, 2, :with_phone_number, account: account)
-        contact_error.update_labels([label1.title])
-        contact_success.update_labels([label1.title])
-        error_message = 'WhatsApp API error'
-
-        allow(whatsapp_channel).to receive(:send_template).and_return(nil)
-
-        expect(whatsapp_channel).to receive(:send_template).with(contact_error.phone_number, anything, nil).and_raise(StandardError, error_message)
-        expect(whatsapp_channel).to receive(:send_template).with(contact_success.phone_number, anything, nil).once
-
-        expect(Rails.logger).to receive(:error)
-          .with("Failed to send WhatsApp template message to #{contact_error.phone_number}: #{error_message}")
-        expect(Rails.logger).to receive(:error).with(/Backtrace:/)
-
-        described_class.new(campaign: campaign).perform
-        expect(campaign.reload.completed?).to be true
+        expect(campaign.campaign_recipients.sole).to have_attributes(status: 'skipped', error_message: 'Template parameters are missing')
       end
     end
   end

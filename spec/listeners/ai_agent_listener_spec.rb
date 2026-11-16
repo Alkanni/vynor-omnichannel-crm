@@ -28,6 +28,15 @@ describe AiAgentListener do
       expect(conversation.messages).to be_empty
     end
 
+    it 'does not greet conversations a campaign started' do
+      campaign = create(:campaign, account: account, inbox: inbox)
+      conversation.update!(campaign: campaign)
+
+      listener.conversation_created(event)
+
+      expect(conversation.messages).to be_empty
+    end
+
     it 'does not greet conversations of inboxes without an AI agent' do
       other_conversation = create(:conversation, account: account)
 
