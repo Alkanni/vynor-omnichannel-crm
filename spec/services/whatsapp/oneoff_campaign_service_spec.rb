@@ -98,7 +98,9 @@ describe Whatsapp::OneoffCampaignService do
         )
         expect(message.conversation).to have_attributes(contact_id: contact.id, campaign_id: campaign.id)
         expect(message.conversation.contact_inbox.source_id).to eq(contact.phone_number.delete('+'))
-        expect(campaign.campaign_recipients.sole.message_content).to eq('Hi Jane Smith, your ticket is updated')
+        recipient = campaign.campaign_recipients.sole
+        expect(recipient.message_content).to eq('Hi Jane Smith, your ticket is updated')
+        expect(message.additional_attributes['campaign_recipient_id']).to eq(recipient.id)
       end
 
       it 'adds the message to the open conversation the reply lands in' do

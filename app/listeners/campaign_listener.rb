@@ -17,9 +17,10 @@ class CampaignListener < BaseListener
   # One-off campaign messages are sent by SendReplyJob and updated by WhatsApp status webhooks; the recipient follows them.
   def message_updated(event)
     message = event.data[:message]
-    campaign_id = message.additional_attributes['campaign_id']
-    return if campaign_id.blank?
+    recipient_id = message.additional_attributes['campaign_recipient_id']
+    return if recipient_id.blank?
 
-    CampaignRecipient.find_by(campaign_id: campaign_id, contact_id: message.conversation.contact_id)&.sync_with_message!(message)
+    CampaignRecipient.find_by(id: recipient_id, account_id: message.account_id, contact_id: message.conversation.contact_id)
+                     &.sync_with_message!(message)
   end
 end

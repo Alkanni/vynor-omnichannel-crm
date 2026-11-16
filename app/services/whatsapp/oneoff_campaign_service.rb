@@ -65,7 +65,7 @@ class Whatsapp::OneoffCampaignService
     content = Liquid::CampaignTemplateService.new(campaign: campaign, contact: contact).call(campaign.message)
 
     recipient.update!(message_content: content)
-    create_campaign_message(contact_inbox, content, template_params)
+    create_campaign_message(recipient, contact_inbox, content, template_params)
   rescue RecipientSkipped => e
     Rails.logger.warn "Skipping campaign #{campaign.id} recipient contact_id=#{contact.id}: #{e.message}"
     recipient.mark_skipped!(e.message)
@@ -95,14 +95,16 @@ class Whatsapp::OneoffCampaignService
     template_params
   end
 
-  def create_campaign_message(contact_inbox, content, template_params)
+  # `campaign_recipient_id` ties the message to its recipient. Clients can name a campaign_id on a message through
+  # Messages::MessageBuilder, but not this key, so only the campaign's own messages move a recipient.
+  def create_campaign_message(recipient, contact_inbox, content, template_params)
     campaign_conversation(contact_inbox).messages.create!(
       account_id: campaign.account_id,
       inbox_id: inbox.id,
       message_type: :outgoing,
       sender: campaign.sender,
       content: content,
-      additional_attributes: { 'campaign_id' => campaign.id, 'template_params' => template_params }
+      additional_attributes: { 'campaign_id' => campaign.id, 'campaign_recipient_id' => recipient.id, 'template_params' => template_params }
     )
   end
 
