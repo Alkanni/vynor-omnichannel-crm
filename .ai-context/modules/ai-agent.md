@@ -17,6 +17,7 @@ Commit `a9068db6` + issues #70, #72, #71, #80, #81, #85, #82, #83, #84, #94, #95
 
 ## Reply flow
 
+0. `AiAgentListener#conversation_created`: a new `pending` conversation gets the agent's `welcome_message`, except a conversation a campaign started (`campaign_id` set, #160), which opens with the campaign message. A one-off WhatsApp campaign puts its template in the contact's conversation as an outgoing message (`additional_attributes.campaign_id`), so `ConversationSession#history` shows it as an `assistant` turn when the contact replies.
 1. `AiAgentListener#message_created`: for an incoming message in an inbox connected to an agent, while `ConversationSession#ai_active?`, queue `ReplyJob` after `message_await` seconds; otherwise send the pending message.
 2. `ReplyJob#perform`: only the job for the newest incoming message answers (bursts get one reply). If the session reached `message_limit`, hand off (`:message_limit`).
 3. `ReplyGenerator#perform`: a strict agent first runs the scope check (see below), which may answer the turn itself. Otherwise instructions = behavior + Business Scope Policy (strict agents) + local time + `<knowledge>` + action instructions + reply check rules (strict agents); history from `ConversationSession#history` (`history_limit`, images per `read_file_limit`). One LLM call with a forced function call (`ReplyTool`), because some gateways drop `response_format`. A strict agent's reply then goes through the reply check (see below) before it is returned.

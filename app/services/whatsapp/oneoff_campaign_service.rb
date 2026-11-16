@@ -1,4 +1,9 @@
+# Queues the campaign template as an outgoing message in each audience contact's WhatsApp conversation, so that
+# agents and the AI agent see it when the contact replies, and tracks every contact as a CampaignRecipient.
+# The messages go out through SendReplyJob like any other template; CampaignListener follows their delivery.
 class Whatsapp::OneoffCampaignService
+  class RecipientSkipped < StandardError; end
+
   pattr_initialize [:campaign!]
 
   def perform
@@ -44,101 +49,78 @@ class Whatsapp::OneoffCampaignService
     campaign.account.labels.where(id: audience_label_ids).pluck(:title)
   end
 
-  def process_contact(contact)
-    Rails.logger.info "Processing contact: #{contact.name} (#{contact.phone_number})"
-
-    recipient, recipient_error = campaign_destination(contact)
-    if recipient.blank?
-      Rails.logger.warn "Skipping campaign recipient contact_id=#{contact.id}: #{recipient_error}"
-      return
-    end
-
-    if campaign.template_params.blank?
-      Rails.logger.error "Skipping contact #{contact.name} - no template_params found for WhatsApp campaign"
-      return
-    end
-
-    processed_template_params = process_liquid_template_params(contact)
-    return if processed_template_params.nil?
-
-    send_whatsapp_template_message(to: recipient, template_params: processed_template_params)
-  end
-
   def process_audience(audience_labels)
     contacts = campaign.account.contacts.tagged_with(audience_labels, any: true)
     Rails.logger.info "Processing #{contacts.count} contacts for campaign #{campaign.id}"
 
-    contacts.each { |contact| process_contact(contact) }
+    contacts.find_each { |contact| process_contact(contact) }
 
     Rails.logger.info "Campaign #{campaign.id} processing completed"
   end
 
-  def process_liquid_template_params(contact)
-    liquid_processor = Whatsapp::LiquidTemplateProcessorService.new(campaign: campaign, contact: contact)
-    processed_template_params = liquid_processor.process_template_params(campaign.template_params)
+  def process_contact(contact)
+    recipient = campaign.campaign_recipients.create!(account: campaign.account, inbox: inbox, contact: contact)
+    contact_inbox = campaign_contact_inbox(contact)
+    template_params = contact_template_params(contact, contact_inbox)
+    content = Liquid::CampaignTemplateService.new(campaign: campaign, contact: contact).call(campaign.message)
 
-    Rails.logger.info "Skipping contact #{contact.name} - liquid variables resolved to blank values" if processed_template_params.nil?
-
-    processed_template_params
-  rescue StandardError => e
-    Rails.logger.error "Failed to process liquid template params for contact #{contact.name}: #{e.message}"
-    nil
+    recipient.update!(message_content: content)
+    create_campaign_message(recipient, contact_inbox, content, template_params)
+  rescue RecipientSkipped => e
+    Rails.logger.warn "Skipping campaign #{campaign.id} recipient contact_id=#{contact.id}: #{e.message}"
+    recipient.mark_skipped!(e.message)
   end
 
-  def send_whatsapp_template_message(to:, template_params:)
-    return if authentication_template_blocked?(to, template_params)
-
-    processor = Whatsapp::TemplateProcessorService.new(
-      channel: channel,
-      template_params: template_params
-    )
-
-    name, namespace, lang_code, processed_parameters = processor.call
-
-    return if name.blank?
-
-    channel.send_template(to, {
-                            name: name,
-                            namespace: namespace,
-                            lang_code: lang_code,
-                            parameters: processed_parameters
-                          }, nil)
-
-  rescue StandardError => e
-    Rails.logger.error "Failed to send WhatsApp template message to #{to}: #{e.message}"
-    Rails.logger.error "Backtrace: #{e.backtrace.first(5).join('\n')}"
-    # continue processing remaining contacts
-    nil
-  end
-
-  def authentication_template_blocked?(recipient, params)
-    error = Whatsapp::AuthenticationTemplateGuard.new(channel: channel, recipient: recipient, template_params: params).error
-    return false unless error
-
-    Rails.logger.warn "Skipping BSUID campaign recipient: #{error}"
-    true
-  end
-
-  def campaign_destination(contact)
-    return [contact.phone_number, nil] if contact.phone_number.present?
+  def campaign_contact_inbox(contact)
+    return ContactInboxBuilder.new(contact: contact, inbox: inbox).perform if contact.phone_number.present?
 
     bsuid_contact_inboxes = bsuid_contact_inboxes_for(contact)
-    return [nil, 'Phone number and BSUID are missing'] if bsuid_contact_inboxes.empty?
+    raise RecipientSkipped, 'Phone number and BSUID are missing' if bsuid_contact_inboxes.empty?
+    raise RecipientSkipped, 'Multiple WhatsApp identities found; refusing to choose a destination' unless bsuid_contact_inboxes.one?
 
-    bsuid_recipient = preferred_bsuid_recipient(bsuid_contact_inboxes)
-    return [bsuid_recipient, nil] if bsuid_recipient.present?
+    bsuid_contact_inboxes.first
+  end
 
-    [nil, 'Multiple WhatsApp identities found; refusing to choose a destination']
+  def contact_template_params(contact, contact_inbox)
+    raise RecipientSkipped, 'Template parameters are missing' if campaign.template_params.blank?
+
+    template_params = Whatsapp::LiquidTemplateProcessorService.new(campaign: campaign, contact: contact)
+                                                              .process_template_params(campaign.template_params)
+    raise RecipientSkipped, 'Template variables resolved to blank values' if template_params.nil?
+
+    guard_error = Whatsapp::AuthenticationTemplateGuard.new(channel: channel, recipient: contact_inbox.source_id,
+                                                            template_params: template_params).error
+    raise RecipientSkipped, guard_error if guard_error
+
+    template_params
+  end
+
+  # `campaign_recipient_id` ties the message to its recipient. Clients can name a campaign_id on a message through
+  # Messages::MessageBuilder, but not this key, so only the campaign's own messages move a recipient.
+  def create_campaign_message(recipient, contact_inbox, content, template_params)
+    campaign_conversation(contact_inbox).messages.create!(
+      account_id: campaign.account_id,
+      inbox_id: inbox.id,
+      message_type: :outgoing,
+      sender: campaign.sender,
+      content: content,
+      additional_attributes: { 'campaign_id' => campaign.id, 'campaign_recipient_id' => recipient.id, 'template_params' => template_params }
+    )
+  end
+
+  # The conversation the contact's reply lands in, found the way Whatsapp::IncomingMessageBaseService#set_conversation
+  # finds it. A new one carries the campaign, so it starts pending with the inbox's AI agent or bot when the inbox has one.
+  def campaign_conversation(contact_inbox)
+    conversations = contact_inbox.conversations
+    conversation = inbox.lock_to_single_conversation ? conversations.last : conversations.where.not(status: :resolved).last
+    conversation || conversations.create!(account_id: campaign.account_id, inbox_id: inbox.id, contact_id: contact_inbox.contact_id,
+                                          campaign: campaign)
   end
 
   def bsuid_contact_inboxes_for(contact)
     contact.contact_inboxes.where(inbox_id: inbox.id).select do |contact_inbox|
       bsuid_source_id?(contact_inbox.source_id)
     end
-  end
-
-  def preferred_bsuid_recipient(contact_inboxes)
-    return contact_inboxes.first.source_id if contact_inboxes.one?
   end
 
   def bsuid_source_id?(source_id)
