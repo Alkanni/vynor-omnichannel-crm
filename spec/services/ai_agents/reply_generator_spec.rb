@@ -85,6 +85,15 @@ RSpec.describe AiAgents::ReplyGenerator do
     expect(reply.trace.retry_skipped?).to be_nil
   end
 
+  context 'when the model writes the [rank] of the knowledge it uses' do
+    let(:reply_content) { { messages: ['Kami buka setiap hari pukul 07.30 - 18.00. [1]', '[1]', 'Ada lagi yang bisa dibantu?'] }.to_json }
+
+    it 'sends the bubbles without it, and none that only had it, also for an agent with the scope off' do
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.messages)
+        .to eq(['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'])
+    end
+  end
+
   describe 'business scope' do
     let(:scope_replies) do
       { business_description: 'Toko roti', allowed_topics: 'Harga', off_topic_message: 'Maaf, di luar layanan kami.',
@@ -219,6 +228,39 @@ RSpec.describe AiAgents::ReplyGenerator do
       it 'sends an answer that the knowledge it cites backs, and traces the decision and the cited ranks' do
         expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
         expect(reply.trace.attributes).to include(scope_decision: 'IN_SCOPE', reply_decision: 'answer', cited_ranks: [1], blocked_reason: nil)
+      end
+
+      context 'when the answer writes the [rank] of the knowledge it cites' do
+        let(:reply_content) { { decision: 'answer', sources: [1], messages: ['Kami buka setiap hari pukul 07.30 - 18.00. [1]'] }.to_json }
+        let(:reply) { travel_to(Time.utc(2026, 10, 22, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform } }
+
+        it 'checks and sends it without the rank, which is no number of the knowledge' do
+          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+          expect(reply.trace.attributes).to include(reply_decision: 'answer', cited_ranks: [1], blocked_reason: nil)
+        end
+
+        it 'keeps what the model wrote in the reply step of the request log' do
+          create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+
+          AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :playground, input: {}) { reply }
+
+          reply_step = AiAgent::RequestLog.sole.steps.find { |step| step['step'] == 'reply' }
+          expect(reply_step['output']['messages']).to eq(['Kami buka setiap hari pukul 07.30 - 18.00. [1]'])
+        end
+      end
+
+      { 'a number in brackets that is no rank of the prompt' => 'Kami buka 07.30 - 18.00 [15].',
+        'the [rank] it cites next to a price that the knowledge does not have' => 'Detailing Rp500.000 [1], kami buka 07.30 - 18.00.' }
+        .each do |description, text|
+        context "when the answer has #{description}" do
+          let(:reply_content) { { decision: 'answer', sources: [1], messages: [text] }.to_json }
+          let(:reply) { travel_to(Time.utc(2026, 10, 22, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform } }
+
+          it 'still checks the number and sends the knowledge gap message instead' do
+            expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+            expect(reply.trace.attributes).to include(blocked_reason: 'unsupported_number')
+          end
+        end
       end
 
       context 'when the model finds no answer in the knowledge' do
@@ -477,6 +519,18 @@ RSpec.describe AiAgents::ReplyGenerator do
 
       it 'does not add it again' do
         expect(reply.messages).to eq(['Dari internet: radiator tersumbat membuat mesin panas (https://otomotif.example/overheat).'])
+      end
+    end
+
+    context 'when the reply writes the ranks it cites as a Markdown link' do
+      let(:reply_content) do
+        { decision: 'answer', sources: [1, 2], messages: ['Dari internet: radiator tersumbat membuat mesin panas. ([Sumber](2))'] }.to_json
+      end
+      let(:reply) { travel_to(Time.utc(2026, 10, 22, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform } }
+
+      it 'checks and sends it without them, with the link of the web result it cites' do
+        expect(reply.messages).to eq(["Dari internet: radiator tersumbat membuat mesin panas.\nhttps://otomotif.example/overheat"])
+        expect(reply.trace.attributes).to include(cited_ranks: [1, 2], blocked_reason: nil)
       end
     end
 
