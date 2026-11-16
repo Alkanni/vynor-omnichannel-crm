@@ -37,9 +37,10 @@ describe('#actions', () => {
         [types.default.SET_CAMPAIGN_UI_FLAG, { isCreating: false }],
       ]);
     });
-    it('sends correct actions if API is error', async () => {
-      axios.post.mockRejectedValue({ message: 'Incorrect header' });
-      await expect(actions.create({ commit })).rejects.toThrow(Error);
+    it('passes the API error on so the caller can show its message', async () => {
+      const error = { response: { data: { message: 'Not allowed' } } };
+      axios.post.mockRejectedValue(error);
+      await expect(actions.create({ commit })).rejects.toBe(error);
       expect(commit.mock.calls).toEqual([
         [types.default.SET_CAMPAIGN_UI_FLAG, { isCreating: true }],
         [types.default.SET_CAMPAIGN_UI_FLAG, { isCreating: false }],

@@ -3,7 +3,10 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useToggle } from '@vueuse/core';
 import { useStoreGetters, useMapGetter } from 'dashboard/composables/store';
+import { useAccount } from 'dashboard/composables/useAccount';
+import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 
+import Banner from 'dashboard/components-next/banner/Banner.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import CampaignLayout from 'dashboard/components-next/Campaigns/CampaignLayout.vue';
 import CampaignList from 'dashboard/components-next/Campaigns/Pages/CampaignPage/CampaignList.vue';
@@ -15,6 +18,12 @@ import { useRouter } from 'vue-router';
 const { t } = useI18n();
 const getters = useStoreGetters();
 const router = useRouter();
+const { isCloudFeatureEnabled } = useAccount();
+
+// The server refuses WhatsApp campaigns while the account lacks the feature, so creating one is not offered.
+const isWhatsAppCampaignEnabled = computed(() =>
+  isCloudFeatureEnabled(FEATURE_FLAGS.WHATSAPP_CAMPAIGNS)
+);
 
 const selectedCampaign = ref(null);
 const [showWhatsAppCampaignDialog, toggleWhatsAppCampaignDialog] = useToggle();
@@ -48,7 +57,9 @@ const handleAnalytics = campaign => {
 <template>
   <CampaignLayout
     :header-title="t('CAMPAIGN.WHATSAPP.HEADER_TITLE')"
-    :button-label="t('CAMPAIGN.WHATSAPP.NEW_CAMPAIGN')"
+    :button-label="
+      isWhatsAppCampaignEnabled ? t('CAMPAIGN.WHATSAPP.NEW_CAMPAIGN') : ''
+    "
     @click="toggleWhatsAppCampaignDialog()"
     @close="toggleWhatsAppCampaignDialog(false)"
   >
@@ -58,6 +69,9 @@ const handleAnalytics = campaign => {
         @close="toggleWhatsAppCampaignDialog(false)"
       />
     </template>
+    <Banner v-if="!isWhatsAppCampaignEnabled" color="amber" class="mb-4">
+      {{ t('CAMPAIGN.WHATSAPP.FEATURE_DISABLED') }}
+    </Banner>
     <div
       v-if="isFetchingCampaigns"
       class="flex items-center justify-center py-10 text-n-slate-11"
@@ -71,7 +85,7 @@ const handleAnalytics = campaign => {
       @analytics="handleAnalytics"
     />
     <WhatsAppCampaignEmptyState
-      v-else
+      v-else-if="isWhatsAppCampaignEnabled"
       :title="t('CAMPAIGN.WHATSAPP.EMPTY_STATE.TITLE')"
       :subtitle="t('CAMPAIGN.WHATSAPP.EMPTY_STATE.SUBTITLE')"
       class="pt-14"

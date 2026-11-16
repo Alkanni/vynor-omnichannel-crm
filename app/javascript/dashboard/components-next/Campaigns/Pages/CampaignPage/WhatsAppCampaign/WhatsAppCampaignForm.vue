@@ -13,6 +13,9 @@ import WhatsAppTemplateParser from 'dashboard/components-next/whatsapp/WhatsAppT
 
 const emit = defineEmits(['submit', 'cancel']);
 
+// Campaigns are sent through the WhatsApp Cloud API only.
+const WHATSAPP_CLOUD_PROVIDER = 'whatsapp_cloud';
+
 const { t } = useI18n();
 
 const formState = {
@@ -65,7 +68,13 @@ const audienceList = computed(() =>
 );
 
 const inboxOptions = computed(() =>
-  mapToOptions(formState.inboxes.value, 'id', 'name')
+  mapToOptions(
+    formState.inboxes.value.filter(
+      inbox => inbox.provider === WHATSAPP_CLOUD_PROVIDER
+    ),
+    'id',
+    'name'
+  )
 );
 
 const templateOptions = computed(() => {

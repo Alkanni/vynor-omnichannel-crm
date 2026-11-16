@@ -1,7 +1,7 @@
 require 'rails_helper'
 
 describe Whatsapp::OneoffCampaignService do
-  let(:account) { create(:account) }
+  let(:account) { create(:account).tap { |new_account| new_account.enable_features!(:whatsapp_campaign) } }
   let!(:whatsapp_channel) do
     create(:channel_whatsapp, account: account, provider: 'whatsapp_cloud', validate_provider_config: false, sync_templates: false)
   end
@@ -24,10 +24,6 @@ describe Whatsapp::OneoffCampaignService do
   end
 
   describe '#perform' do
-    before do
-      account.enable_features!(:whatsapp_campaign)
-    end
-
     context 'when campaign validation fails' do
       it 'raises error if campaign is completed' do
         campaign.completed!

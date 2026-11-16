@@ -85,6 +85,9 @@ en:
       presence: must not be blank
     webhook:
       invalid: Invalid events
+    campaigns:
+      whatsapp_campaign_disabled: WhatsApp campaigns are not enabled for this account. Ask your installation administrator to enable them in Super Admin.
+      whatsapp_cloud_required: WhatsApp campaigns can only be sent from a WhatsApp Cloud inbox.
     signup:
       disposable_email: We do not allow disposable emails
       blocked_domain: This domain is not allowed. If you believe this is a mistake, please contact support.

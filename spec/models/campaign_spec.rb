@@ -176,12 +176,15 @@ RSpec.describe Campaign do
       end
     end
 
-    context 'when WhatsApp campaign feature is disabled' do
+    context 'when the WhatsApp campaign feature is turned off after the campaign was created' do
       let(:account) { create(:account) }
       let(:whatsapp_channel) do
         create(:channel_whatsapp, account: account, provider: 'whatsapp_cloud', validate_provider_config: false, sync_templates: false)
       end
-      let(:campaign) { create(:campaign, account: account, inbox: whatsapp_channel.inbox) }
+      let(:campaign) do
+        account.enable_features!(:whatsapp_campaign)
+        create(:campaign, account: account, inbox: whatsapp_channel.inbox).tap { account.disable_features!(:whatsapp_campaign) }
+      end
 
       it 'does not mark the campaign as processing' do
         expect(Whatsapp::OneoffCampaignService).not_to receive(:new)
@@ -243,6 +246,46 @@ RSpec.describe Campaign do
       expect(campaign.errors[:inbox_id]).to include(
         'must belong to the same account as the campaign'
       )
+    end
+  end
+
+  context 'when creating a WhatsApp campaign' do
+    let(:account) { create(:account) }
+    let(:whatsapp_channel) do
+      create(:channel_whatsapp, account: account, provider: 'whatsapp_cloud', validate_provider_config: false, sync_templates: false)
+    end
+
+    it 'requires the WhatsApp campaign feature on the account' do
+      campaign = build(:campaign, account: account, inbox: whatsapp_channel.inbox)
+
+      expect(campaign).not_to be_valid
+      expect(campaign.errors[:base]).to contain_exactly(I18n.t('errors.campaigns.whatsapp_campaign_disabled'))
+    end
+
+    it 'requires a WhatsApp Cloud inbox' do
+      account.enable_features!(:whatsapp_campaign)
+      dialog_channel = create(:channel_whatsapp, account: account, provider: 'default', validate_provider_config: false, sync_templates: false)
+      campaign = build(:campaign, account: account, inbox: dialog_channel.inbox)
+
+      expect(campaign).not_to be_valid
+      expect(campaign.errors[:base]).to contain_exactly(I18n.t('errors.campaigns.whatsapp_cloud_required'))
+    end
+
+    it 'accepts a WhatsApp Cloud inbox of an account with the feature' do
+      account.enable_features!(:whatsapp_campaign)
+
+      expect(build(:campaign, account: account, inbox: whatsapp_channel.inbox)).to be_valid
+    end
+
+    it 'keeps an existing campaign updatable and deletable after the feature is turned off' do
+      account.enable_features!(:whatsapp_campaign)
+      campaign = create(:campaign, account: account, inbox: whatsapp_channel.inbox)
+      account.disable_features!(:whatsapp_campaign)
+
+      campaign.update!(title: 'Renamed', campaign_status: :processing)
+      campaign.completed!
+      expect(campaign.reload).to have_attributes(title: 'Renamed', campaign_status: 'completed')
+      expect { campaign.destroy! }.to change(described_class, :count).by(-1)
     end
   end
 end
