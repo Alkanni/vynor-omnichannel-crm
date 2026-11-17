@@ -16,8 +16,6 @@ class AccountDashboard < Administrate::BaseDashboard
                                  # Only show manually managed features in Chatwoot Cloud deployment
                                  attributes[:manually_managed_features] = ManuallyManagedFeaturesField if ChatwootApp.chatwoot_cloud?
 
-                                 # Add all_features last so it appears after manually_managed_features
-                                 attributes[:all_features] = AccountFeaturesField
                                  attributes[:captain_models] = CaptainModelOverridesField
 
                                  attributes
@@ -36,7 +34,8 @@ class AccountDashboard < Administrate::BaseDashboard
     status: AccountStatusField.with_options(collection: [%w[Active active], %w[Suspended suspended]]),
     suspension_history: SuspensionHistoryField,
     account_users: Field::HasMany,
-    custom_attributes: Field::String
+    custom_attributes: Field::String,
+    all_features: AccountFeaturesField
   }.merge(enterprise_attribute_types).freeze
 
   # COLLECTION_ATTRIBUTES
@@ -58,7 +57,6 @@ class AccountDashboard < Administrate::BaseDashboard
   enterprise_show_page_attributes = if ChatwootApp.enterprise?
                                       attrs = %i[custom_attributes limits]
                                       attrs << :manually_managed_features if ChatwootApp.chatwoot_cloud?
-                                      attrs << :all_features
                                       attrs << :captain_models
                                       attrs
                                     else
@@ -74,6 +72,7 @@ class AccountDashboard < Administrate::BaseDashboard
     suspension_history
     conversations
     account_users
+    all_features
   ] + enterprise_show_page_attributes).freeze
 
   # FORM_ATTRIBUTES
@@ -82,7 +81,6 @@ class AccountDashboard < Administrate::BaseDashboard
   enterprise_form_attributes = if ChatwootApp.enterprise?
                                  attrs = %i[limits]
                                  attrs << :manually_managed_features if ChatwootApp.chatwoot_cloud?
-                                 attrs << :all_features
                                  attrs << :captain_models
                                  attrs
                                else
@@ -92,6 +90,7 @@ class AccountDashboard < Administrate::BaseDashboard
     name
     locale
     status
+    all_features
   ] + enterprise_form_attributes).freeze
 
   # COLLECTION_FILTERS

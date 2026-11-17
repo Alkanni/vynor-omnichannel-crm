@@ -86,7 +86,7 @@ en:
     webhook:
       invalid: Invalid events
     campaigns:
-      whatsapp_campaign_disabled: WhatsApp campaigns are not enabled for this account. Ask your installation administrator to enable them in Super Admin.
+      whatsapp_campaign_disabled: WhatsApp campaigns are not enabled for this account. Ask your installation administrator to turn on WhatsApp Campaign under Features on this account's edit page in Super Admin.
       whatsapp_cloud_required: WhatsApp campaigns can only be sent from a WhatsApp Cloud inbox.
     signup:
       disposable_email: We do not allow disposable emails
@@ -685,7 +685,16 @@ en:
       subject: 'Finish setting up %{custom_domain}'
     ssl_status:
       custom_domain_not_configured: 'Custom domain is not configured'
+  helpers:
+    label:
+      account:
+        all_features: Features
   super_admin:
+    account_features:
+      label: Features
+      hint: Turn features on or off for this account. Premium, internal and deprecated features are not listed.
+      enabled: Enabled
+      disabled: Disabled
     account_suspension:
       categories:
         spam: 'Spam'

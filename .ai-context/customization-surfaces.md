@@ -9,7 +9,7 @@ Levels follow the brief: L1 config → L6 core architecture.
 |---|---|---|---|---|
 | ENV vars | `.env.example` (12.8 KB), `config/app.yml`, `config/application.rb` (APM, encryption), `config/initializers/*` | Yes | process behavior, integrations, Redis/DB, storage, mail | boot app; `ENV.fetch` sites |
 | Installation configs (112) | `config/installation_config.yml` → `installation_configs` table; editable in Super Admin only if `locked: false` | Yes | install-wide behavior; cached 1 day in Redis (`lib/global_config.rb:4`) | `GlobalConfig.clear_cache`; Super Admin UI |
-| Account feature flags (70) | `config/features.yml`; toggled per account (Super Admin / `Account#enable_features!`) | Yes | gated UI + backend checks | `account.feature_enabled?` |
+| Account feature flags (70) | `config/features.yml`; toggled per account in Super Admin → account edit page → Features (`AccountFeaturesField`, CE since #164; premium, `chatwoot_internal` and deprecated flags are not listed and keep their value on save), or `Account#enable_features!` in a console | Yes | gated UI + backend checks | `account.feature_enabled?` |
 | Sidekiq concurrency / queues | `config/sidekiq.yml` | Yes | throughput | worker logs |
 | Cron schedule | `config/schedule.yml` (spec `spec/configs/schedule_spec.rb` validates it) | Yes | background cadence | spec |
 | LLM providers/models | `config/llm.yml` | Yes | Captain/AI | AI features |
