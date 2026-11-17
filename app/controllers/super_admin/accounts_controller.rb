@@ -40,7 +40,7 @@ class SuperAdmin::AccountsController < SuperAdmin::ApplicationController
     permitted_params.extract!(:suspension_category, :suspension_reason)
     permitted_params[:limits] = permitted_params[:limits].to_h.compact if permitted_params.key?(:limits)
     permitted_params[:captain_models] = permitted_params[:captain_models].to_h.compact_blank.presence if permitted_params.key?(:captain_models)
-    permitted_params[:selected_feature_flags] = params[:enabled_features].keys.map(&:to_sym) if params[:enabled_features].present?
+    permitted_params[:selected_feature_flags] = selected_feature_flags if params[:enabled_features].present?
     permitted_params
   end
 
@@ -76,6 +76,18 @@ class SuperAdmin::AccountsController < SuperAdmin::ApplicationController
   end
 
   private
+
+  # Account#selected_feature_flags= turns every flag off before enabling the given ones, and the form lists only the
+  # features AccountFeaturesField shows. Flags it does not show keep their current value; names it does not show are ignored.
+  # The setter takes the flag names, which carry the `feature_` prefix of the feature_<name>? readers.
+  def selected_feature_flags
+    current = requested_resource.all_features
+    shown = AccountFeaturesField.shown_feature_names(current)
+    checked = params[:enabled_features].keys & shown
+    hidden_enabled = current.select { |name, enabled| enabled && shown.exclude?(name) }.keys
+
+    (checked + hidden_enabled).map { |name| :"feature_#{name}" }
+  end
 
   def validate_suspension_metadata
     return unless suspension_metadata_required?

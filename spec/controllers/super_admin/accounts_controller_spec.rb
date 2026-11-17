@@ -167,6 +167,86 @@ RSpec.describe 'Super Admin accounts API', type: :request do
     end
   end
 
+  describe 'account features' do
+    let(:shown_features) { AccountFeaturesField.shown_feature_names(account.all_features) }
+    let(:premium_feature) { SuperAdmin::AccountFeaturesHelper.account_premium_features.first }
+    let(:account_params) { { name: account.name, locale: account.locale, status: account.status } }
+
+    before { sign_in(super_admin, scope: :super_admin) }
+
+    it 'lists the shown features with their state on the account page' do
+      account.enable_features!(:whatsapp_campaign)
+
+      get "/super_admin/accounts/#{account.id}"
+
+      document = Nokogiri::HTML(response.body)
+      expect(response).to have_http_status(:success)
+      expect(document.at_css('[data-feature="whatsapp_campaign"]').text.squish).to eq('WhatsApp Campaign Enabled')
+      expect(document.at_css("[data-feature=\"#{premium_feature}\"]")).to be_nil
+    end
+
+    it 'renders a checkbox for every shown feature on the edit page' do
+      account.enable_features!(:whatsapp_campaign)
+
+      get "/super_admin/accounts/#{account.id}/edit"
+
+      document = Nokogiri::HTML(response.body)
+      checkboxes = document.css('input[type="checkbox"][name^="enabled_features["]')
+      expect(checkboxes.map { |checkbox| checkbox['name'][/\[(.+)\]/, 1] }).to match_array(shown_features)
+      expect(document.at_css('input[name="enabled_features[whatsapp_campaign]"]')['checked']).to be_present
+      expect(shown_features).not_to include(premium_feature)
+    end
+
+    it 'turns a feature on without changing the others' do
+      enabled_before = account.enabled_features.keys
+      checked = (enabled_before & shown_features) + ['whatsapp_campaign']
+
+      patch "/super_admin/accounts/#{account.id}",
+            params: { account: account_params, enabled_features: checked.index_with('1').merge('_submitted' => '1') }
+
+      expect(response).to have_http_status(:redirect)
+      expect(account.reload.enabled_features.keys).to match_array(enabled_before | ['whatsapp_campaign'])
+    end
+
+    it 'turns a feature off without changing the others' do
+      account.enable_features!(:whatsapp_campaign, :campaigns)
+      enabled_before = account.enabled_features.keys
+      checked = (enabled_before & shown_features) - ['whatsapp_campaign']
+
+      patch "/super_admin/accounts/#{account.id}",
+            params: { account: account_params, enabled_features: checked.index_with('1').merge('_submitted' => '1') }
+
+      expect(account.reload.enabled_features.keys).to match_array(enabled_before - ['whatsapp_campaign'])
+    end
+
+    it 'keeps the flags the form does not show when every shown feature is unchecked' do
+      account.enable_features!(premium_feature, :whatsapp_campaign)
+
+      patch "/super_admin/accounts/#{account.id}",
+            params: { account: account_params, enabled_features: { '_submitted' => '1' } }
+
+      account.reload
+      expect(account.feature_enabled?(premium_feature)).to be true
+      expect(account.enabled_features.keys & shown_features).to be_empty
+    end
+
+    it 'ignores features the form does not offer' do
+      patch "/super_admin/accounts/#{account.id}",
+            params: { account: account_params, enabled_features: { '_submitted' => '1', premium_feature => '1' } }
+
+      expect(account.reload.feature_enabled?(premium_feature)).to be false
+    end
+
+    it 'leaves the flags alone when the account is saved without the feature list' do
+      account.enable_features!(premium_feature, :whatsapp_campaign)
+      flags_before = account.all_features
+
+      patch "/super_admin/accounts/#{account.id}", params: { account: account_params.merge(name: 'Renamed account') }
+
+      expect(account.reload).to have_attributes(name: 'Renamed account', all_features: flags_before)
+    end
+  end
+
   describe 'POST /super_admin/accounts/{account_id}/reset_cache' do
     before do
       create(:label, account: account)
