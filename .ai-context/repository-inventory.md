@@ -62,7 +62,7 @@ Generated/vendored boundaries: `db/schema.rb` (generated), `app/javascript/dashb
 | AuthZ | Pundit | `app/controllers/application_controller.rb:4` |
 | JSON views | jbuilder | `app/views/api/**` |
 | Search | pg_search / GIN trgm; optional Searchkick + OpenSearch (enterprise) | `app/models/message.rb:42`, `lib/chatwoot_app.rb:50` |
-| AI / LLM | ruby-openai, ruby_llm, ai-agents, pgvector/neighbor | `Gemfile`, `config/llm.yml` |
+| AI / LLM | ruby-openai, ruby_llm, pgvector/neighbor | `Gemfile`, `config/llm.yml` |
 | Storage | ActiveStorage (S3, Azure, GCS) | `config/storage.yml` |
 | Email in | ActionMailbox (+ SES, IMAP polling) | `app/mailboxes/` |
 | Billing | Stripe (enterprise) | `enterprise/app/services/enterprise/billing/` |
