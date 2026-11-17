@@ -62,7 +62,7 @@ documents:
     path: customization-surfaces.md
     purpose: L1-L6 customization surfaces incl. branding, feature flags, extension points
     related_modules: [configuration, enterprise, frontend, integrations]
-    last_analyzed_commit: 9f920b549c (+ issue #164: Super Admin feature toggles in CE)
+    last_analyzed_commit: 9f920b549c (+ issue #164: Super Admin feature toggles in CE; issue #166: Settings switches for all accounts)
     verification: VERIFIED (L4 shape INFERRED)
 
   - id: change-impact-guide

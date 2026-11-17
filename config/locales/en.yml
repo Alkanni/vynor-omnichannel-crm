@@ -695,6 +695,15 @@ en:
       hint: Turn features on or off for this account. Premium, internal and deprecated features are not listed.
       enabled: Enabled
       disabled: Disabled
+    settings:
+      account_features:
+        title: Account features
+        description: Turn a feature on or off for every account. Premium, internal and deprecated features are not listed.
+        status: Enabled for %{count} of %{total} accounts
+        enable: Enable for all
+        disable: Disable for all
+        enabled_notice: '%{feature} is now enabled for all accounts.'
+        disabled_notice: '%{feature} is now disabled for all accounts.'
     account_suspension:
       categories:
         spam: 'Spam'

@@ -168,7 +168,7 @@ RSpec.describe 'Super Admin accounts API', type: :request do
   end
 
   describe 'account features' do
-    let(:shown_features) { AccountFeaturesField.shown_feature_names(account.all_features) }
+    let(:shown_features) { AccountFeaturesField.shown_feature_names }
     let(:premium_feature) { SuperAdmin::AccountFeaturesHelper.account_premium_features.first }
     let(:account_params) { { name: account.name, locale: account.locale, status: account.status } }
 

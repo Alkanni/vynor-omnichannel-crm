@@ -645,6 +645,7 @@ Rails.application.routes.draw do
       resource :instance_status, only: [:show]
       resources :ai_request_logs, only: [:index, :show]
 
+      resources :account_features, only: [:update], param: :name
       resource :settings, only: [:show] do
         get :refresh, on: :collection
       end
