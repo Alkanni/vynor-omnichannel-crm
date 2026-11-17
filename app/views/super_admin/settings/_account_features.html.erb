@@ -1,0 +1,30 @@
+<div class="mt-10 py-4">
+  <h3 class="h-5 leading-5 text-n-slate-12 font-medium text-base"><%= t('super_admin.settings.account_features.title') %></h3>
+  <p class="mt-2 mb-0 text-sm text-n-slate-11"><%= t('super_admin.settings.account_features.description') %></p>
+</div>
+<div class="divide-y divide-n-weak rounded-lg outline outline-1 outline-n-container">
+  <% @account_features.each do |feature| %>
+    <div class="flex items-center justify-between gap-4 px-4 py-3" data-account-feature="<%= feature[:name] %>">
+      <div>
+        <div class="font-medium text-n-slate-12"><%= feature[:display_name] %></div>
+        <div class="text-sm text-n-slate-11" data-account-feature-status>
+          <%= t('super_admin.settings.account_features.status', count: feature[:enabled_count], total: @accounts_count) %>
+        </div>
+      </div>
+      <div class="flex shrink-0 gap-2">
+        <%= button_to t('super_admin.settings.account_features.enable'),
+                      super_admin_account_feature_path(feature[:name]),
+                      method: :patch,
+                      params: { enabled: true },
+                      disabled: feature[:enabled_count] == @accounts_count,
+                      class: 'rounded border border-n-weak px-3 py-1 text-sm text-n-slate-12 hover:bg-n-slate-3 disabled:cursor-not-allowed disabled:opacity-50' %>
+        <%= button_to t('super_admin.settings.account_features.disable'),
+                      super_admin_account_feature_path(feature[:name]),
+                      method: :patch,
+                      params: { enabled: false },
+                      disabled: feature[:enabled_count].zero?,
+                      class: 'rounded border border-n-weak px-3 py-1 text-sm text-n-slate-12 hover:bg-n-slate-3 disabled:cursor-not-allowed disabled:opacity-50' %>
+      </div>
+    </div>
+  <% end %>
+</div>

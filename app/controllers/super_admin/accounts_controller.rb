@@ -82,7 +82,7 @@ class SuperAdmin::AccountsController < SuperAdmin::ApplicationController
   # The setter takes the flag names, which carry the `feature_` prefix of the feature_<name>? readers.
   def selected_feature_flags
     current = requested_resource.all_features
-    shown = AccountFeaturesField.shown_feature_names(current)
+    shown = AccountFeaturesField.shown_feature_names
     checked = params[:enabled_features].keys & shown
     hidden_enabled = current.select { |name, enabled| enabled && shown.exclude?(name) }.keys
 
