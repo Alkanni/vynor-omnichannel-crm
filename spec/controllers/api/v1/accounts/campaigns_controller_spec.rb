@@ -150,6 +150,47 @@ RSpec.describe 'Campaigns API', type: :request do
         expect(response_data[:scheduled_at]).to eq(scheduled_at.to_i)
         expect(response_data[:audience].pluck(:id)).to include(label1.id, label2.id)
       end
+
+      context 'with a WhatsApp inbox' do
+        let(:whatsapp_channel) do
+          create(:channel_whatsapp, account: account, provider: 'whatsapp_cloud', validate_provider_config: false, sync_templates: false)
+        end
+        let(:campaign_params) do
+          { inbox_id: whatsapp_channel.inbox.id, title: 'test', message: 'test message',
+            template_params: { name: 'sample_shipping_confirmation', language: 'id' } }
+        end
+
+        it 'creates the campaign when the account has WhatsApp campaigns' do
+          account.enable_features!(:whatsapp_campaign)
+
+          post "/api/v1/accounts/#{account.id}/campaigns", params: campaign_params, headers: administrator.create_new_auth_token, as: :json
+
+          expect(response).to have_http_status(:success)
+          expect(response.parsed_body).to include('campaign_type' => 'one_off')
+        end
+
+        it 'refuses the campaign while WhatsApp campaigns are disabled for the account' do
+          expect do
+            post "/api/v1/accounts/#{account.id}/campaigns", params: campaign_params, headers: administrator.create_new_auth_token, as: :json
+          end.not_to change(Campaign, :count)
+
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response.parsed_body['message']).to eq(I18n.t('errors.campaigns.whatsapp_campaign_disabled'))
+        end
+
+        it 'refuses the campaign for a WhatsApp inbox that is not WhatsApp Cloud' do
+          account.enable_features!(:whatsapp_campaign)
+          dialog_channel = create(:channel_whatsapp, account: account, provider: 'default', validate_provider_config: false, sync_templates: false)
+
+          expect do
+            post "/api/v1/accounts/#{account.id}/campaigns", params: campaign_params.merge(inbox_id: dialog_channel.inbox.id),
+                                                             headers: administrator.create_new_auth_token, as: :json
+          end.not_to change(Campaign, :count)
+
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response.parsed_body['message']).to eq(I18n.t('errors.campaigns.whatsapp_cloud_required'))
+        end
+      end
     end
   end
 

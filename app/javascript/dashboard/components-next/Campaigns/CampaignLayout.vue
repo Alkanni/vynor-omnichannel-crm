@@ -29,6 +29,7 @@ const handleButtonClick = () => {
             {{ headerTitle }}
           </span>
           <div
+            v-if="buttonLabel"
             v-on-click-outside="[
               () => emit('close'),
               // This will prevent closing the modal when the editor Create link popup is open

@@ -38,6 +38,7 @@ class Campaign < ApplicationRecord
   validates :title, presence: true
   validates :message, presence: true
   validate :validate_campaign_inbox
+  validate :validate_whatsapp_campaign_can_send, on: :create
   validate :validate_url
   validate :prevent_completed_campaign_from_update, on: :update
   validate :sender_must_belong_to_account
@@ -118,6 +119,15 @@ class Campaign < ApplicationRecord
     return unless inbox
 
     errors.add :inbox, 'Unsupported Inbox type' unless ['Website', 'Twilio SMS', 'Sms', 'Whatsapp'].include? inbox.inbox_type
+  end
+
+  # Only WhatsApp Cloud sends campaigns, and only while the account has the feature. Without either, the campaign would
+  # stay active or get stuck in processing without ever sending, so it is refused when it is created.
+  def validate_whatsapp_campaign_can_send
+    return unless inbox&.inbox_type == 'Whatsapp'
+
+    errors.add(:base, I18n.t('errors.campaigns.whatsapp_campaign_disabled')) unless account.feature_enabled?(:whatsapp_campaign)
+    errors.add(:base, I18n.t('errors.campaigns.whatsapp_cloud_required')) unless inbox.channel.provider == 'whatsapp_cloud'
   end
 
   # TO-DO we clean up with better validations when campaigns evolve into more inboxes
