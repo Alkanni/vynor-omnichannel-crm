@@ -1,6 +1,6 @@
 # Flow: Request Authentication, Tenancy & Authorization
 
-Commit `9f920b54`. Status: **VERIFIED** for dashboard/API, widget, platform. SAML/OAuth/MFA paths only located, not traced.
+Commit `9f920b54`. Status: **VERIFIED** for dashboard/API, widget, platform. SAML/OAuth paths only located, not traced; MFA token rejection traced for #135.
 
 ## Account-scoped API (`/api/v1/accounts/:account_id/...`)
 
@@ -49,6 +49,7 @@ Roles: `AccountUser.role` enum `agent: 0, administrator: 1` (`app/models/account
 - devise_token_auth mount: `config/routes.rb:3`; overrides `app/controllers/devise_overrides/*` (EE-prepended).
 - SAML: `POST /api/v1/auth/saml_login` (`config/routes.rb:472`), `AccountSamlSettings` (EE).
 - OmniAuth (Google etc.): `config/initializers/omniauth.rb`.
-- MFA: `devise-two-factor`; only enabled when AR encryption keys set (`config/application.rb` `Chatwoot.mfa_enabled?`).
+- MFA: `devise-two-factor`; only enabled when AR encryption keys set (`config/application.rb` `Chatwoot.mfa_enabled?`). Profile MFA management (`/api/v1/profile/mfa*`) requires a devise_token_auth session: `api_access_token` requests get `403` before any other check (`Api::V1::Profile::MfaController#ensure_interactive_session`, issue #135). Note that `set_current_user` runs before `authenticate_access_token!`, so `@user` is nil for token requests unless a controller sets it again (as `ProfilesController#set_user` does). MFA request specs only run with `ACTIVE_RECORD_ENCRYPTION_*` set, which fork CI does not do.
 - Super Admin: `devise_for :super_admins` (`config/routes.rb:725`).
-- Rate limiting: `config/initializers/rack_attack.rb` (Redis `$velma`).
+- Rate limiting: `config/initializers/rack_attack.rb` (Redis `$velma`). Throttles key on Rack's `req.ip`; the safelist (`127.0.0.1`, `::1`, `RACK_ATTACK_ALLOWED_IPS`) uses `remote_ip`.
+- Client address: `config/initializers/forwarded_header.rb` sets `Rack::Request.forwarded_priority = [:x_forwarded]` (issue #154), so `request.remote_ip` and `req.ip` take `X-Forwarded-For` and ignore a client-supplied RFC 7239 `Forwarded` header, which Rails 8.1 would otherwise read first (500 `IpSpoofAttackError` on a mismatch, or a claimed loopback address passing the safelist). The proxy must write `X-Forwarded-For` (Caddy does).

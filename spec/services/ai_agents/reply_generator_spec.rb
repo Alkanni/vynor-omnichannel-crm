@@ -21,9 +21,10 @@ RSpec.describe AiAgents::ReplyGenerator do
   let(:embedding_requests) { [] }
   let(:scope_arguments) { { decision: 'IN_SCOPE' } }
   let(:reply_content) { { messages: ['Kami buka setiap hari pukul 07.30 - 18.00.', ' ', 'Ada lagi yang bisa dibantu?'] }.to_json }
-  let(:reply_message) do
-    { role: 'assistant', content: nil,
-      tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'ai_agent_reply', arguments: reply_content } }] }
+  # One per call of the reply model, in order; a later call gets the last.
+  let(:reply_messages) do
+    [{ role: 'assistant', content: nil,
+       tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'ai_agent_reply', arguments: reply_content } }] }]
   end
 
   before do
@@ -43,7 +44,8 @@ RSpec.describe AiAgents::ReplyGenerator do
       scope_check = body['tools'].sole['function']['name'] == 'ai_agent_scope'
       (scope_check ? scope_requests : chat_requests) << body
       scope_call = { id: 'call_0', type: 'function', function: { name: 'ai_agent_scope', arguments: scope_arguments.to_json } }
-      message = scope_check ? { role: 'assistant', content: nil, tool_calls: [scope_call] } : reply_message
+      reply = reply_messages[chat_requests.size - 1] || reply_messages.last
+      message = scope_check ? { role: 'assistant', content: nil, tool_calls: [scope_call] } : reply
       { status: 200, headers: { 'Content-Type' => 'application/json' },
         body: { id: 'chatcmpl-1', model: 'gpt-4.1-mini', choices: [{ message: message }],
                 usage: { prompt_tokens: scope_check ? 1412 : 14, completion_tokens: 5,
@@ -79,6 +81,17 @@ RSpec.describe AiAgents::ReplyGenerator do
     )
     expect(reply.trace.validation).to be_nil
     expect(reply.trace.attributes.keys).not_to include(:reply_decision, :cited_ranks, :blocked_reason)
+    expect(reply.trace.attributes).to include(invalid_outputs: [])
+    expect(reply.trace.retry_skipped?).to be_nil
+  end
+
+  context 'when the model writes the [rank] of the knowledge it uses' do
+    let(:reply_content) { { messages: ['Kami buka setiap hari pukul 07.30 - 18.00. [1]', '[1]', 'Ada lagi yang bisa dibantu?'] }.to_json }
+
+    it 'sends the bubbles without it, and none that only had it, also for an agent with the scope off' do
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.messages)
+        .to eq(['Kami buka setiap hari pukul 07.30 - 18.00.', 'Ada lagi yang bisa dibantu?'])
+    end
   end
 
   describe 'business scope' do
@@ -86,9 +99,10 @@ RSpec.describe AiAgents::ReplyGenerator do
       { business_description: 'Toko roti', allowed_topics: 'Harga', off_topic_message: 'Maaf, di luar layanan kami.',
         clarification_message: 'Layanan yang mana, Kak?', knowledge_gap_message: 'Maaf, info itu belum tersedia.' }
     end
+    # The reply here has no decision, so a strict agent asks its model twice, with the same prompt.
     let(:system_prompt) do
       described_class.new(ai_agent: ai_agent, messages: messages).perform
-      chat_requests.sole['messages'].first['content']
+      chat_requests.first['messages'].first['content']
     end
 
     it 'adds nothing and runs no scope check when the scope is off, whatever the policy fields hold' do
@@ -216,34 +230,179 @@ RSpec.describe AiAgents::ReplyGenerator do
         expect(reply.trace.attributes).to include(scope_decision: 'IN_SCOPE', reply_decision: 'answer', cited_ranks: [1], blocked_reason: nil)
       end
 
+      context 'when the answer writes the [rank] of the knowledge it cites' do
+        let(:reply_content) { { decision: 'answer', sources: [1], messages: ['Kami buka setiap hari pukul 07.30 - 18.00. [1]'] }.to_json }
+        let(:reply) { travel_to(Time.utc(2026, 10, 22, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform } }
+
+        it 'checks and sends it without the rank, which is no number of the knowledge' do
+          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+          expect(reply.trace.attributes).to include(reply_decision: 'answer', cited_ranks: [1], blocked_reason: nil)
+        end
+
+        it 'keeps what the model wrote in the reply step of the request log' do
+          create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+
+          AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :playground, input: {}) { reply }
+
+          reply_step = AiAgent::RequestLog.sole.steps.find { |step| step['step'] == 'reply' }
+          expect(reply_step['output']['messages']).to eq(['Kami buka setiap hari pukul 07.30 - 18.00. [1]'])
+        end
+      end
+
+      { 'a number in brackets that is no rank of the prompt' => 'Kami buka 07.30 - 18.00 [15].',
+        'the [rank] it cites next to a price that the knowledge does not have' => 'Detailing Rp500.000 [1], kami buka 07.30 - 18.00.' }
+        .each do |description, text|
+        context "when the answer has #{description}" do
+          let(:reply_content) { { decision: 'answer', sources: [1], messages: [text] }.to_json }
+          let(:reply) { travel_to(Time.utc(2026, 10, 22, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform } }
+
+          it 'still checks the number and sends the knowledge gap message instead' do
+            expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+            expect(reply.trace.attributes).to include(blocked_reason: 'unsupported_number')
+          end
+        end
+      end
+
       context 'when the model finds no answer in the knowledge' do
         let(:reply_content) { { decision: 'knowledge_gap', sources: [], messages: ['Mungkin tahan 3 hari.'] }.to_json }
 
-        it 'sends the knowledge gap message of the agent as it is' do
+        it 'sends the knowledge gap message of the agent as it is, without asking the model again' do
           expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
-          expect(reply.trace.attributes).to include(reply_decision: 'knowledge_gap', cited_ranks: [], blocked_reason: nil)
+          expect(chat_requests.size).to eq(1)
+          expect(reply.trace.attributes).to include(reply_decision: 'knowledge_gap', cited_ranks: [], blocked_reason: nil, invalid_outputs: [])
         end
       end
 
       { 'cites no knowledge' => [{ decision: 'answer', sources: [] }, 'missing_sources'],
-        'cites a chunk the search did not return' => [{ decision: 'answer', sources: [1, 2] }, 'unknown_source'],
-        'has no valid decision' => [{ decision: 'out_of_scope', sources: [] }, 'invalid_decision'] }.each do |description, (values, reason)|
+        'cites a chunk the search did not return' => [{ decision: 'answer', sources: [1, 2] }, 'unknown_source'] }
+        .each do |description, (values, reason)|
         context "when the answer #{description}" do
           let(:reply_content) { { **values, messages: ['Kami buka setiap hari pukul 07.30 - 18.00.'] }.to_json }
 
           it 'sends the knowledge gap message instead, without asking the model again, and traces why' do
             expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
             expect(chat_requests.size).to eq(1)
-            expect(reply.trace.attributes).to include(blocked_reason: reason)
+            expect(reply.trace.attributes).to include(blocked_reason: reason, invalid_outputs: [])
           end
+        end
+      end
+
+      context 'when the model writes text instead of the reply function' do
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }, *super()] }
+
+        it 'asks it once more with the same request, followed by its text and a note to call the function' do
+          reply
+
+          expect(scope_requests.size).to eq(1)
+          expect(embedding_requests.size).to eq(1)
+          expect(chat_requests.size).to eq(2)
+          expect(chat_requests.second.except('messages')).to eq(chat_requests.first.except('messages'))
+          expect(chat_requests.second['messages']).to eq([*chat_requests.first['messages'],
+                                                          { 'role' => 'assistant', 'content' => 'Kami buka setiap hari pukul 07.30 - 18.00.' },
+                                                          { 'role' => 'user', 'content' => AiAgents::ReplyValidator::TEXT_RETRY_NOTE }])
+        end
+
+        it 'sends the reply of the second call, tracing the shape of the first and the tokens of both calls' do
+          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+          expect(reply.trace.attributes).to include(reply_decision: 'answer', cited_ranks: [1], blocked_reason: nil, invalid_outputs: ['text'],
+                                                    input_tokens: 920, output_tokens: 15, cached_input_tokens: 520,
+                                                    latency_ms: be >= reply.trace.scope.latency_ms)
+          expect(reply.trace).not_to be_retry_skipped
+        end
+
+        it 'records the text and the note in the input of the second reply step of the request log' do
+          create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+
+          AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :playground, input: {}) { reply }
+
+          reply_steps = AiAgent::RequestLog.sole.steps.select { |step| step['step'] == 'reply' }
+          expect(reply_steps.first['input']['messages']).to eq(messages.as_json)
+          expect(reply_steps.second['input']['messages']).to eq([*messages.as_json,
+                                                                 { 'role' => 'assistant', 'content' => 'Kami buka setiap hari pukul 07.30 - 18.00.' },
+                                                                 { 'role' => 'user', 'content' => AiAgents::ReplyValidator::TEXT_RETRY_NOTE }])
+        end
+      end
+
+      context 'when the model writes text twice' do
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }] }
+
+        it 'sends the knowledge gap message without asking a third time, tracing the shape of both outputs' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(2)
+          expect(reply.trace.attributes).to include(reply_decision: nil, blocked_reason: 'invalid_decision', invalid_outputs: %w[text text])
+        end
+      end
+
+      context 'when the reply of the second call states a number that only the text of the first call had' do
+        let(:reply_content) { { decision: 'answer', sources: [1], messages: ['Detailing Rp500.000, kami buka 07.30 - 18.00.'] }.to_json }
+        let(:reply_messages) { [{ role: 'assistant', content: 'Detailing Rp500.000, kami buka 07.30 - 18.00.' }, *super()] }
+
+        it 'checks it against the conversation without that text, and sends the knowledge gap message instead' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(2)
+          expect(reply.trace.attributes).to include(reply_decision: 'answer', blocked_reason: 'unsupported_number', invalid_outputs: ['text'])
+        end
+      end
+
+      context 'when the model writes text and another call of the same length would still meet the deadline' do
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }, *super()] }
+        let(:reply) { described_class.new(ai_agent: ai_agent, messages: messages, deadline_ms: 60_000).perform }
+
+        it 'asks it once more' do
+          expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+          expect(chat_requests.size).to eq(2)
+          expect(reply.trace).not_to be_retry_skipped
+        end
+      end
+
+      context 'when the model writes text and another call of the same length would miss the deadline' do
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }, *super()] }
+        let(:reply) { described_class.new(ai_agent: ai_agent, messages: messages, deadline_ms: 0).perform }
+
+        it 'sends the knowledge gap message without asking again, and says so' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(1)
+          expect(reply.trace).to be_retry_skipped
+          expect(reply.trace.attributes).to include(blocked_reason: 'invalid_decision', invalid_outputs: ['text'])
+        end
+      end
+
+      context 'when the second reply has no valid decision either' do
+        let(:reply_messages) do
+          [{ decision: 'out_of_scope', sources: [] }, { sources: [1] }].map do |values|
+            { role: 'assistant', content: nil, tool_calls: [{ id: 'call_1', type: 'function', function: {
+              name: 'ai_agent_reply', arguments: { **values, messages: ['Kami buka setiap hari pukul 07.30 - 18.00.'] }.to_json
+            } }] }
+          end
+        end
+
+        it 'asks again with the same request, then sends the knowledge gap message, tracing the shape of both outputs' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(2)
+          expect(chat_requests.second).to eq(chat_requests.first)
+          expect(reply.trace.attributes).to include(reply_decision: nil, blocked_reason: 'invalid_decision',
+                                                    invalid_outputs: %w[unknown_decision missing_decision])
+          expect(reply.trace).not_to be_retry_skipped
+        end
+      end
+
+      context 'when the second reply fails the check for another reason' do
+        let(:reply_content) { { decision: 'answer', sources: [], messages: ['Kami buka setiap hari pukul 07.30 - 18.00.'] }.to_json }
+        let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari pukul 07.30 - 18.00.' }, *super()] }
+
+        it 'sends the knowledge gap message without asking a third time, tracing only the first output' do
+          expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(2)
+          expect(reply.trace.attributes).to include(reply_decision: 'answer', blocked_reason: 'missing_sources', invalid_outputs: ['text'])
         end
       end
 
       context 'when the answer states a price that the knowledge it cites does not have' do
         let(:reply_content) { { decision: 'answer', sources: [1], messages: ['Detailing Rp500.000, kami buka 07.30 - 18.00.'] }.to_json }
 
-        it 'sends the knowledge gap message instead' do
+        it 'sends the knowledge gap message instead, without asking the model again' do
           expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+          expect(chat_requests.size).to eq(1)
           expect(reply.trace.attributes).to include(reply_decision: 'answer', cited_ranks: [1], blocked_reason: 'unsupported_number')
         end
       end
@@ -293,7 +452,7 @@ RSpec.describe AiAgents::ReplyGenerator do
     end
 
     before do
-      create(:installation_config, name: 'AI_AGENT_EXA_API_KEY', value: 'exa-test-key')
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-test-key')
       ai_agent.update!(scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Servis dan info umum mobil',
                        off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Mobil yang mana, Kak?',
                        knowledge_gap_message: 'Maaf, info itu belum tersedia.', web_search_enabled: true,
@@ -363,9 +522,31 @@ RSpec.describe AiAgents::ReplyGenerator do
       end
     end
 
+    context 'when the reply writes the ranks it cites as a Markdown link' do
+      let(:reply_content) do
+        { decision: 'answer', sources: [1, 2], messages: ['Dari internet: radiator tersumbat membuat mesin panas. ([Sumber](2))'] }.to_json
+      end
+      let(:reply) { travel_to(Time.utc(2026, 10, 22, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform } }
+
+      it 'checks and sends it without them, with the link of the web result it cites' do
+        expect(reply.messages).to eq(["Dari internet: radiator tersumbat membuat mesin panas.\nhttps://otomotif.example/overheat"])
+        expect(reply.trace.attributes).to include(cited_ranks: [1, 2], blocked_reason: nil)
+      end
+    end
+
     context 'when the reply cites no web result' do
       it 'adds no link' do
         expect(reply.messages).to eq(['Kami buka setiap hari pukul 07.30 - 18.00.'])
+      end
+    end
+
+    context 'when the reply has a link that no source has' do
+      let(:reply_content) { { decision: 'answer', sources: [1], messages: ['Buka 07.30 - 18.00, info di https://palsu.example'] }.to_json }
+
+      it 'sends the knowledge gap message instead, without asking the model again' do
+        expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+        expect(chat_requests.size).to eq(1)
+        expect(reply.trace.attributes).to include(blocked_reason: 'unknown_url', invalid_outputs: [])
       end
     end
 
@@ -462,7 +643,19 @@ RSpec.describe AiAgents::ReplyGenerator do
                                         cached_input_tokens: 4, scope_input_tokens: nil, scope_output_tokens: nil,
                                         retrieved: [{ chunk_id: ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').id,
                                                       chunkable_type: 'AiAgent::KnowledgeSource', chunkable_id: source.id, rank: 1,
-                                                      score: be_within(1e-9).of(7.5 / 21) }])
+                                                      score: be_within(1e-9).of(3 / 21.0), neighbor_of: nil }])
+  end
+
+  it 'sends the neighbors of a match with ranks of their own and traces the match each was sent for' do
+    create(:installation_config, name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE', value: '0.5')
+    ai_agent.update!(context_limit: 2, context_expansion_radius: 1)
+    ai_agent.knowledge_chunks.update_all(section: 0) # rubocop:disable Rails/SkipsModelValidations
+
+    trace = described_class.new(ai_agent: ai_agent, messages: messages).perform.trace
+
+    expect(chat_requests.sole['messages'].first['content']).to include("[1] Jam buka: setiap hari 07.30 - 18.00\n\n[2] Harga detailing: Rp750.000")
+    expect(trace.attributes[:retrieved].map { |chunk| chunk.slice(:rank, :score, :neighbor_of) })
+      .to match([{ rank: 1, score: be > 0, neighbor_of: nil }, { rank: 2, score: nil, neighbor_of: 1 }])
   end
 
   it 'asks only for messages when the agent has no transfer conditions or allowed labels' do
@@ -523,7 +716,7 @@ RSpec.describe AiAgents::ReplyGenerator do
       stub_request(:post, 'http://9router.test:20128/v1/chat/completions').to_return do |request|
         gateway_requests << request
         { status: 200, headers: { 'Content-Type' => 'application/json' },
-          body: { id: 'chatcmpl-1', model: 'cx/gpt-5.5', choices: [{ message: reply_message }] }.to_json }
+          body: { id: 'chatcmpl-1', model: 'cx/gpt-5.5', choices: [{ message: reply_messages.first }] }.to_json }
       end
     end
 
@@ -589,11 +782,12 @@ RSpec.describe AiAgents::ReplyGenerator do
   end
 
   context 'when the model answers in text instead of calling the reply function' do
-    let(:reply_message) { { role: 'assistant', content: 'Kami buka setiap hari.' } }
+    let(:reply_messages) { [{ role: 'assistant', content: 'Kami buka setiap hari.' }, *super()] }
 
-    it 'raises an empty reply error' do
+    it 'raises an empty reply error, without asking the model of an agent with the scope off again' do
       expect { described_class.new(ai_agent: ai_agent, messages: messages).perform }
         .to raise_error(AiAgents::LlmError, 'The AI model returned an empty reply')
+      expect(chat_requests.size).to eq(1)
     end
   end
 

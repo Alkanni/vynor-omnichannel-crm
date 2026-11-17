@@ -1,0 +1,549 @@
+# C. Konteks multi-chunk (issue #133): pertanyaan yang jawabannya tersebar di beberapa chunk berurutan dari satu sumber,
+# terhadap agent `konteks` (fixtures/toko-roti-konteks.json). Di metadata:
+# - `source`: judul sumber knowledge yang memuat jawaban.
+# - `facts`: teks yang harus ada di chunk terkirim dari sumber itu, dengan `chunk` = posisinya di Knowledge Preview
+#   (urutan index). Spasi dan baris baru dibandingkan sebagai satu spasi. context-report.mjs memeriksa posisi ini.
+# - `noise` (kasus kontrol): teks dari chunk di sekitar jawaban yang tidak relevan dengan pertanyaan.
+# Rubric `completeness` menilai apakah jawaban memuat fakta yang dibutuhkan; asersi `context` dan `noise` dihitung dari
+# chunk yang dikirim ke model, tanpa judge.
+
+# --- Prosedur bernomor yang terpotong di tengah langkah (Panduan pesanan kue custom, chunk 3–5)
+
+- description: 'C-PR01: Cara memesan kue custom sampai terkonfirmasi'
+  metadata:
+    id: C-PR01
+    category: prosedur
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 3, text: '0812-4400-7311' }
+      - { chunk: 3, text: 'paling lambat 2 x 24 jam setelah nomor pesanan terbit' }
+      - { chunk: 4, text: 'otomatis batal dan slot dapurnya dilepas' }
+      - { chunk: 4, text: 'Admin mengirim konfirmasi jadwal produksi' }
+  vars:
+    conversation: Bagaimana cara memesan kue custom dari awal sampai pesanan saya terkonfirmasi?
+  assert:
+    - &context { type: javascript, metric: context, value: 'file://lib/context-assertions.mjs:sentFacts' }
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Menjelaskan langkah dari menghubungi admin (WhatsApp 0812-4400-7311 atau kasir), kirim desain, draf desain,
+        nomor pesanan KC-, sampai bayar DP paling lambat 2 x 24 jam; menyebut bahwa pesanan otomatis batal bila DP
+        tidak dibayar dalam batas itu, dan bahwa admin lalu mengirim konfirmasi jadwal produksi.
+
+- description: 'C-PR02: Kue custom diantar, pemeriksaan dan penyimpanan'
+  metadata:
+    id: C-PR02
+    category: prosedur
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 4, text: 'menerima tautan pelacakan' }
+      - { chunk: 5, text: 'paling lambat satu jam setelah serah terima' }
+      - { chunk: 5, text: '2 sampai 6 derajat Celsius' }
+  vars:
+    conversation: Kue custom saya akan diantar. Apa yang perlu saya perhatikan saat kue diterima, dan bagaimana cara menyimpannya?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Menyebut tautan pelacakan saat kurir berangkat, bahwa keluhan kerusakan hanya diterima bila dilaporkan paling
+        lambat satu jam setelah serah terima dengan foto kue di dalam kotak, dan penyimpanan kue krim segar di suhu 2–6
+        derajat Celsius serta habis dalam tiga hari.
+
+- description: 'C-PR03: Revisi desain dan batas perubahan warna krim'
+  metadata:
+    id: C-PR03
+    category: prosedur
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 3, text: 'Rp35.000 per revisi' }
+      - { chunk: 4, text: 'Pada H-3 admin mengirim foto contoh warna krim' }
+      - { chunk: 4, text: 'tidak bisa diubah lagi' }
+  vars:
+    conversation: Berapa kali saya boleh revisi desain kue custom, dan sampai kapan warna krimnya masih bisa diubah?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Revisi gratis dua kali, revisi ketiga dan seterusnya Rp35.000 per revisi; warna krim dicek lewat foto pada H-3
+        dan setelah disetujui pada tahap itu tidak bisa diubah lagi.
+
+- description: 'C-PR04: Kue bebas gluten dan batas pelunasan'
+  metadata:
+    id: C-PR04
+    category: prosedur
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 3, text: 'resep bebas gluten hanya tersedia untuk rasa Cokelat dan Pandan' }
+      - { chunk: 3, text: 'tambahan biaya Rp40.000' }
+      - { chunk: 4, text: 'Pelunasan dilakukan paling lambat H-1 sebelum pukul 15.00 WIB' }
+  vars:
+    conversation: Saya mau pesan kue custom bebas gluten untuk ulang tahun. Rasa apa saja yang bisa, ada biaya tambahan, dan kapan harus lunas?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Bebas gluten hanya untuk rasa Cokelat dan Pandan dengan tambahan Rp40.000, dan pelunasan paling lambat H-1
+        sebelum pukul 15.00 WIB.
+
+# --- Biaya dan ketentuan pembayaran (Panduan pesanan kue custom, chunk 6–8)
+
+- description: 'C-BY01: Biaya fondant, figur, dan kartu kredit'
+  metadata:
+    id: C-BY01
+    category: biaya
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 6, text: 'Fondant penuh menambah 40 persen dari harga dasar' }
+      - { chunk: 6, text: 'Rp45.000 per figur' }
+      - { chunk: 7, text: 'biaya layanan 2,5 persen' }
+  vars:
+    conversation: Kalau kue custom saya pakai fondant penuh dan dua figur fondant buatan tangan, biaya tambahannya berapa? Kalau bayar pakai kartu kredit ada biaya juga?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Fondant penuh menambah 40 persen dari harga dasar, figur buatan tangan Rp45.000 per figur (dua figur Rp90.000),
+        dan kartu kredit dikenakan biaya layanan 2,5 persen.
+
+- description: 'C-BY02: DP pesanan kantor dan pembayaran tunai'
+  metadata:
+    id: C-BY02
+    category: biaya
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 6, text: 'DP-nya 70 persen dari total harga' }
+      - { chunk: 7, text: 'hanya diterima sampai Rp5.000.000 per pesanan' }
+      - { chunk: 8, text: 'DP cukup 30 persen dari total harga' }
+      - { chunk: 8, text: 'surat pesanan resmi bertanda tangan dan berstempel perusahaan' }
+  vars:
+    conversation: Kantor kami mau pesan 8 kue custom untuk satu tanggal, totalnya sekitar 3 juta. DP-nya berapa, kalau tanpa surat pesanan berapa, dan boleh bayar tunai?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        DP 30 persen bila ada surat pesanan resmi bertanda tangan dan berstempel perusahaan; tanpa itu DP 70 persen
+        karena total di atas Rp2.000.000; pembayaran tunai di cabang boleh karena di bawah batas Rp5.000.000 per pesanan.
+
+- description: 'C-BY03: Kue bertingkat, DP, dan pelunasan'
+  metadata:
+    id: C-BY03
+    category: biaya
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 6, text: 'DP-nya 70 persen dari total harga' }
+      - { chunk: 6, text: '7730-118-245' }
+      - { chunk: 7, text: 'Sisa pembayaran dilunasi paling lambat H-1 pukul 15.00 WIB' }
+      - { chunk: 7, text: 'mobil box berpendingin' }
+  vars:
+    conversation: Saya pesan kue pernikahan 3 tingkat dan minta diantar. DP-nya berapa, bayar ke rekening apa, kapan pelunasan, dan pengantarannya bagaimana?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        DP 70 persen, rekening BCA 7730-118-245 atas nama PT Vynor Roti Nusantara (atau QRIS/tunai), pelunasan paling
+        lambat H-1 pukul 15.00 WIB, dan kue bertingkat wajib diantar dengan mobil box berpendingin dengan tambahan Rp50.000.
+
+# --- Aturan lalu pengecualian (Panduan pesanan kue custom, chunk 9–10)
+
+- description: 'C-BT01: Batal H-8, pengembalian DP dan pengecualian'
+  metadata:
+    id: C-BT01
+    category: pembatalan
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 9, text: 'DP dikembalikan 50 persen bila pembatalan dilakukan antara H-9 sampai H-5' }
+      - { chunk: 10, text: 'bila pemesan dirawat inap' }
+      - { chunk: 10, text: 'tidak bisa dibatalkan setelah H-7' }
+  vars:
+    conversation: Kalau saya membatalkan pesanan kue custom 8 hari sebelum tanggal ambil, DP saya kembali berapa? Apakah ada pengecualian?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Menjawab bahwa DP kembali 50 persen karena H-8 termasuk H-9 sampai H-5. Menyebut kedua pengecualian: DP kembali
+        penuh bila toko tidak sanggup memenuhi desain, terjadi keadaan kahar, atau pemesan dirawat inap; dan pesanan
+        dengan figur fondant buatan tangan atau lapisan emas edible tidak bisa dibatalkan setelah H-7.
+
+- description: 'C-BT02: Batal H-2 karena dirawat di rumah sakit'
+  metadata:
+    id: C-BT02
+    category: pembatalan
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 9, text: 'Pembatalan setelah H-5 membuat DP hangus seluruhnya' }
+      - { chunk: 9, text: 'Pengembalian dana diproses dalam 14 hari kerja' }
+      - { chunk: 10, text: 'surat keterangan rawat inap dari rumah sakit' }
+  vars:
+    conversation: Saya harus membatalkan pesanan kue custom 2 hari sebelum tanggal ambil karena dirawat di rumah sakit. Apakah DP saya hangus?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Menjawab bahwa DP tidak hangus: walaupun pembatalan setelah H-5 membuat DP hangus, pemesan yang dirawat inap
+        mendapat DP kembali penuh dengan surat keterangan rawat inap dari rumah sakit. Menyebut bahwa dana diproses dalam
+        14 hari kerja.
+
+- description: 'C-BT03: Batal H-6 untuk kue berlapis emas edible'
+  metadata:
+    id: C-BT03
+    category: pembatalan
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 9, text: 'dikirim tertulis lewat WhatsApp admin pesanan khusus' }
+      - { chunk: 9, text: 'DP dikembalikan 50 persen bila pembatalan dilakukan antara H-9 sampai H-5' }
+      - { chunk: 10, text: 'walaupun dilakukan sebelum H-5' }
+  vars:
+    conversation: Pesanan kue custom saya pakai lapisan emas edible. Kalau saya batalkan 6 hari sebelum tanggal ambil, DP-nya bagaimana, dan bagaimana cara membatalkannya?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Untuk pesanan dengan lapisan emas edible, pembatalan setelah H-7 membuat DP hangus walaupun dilakukan sebelum
+        H-5, jadi aturan umum 50 persen untuk H-9 sampai H-5 tidak berlaku; pembatalan dikirim tertulis lewat WhatsApp
+        admin pesanan khusus dengan nomor pesanan KC-.
+
+# --- Retur: syarat, penggantian, dan pengecualian (Kebijakan retur dan keluhan, chunk 1–3, satu bagian)
+
+- description: 'C-RT01: Retur kue kering berjamur dan pilihan penggantian'
+  metadata:
+    id: C-RT01
+    category: retur
+    source: Kebijakan retur dan keluhan
+    facts:
+      - { chunk: 1, text: 'paling lambat 3 hari setelah pembelian untuk kue kering' }
+      - { chunk: 1, text: '0812-4400-9020' }
+      - { chunk: 2, text: 'voucer belanja senilai 110 persen' }
+      - { chunk: 2, text: 'pengembalian dana ke metode pembayaran asal dalam 7 hari kerja' }
+  vars:
+    conversation: Kue kering yang saya beli 2 hari lalu ternyata berjamur. Masih bisa retur? Lapor ke mana, dan nanti dapat ganti apa?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Masih bisa karena batas kue kering 3 hari; lapor lewat WhatsApp keluhan 0812-4400-9020 atau kasir cabang dengan
+        struk dan foto; pilihan penggantian: produk pengganti senilai, voucer 110 persen, atau pengembalian dana dalam 7
+        hari kerja.
+
+- description: 'C-RT02: Roti diskon label kuning dan roti biasa yang basi'
+  metadata:
+    id: C-RT02
+    category: retur
+    source: Kebijakan retur dan keluhan
+    facts:
+      - { chunk: 1, text: 'rusak, basi, berjamur' }
+      - { chunk: 1, text: 'paling lambat 24 jam setelah pembelian untuk roti' }
+      - { chunk: 2, text: 'produk diskon akhir hari yang berlabel kuning' }
+  vars:
+    conversation: Saya beli dua roti 3 jam lalu dan keduanya ternyata basi. Yang satu roti diskon label kuning, yang satu roti tawar harga biasa. Mana yang bisa ditukar atau dikembalikan?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Roti tawar harga biasa bisa ditukar atau dikembalikan karena basi dan masih dalam batas 24 jam; roti diskon
+        berlabel kuning tidak bisa diretur karena dikecualikan.
+
+- description: 'C-RT03: Kue penyok saat diantar aplikasi pesan antar'
+  metadata:
+    id: C-RT03
+    category: retur
+    source: Kebijakan retur dan keluhan
+    facts:
+      - { chunk: 1, text: 'laporan tetap dikirim ke WhatsApp keluhan' }
+      - { chunk: 2, text: 'diganti oleh aplikasi sesuai kebijakan aplikasi tersebut' }
+      - { chunk: 2, text: 'surat keterangan kerusakan' }
+  vars:
+    conversation: Kue yang saya pesan lewat aplikasi pesan antar penyok waktu diantar. Lapornya ke mana, dan siapa yang mengganti?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Kerusakan selama pengantaran aplikasi diganti oleh aplikasi sesuai kebijakannya; toko membantu membuat surat
+        keterangan kerusakan tetapi tidak mengganti sendiri; laporan ke toko tetap lewat WhatsApp keluhan, bukan lewat
+        aplikasi.
+
+# --- Teks tanpa heading seperti hasil ekstraksi PDF (Program reseller (ekstrak PDF), chunk 1–3, terpotong di tengah kalimat)
+
+- description: 'C-PDF01: Daftar reseller, deposit, dan minimal order'
+  metadata:
+    id: C-PDF01
+    category: pdf
+    source: Program reseller (ekstrak PDF)
+    facts:
+      - { chunk: 1, text: '0812-4400-6650' }
+      - { chunk: 1, text: 'deposit awal sebesar Rp1.000.000' }
+      - { chunk: 2, text: 'Minimal pemesanan per pengiriman adalah Rp500.000' }
+  vars:
+    conversation: Bagaimana cara daftar jadi reseller? Berapa depositnya dan berapa minimal order per pengiriman?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Daftar lewat formulir di cabang atau WhatsApp kemitraan 0812-4400-6650 dengan foto KTP; deposit awal Rp1.000.000;
+        minimal pemesanan Rp500.000 per pengiriman.
+
+- description: 'C-PDF02: Reseller Perunggu dan pembayaran tempo'
+  metadata:
+    id: C-PDF02
+    category: pdf
+    source: Program reseller (ekstrak PDF)
+    facts:
+      - { chunk: 1, text: 'Reseller tingkat Perunggu' }
+      - { chunk: 2, text: 'wajib membayar tunai atau transfer sebelum barang dikirim' }
+      - { chunk: 2, text: 'tempo 14 hari' }
+  vars:
+    conversation: Saya reseller tingkat Perunggu. Apakah saya boleh bayar tempo?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Menjawab bahwa reseller Perunggu tidak bisa bayar tempo karena wajib bayar tunai atau transfer sebelum barang
+        dikirim, dan bahwa tempo 14 hari hanya untuk tingkat Perak dan Emas.
+
+- description: 'C-PDF03: Pemutusan kemitraan dan pengembalian deposit'
+  metadata:
+    id: C-PDF03
+    category: pdf
+    source: Program reseller (ekstrak PDF)
+    facts:
+      - { chunk: 1, text: 'dikembalikan saat kemitraan berakhir, dikurangi tagihan yang belum dibayar' }
+      - { chunk: 3, text: 'tiga bulan berturut-turut belanja di bawah Rp3.000.000' }
+      - { chunk: 3, text: 'menunggak tagihan tempo lebih dari 30 hari' }
+      - { chunk: 3, text: 'deposit awal dikembalikan dalam 14 hari kerja' }
+  vars:
+    conversation: Dalam kondisi apa kemitraan reseller bisa diputus, dan bagaimana dengan deposit saya?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Diputus bila tiga bulan berturut-turut belanja di bawah Rp3.000.000, menjual di bawah harga eceran terendah
+        setelah teguran tertulis, mengemas ulang dengan merek lain, atau menunggak tempo lebih dari 30 hari; deposit
+        dikembalikan dikurangi tagihan yang belum dibayar, dalam 14 hari kerja setelah semua tagihan lunas.
+
+- description: 'C-PDF04: Reseller Emas di luar Bandung'
+  metadata:
+    id: C-PDF04
+    category: pdf
+    source: Program reseller (ekstrak PDF)
+    facts:
+      - { chunk: 1, text: 'mendapat diskon 15 persen serta gratis ongkos kirim ke satu alamat usaha' }
+      - { chunk: 2, text: 'ongkos kirim ditanggung reseller, kecuali reseller tingkat Emas' }
+  vars:
+    conversation: Saya reseller tingkat Emas dan toko saya di Garut, di luar Bandung. Dapat diskon berapa, dan ongkos kirimnya siapa yang tanggung?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Diskon 15 persen; ongkos kirim ke luar Bandung Raya lewat ekspedisi biasanya ditanggung reseller, tetapi reseller
+        Emas gratis ongkos kirim untuk satu alamat usaha yang terdaftar.
+
+# --- Multi-turn: subjek ada di pesan sebelumnya
+
+- description: 'C-MT01: Follow-up DP dan pengantaran kue 2 tingkat'
+  metadata:
+    id: C-MT01
+    category: multi_turn
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 6, text: 'DP-nya 70 persen dari total harga' }
+      - { chunk: 7, text: 'Sisa pembayaran dilunasi paling lambat H-1 pukul 15.00 WIB' }
+      - { chunk: 7, text: 'mobil box berpendingin' }
+  vars:
+    conversation: |-
+      Saya mau pesan kue ulang tahun custom 2 tingkat untuk tanggal 20.
+      AI: Baik Kak, untuk kue bertingkat pesanan dibuat paling lambat 14 hari sebelum tanggal ambil. Ada yang ingin ditanyakan lagi?
+      Berapa DP-nya dan kapan harus lunas? Bisa diantar juga?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        DP 70 persen untuk kue bertingkat, pelunasan paling lambat H-1 pukul 15.00 WIB, dan kue bertingkat bisa diantar
+        dengan mobil box berpendingin (tambahan Rp50.000, di luar ongkos antar per jarak).
+
+- description: 'C-MT02: Follow-up keterlambatan tempo reseller Perak'
+  metadata:
+    id: C-MT02
+    category: multi_turn
+    source: Program reseller (ekstrak PDF)
+    facts:
+      - { chunk: 2, text: 'denda 0,1 persen per hari' }
+      - { chunk: 2, text: 'ditahan sampai tagihan lunas' }
+      - { chunk: 3, text: 'menunggak tagihan tempo lebih dari 30 hari' }
+  vars:
+    conversation: |-
+      Saya reseller tingkat Perak.
+      AI: Baik Kak, ada yang bisa kami bantu terkait kemitraan reseller?
+      Kalau saya telat bayar tempo, konsekuensinya apa?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Denda 0,1 persen per hari dari nilai tagihan, pemesanan berikutnya ditahan sampai lunas, dan kemitraan bisa diakhiri
+        bila tunggakan lebih dari 30 hari.
+
+- description: 'C-MT03: Follow-up pembatalan H-4 dengan figur fondant'
+  metadata:
+    id: C-MT03
+    category: multi_turn
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 9, text: 'Pembatalan setelah H-5 membuat DP hangus seluruhnya' }
+      - { chunk: 10, text: 'bencana alam atau keadaan kahar' }
+      - { chunk: 10, text: 'tidak bisa dibatalkan setelah H-7' }
+  vars:
+    conversation: |-
+      Saya mau membatalkan pesanan kue custom KC-240311.
+      AI: Baik Kak, boleh tahu tanggal ambil pesanannya?
+      Tanggal ambilnya 4 hari lagi, dan kuenya pakai figur fondant buatan tangan. DP saya bagaimana?
+  assert:
+    - *context
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        DP hangus: pembatalan setelah H-5 membuat DP hangus, dan pesanan dengan figur fondant buatan tangan juga tidak
+        bisa dibatalkan setelah H-7; DP baru kembali penuh bila ada pengecualian (toko tidak sanggup memenuhi desain,
+        bencana alam atau keadaan kahar, atau pemesan dirawat inap).
+
+# --- Kontrol: jawaban cukup satu chunk; chunk sekitarnya noise (bagian lain, baris tabel lain, atau paragraf lain)
+
+- description: 'C-KT01: Layanan antar cabang Buah Batu'
+  metadata:
+    id: C-KT01
+    category: kontrol
+    source: Layanan antar per cabang
+    facts:
+      - { chunk: 2, text: 'radius 9 km dengan minimal belanja Rp100.000' }
+      - { chunk: 2, text: 'Kurir terakhir berangkat pukul 20.00 WIB' }
+    noise:
+      - { chunk: 1, text: 'radius 6 km dengan minimal belanja Rp75.000' }
+      - { chunk: 3, text: 'radius 4 km dengan minimal belanja Rp60.000' }
+  vars:
+    conversation: Cabang Buah Batu bisa antar sampai radius berapa km, minimal belanjanya berapa, dan kurir terakhir jam berapa?
+  assert:
+    - *context
+    - &noise { type: javascript, metric: noise, value: 'file://lib/context-assertions.mjs:noNoise' }
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Radius 9 km, minimal belanja Rp100.000, kurir terakhir pukul 20.00 WIB; tidak memakai angka cabang lain.
+
+- description: 'C-KT02: Ongkos antar cabang Antapani'
+  metadata:
+    id: C-KT02
+    category: kontrol
+    source: Layanan antar per cabang
+    facts:
+      - { chunk: 4, text: 'Ongkos antar Rp11.000 untuk jarak sampai 3 km dan Rp16.000 di atasnya' }
+      - { chunk: 4, text: 'hanya bisa dengan QRIS' }
+    noise:
+      - { chunk: 3, text: 'Ongkos antar tetap Rp9.000' }
+      - { chunk: 5, text: 'Ongkos antar Rp13.000 untuk semua jarak' }
+  vars:
+    conversation: Ongkos antar dari cabang Antapani berapa, dan bisa bayar di tempat?
+  assert:
+    - *context
+    - *noise
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Rp11.000 sampai 3 km dan Rp16.000 di atasnya; bayar di tempat hanya dengan QRIS; tidak memakai angka cabang lain.
+
+- description: 'C-KT03: Harga dasar 24 cm red velvet (baris tabel)'
+  metadata:
+    id: C-KT03
+    category: kontrol
+    source: Harga dasar kue custom
+    facts:
+      - { chunk: 2, text: 'HD-243 | 24 cm | Red velvet | 22 porsi | Rp315.000' }
+    noise:
+      - { chunk: 3, text: 'HD-244 | 24 cm | Pandan' }
+  vars:
+    conversation: Berapa harga dasar kue custom 24 cm rasa red velvet, dan untuk berapa porsi?
+  assert:
+    - *context
+    - *noise
+    - type: llm-rubric
+      metric: completeness
+      value: Harga dasar Rp315.000 untuk 22 porsi, tanpa memakai harga atau porsi dari baris lain.
+
+- description: 'C-KT04: Syarat waktu pesan kue bertingkat'
+  metadata:
+    id: C-KT04
+    category: kontrol
+    source: Panduan pesanan kue custom
+    facts:
+      - { chunk: 2, text: '14 hari sebelum tanggal ambil untuk kue bertingkat' }
+      - { chunk: 2, text: 'berdiameter 16 cm sampai 40 cm' }
+    noise:
+      - { chunk: 3, text: '0812-4400-7311' }
+  vars:
+    conversation: Kue custom bertingkat harus dipesan paling lambat berapa hari sebelumnya, dan ukurannya bisa dari berapa sampai berapa?
+  assert:
+    - *context
+    - *noise
+    - type: llm-rubric
+      metric: completeness
+      value: Paling lambat 14 hari sebelum tanggal ambil, dan diameter 16 cm sampai 40 cm.
+
+- description: 'C-KT05: Keluhan alergi (paragraf lain di bagian yang sama)'
+  metadata:
+    id: C-KT05
+    category: kontrol
+    source: Kebijakan retur dan keluhan
+    facts:
+      - { chunk: 3, text: '0812-4400-9021' }
+      - { chunk: 3, text: 'biaya pemeriksaan dokter sampai Rp500.000' }
+    noise:
+      - { chunk: 2, text: 'produk diskon akhir hari yang berlabel kuning' }
+  vars:
+    conversation: Anak saya gatal-gatal setelah makan roti dari toko kalian. Saya harus melapor ke mana, dan apa yang ditanggung toko?
+  assert:
+    - *context
+    - *noise
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Lapor ke tim keamanan pangan lewat WhatsApp 0812-4400-9021 (07.00–22.00 WIB), simpan sisa produk dan kemasannya;
+        toko menanggung biaya pemeriksaan dokter sampai Rp500.000 bila uji laboratorium menunjukkan alergen yang tidak
+        tercantum di label; produknya sendiri tidak diretur.
+
+- description: 'C-KT06: Retur oleh reseller (teks tanpa heading)'
+  metadata:
+    id: C-KT06
+    category: kontrol
+    source: Program reseller (ekstrak PDF)
+    facts:
+      - { chunk: 2, text: 'hanya boleh meretur produk yang cacat produksi' }
+      - { chunk: 2, text: 'paling lambat 2 hari setelah barang diterima' }
+      - { chunk: 2, text: 'paling banyak 2 persen dari nilai pengiriman' }
+    noise:
+      - { chunk: 1, text: 'diskon 8 persen dari harga eceran' }
+      - { chunk: 3, text: 'perlindungan area eksklusif' }
+  vars:
+    conversation: Apakah reseller boleh meretur produk? Apa ketentuannya?
+  assert:
+    - *context
+    - *noise
+    - type: llm-rubric
+      metric: completeness
+      value: >-
+        Hanya produk cacat produksi, diajukan paling lambat 2 hari setelah barang diterima dengan foto dan kode mitra RS-,
+        nilai retur paling banyak 2 persen dari nilai pengiriman bulan itu; produk tidak laku, rusak karena penyimpanan,
+        atau kedaluwarsa di tempat reseller tidak bisa diretur.

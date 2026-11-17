@@ -4,7 +4,8 @@ json.labels @reply.labels
 json.sheet_row @reply.sheet_row
 json.model @ai_agent.model
 json.scope @reply.trace.scope&.to_h&.slice(:decision, :web_query, :web_search_status, :latency_ms, :input_tokens, :output_tokens)
-json.validation @reply.trace.validation&.to_h
+# retry_skipped: the reply model was not asked again for a reply without a valid decision, for lack of time.
+json.validation @reply.trace.validation&.to_h&.merge(retry_skipped: @reply.trace.retry_skipped?)
 # Only for a turn that was searched; the scope block says why another turn was not. Ranks are those of the prompt.
 if @reply.trace.web_search
   json.web do

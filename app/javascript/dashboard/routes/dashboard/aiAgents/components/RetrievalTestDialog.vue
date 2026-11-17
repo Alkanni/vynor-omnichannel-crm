@@ -22,7 +22,7 @@ const props = defineProps({
 const MAX_QUERY_LENGTH = 4000;
 // Same limit as AiAgents::WebSearch::MAX_QUERY_CHARACTERS.
 const MAX_WEB_QUERY_LENGTH = 200;
-// Exa charges in US dollars.
+// The web search cost is counted in US dollars (see AiAgents::WebSearch).
 const WEB_SEARCH_CURRENCY = 'USD';
 const WEB_URL_PATTERN = /^https?:\/\//i;
 const MAX_CONVERSATION_LENGTH = 10000;
@@ -113,7 +113,7 @@ const formatScore = score =>
     score
   );
 
-// Exa gives the date without a time, so it is shown as is in any time zone.
+// The API gives the published date without a time, so it is shown as is in any time zone.
 const formatPublishedDate = date =>
   new Intl.DateTimeFormat(locale.value, {
     dateStyle: 'medium',
@@ -227,6 +227,13 @@ defineExpose({ open });
             })
           }}
         </p>
+        <p v-if="result.context_expansion_radius">
+          {{
+            t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.EXPANSION', {
+              count: result.context_expansion_radius,
+            })
+          }}
+        </p>
       </div>
       <p
         v-if="!result.chunks.length"
@@ -259,6 +266,17 @@ defineExpose({ open });
               {{ chunk.source.title }}
             </span>
             <span
+              v-if="chunk.neighbor_of"
+              class="shrink-0 tabular-nums text-label-small text-n-slate-11"
+            >
+              {{
+                t('AI_AGENTS.KNOWLEDGE.RETRIEVAL_TEST.NEIGHBOR', {
+                  rank: chunk.neighbor_of,
+                })
+              }}
+            </span>
+            <span
+              v-else
               class="shrink-0 tabular-nums text-label-small text-n-slate-11"
             >
               {{

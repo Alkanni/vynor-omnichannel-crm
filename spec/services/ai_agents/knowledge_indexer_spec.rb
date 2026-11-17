@@ -30,6 +30,42 @@ RSpec.describe AiAgents::KnowledgeIndexer do
     expect(ai_agent.reload.trained_at).to be_present
   end
 
+  it 'logs each batch it embedded without the texts, with the request log on' do
+    create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
+    allow(AiAgents::LlmClient).to receive(:new).and_call_original
+    stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
+      { status: 200, headers: { 'Content-Type' => 'application/json' },
+        body: { data: JSON.parse(request.body)['input'].map { { embedding: Array.new(1536, 0.1) } } }.to_json }
+    end
+    stub_const('AiAgents::KnowledgeIndexer::EMBEDDING_BATCH_SIZE', 2)
+    content = "Pembuka.\n\n# Syarat\n\n#{(['kata'] * 400).join(' ')}\n\n# Biaya\n\nRp10.000"
+    text = create(:ai_agent_knowledge_source, ai_agent: ai_agent, content: content)
+
+    indexer.perform
+
+    log = AiAgent::RequestLog.sole
+    expect(log).to have_attributes(source: 'indexing', status: 'ok', conversation_id: nil, input: { 'embedding_model' => 'text-embedding-3-small' })
+    expect(log.steps.map { |step| step.slice('step', 'input', 'output', 'model') }).to eq(
+      [[2, 2], [2, 2]].map do |chunks, vectors|
+        { 'step' => 'embedding', 'input' => { 'chunkable_type' => 'AiAgent::KnowledgeSource', 'chunkable_id' => text.id, 'chunks' => chunks },
+          'output' => { 'vectors' => vectors, 'dimensions' => 1536 }, 'model' => 'text-embedding-3-small' }
+      end
+    )
+    expect(log.attributes.to_json).not_to include('Pembuka', 'Rp10.000')
+  end
+
+  it 'stores the section of each chunk of a text source, and none for a Q&A entry or a product' do
+    content = "Pembuka.\n\n# Syarat\n\n#{(['kata'] * 400).join(' ')}\n\n# Biaya\n\nRp10.000"
+    text = create(:ai_agent_knowledge_source, ai_agent: ai_agent, content: content)
+    create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
+    create(:ai_agent_product, ai_agent: ai_agent)
+
+    indexer.perform
+
+    expect(ai_agent.knowledge_chunks.where(chunkable: text).order(:id).pluck(:section)).to eq([0, 1, 1, 2])
+    expect(ai_agent.knowledge_chunks.where.not(chunkable: text).pluck(:section)).to eq([nil, nil])
+  end
+
   it 'embeds chunks again when the embedding model changes, whatever its vector size' do
     create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
     indexer.perform

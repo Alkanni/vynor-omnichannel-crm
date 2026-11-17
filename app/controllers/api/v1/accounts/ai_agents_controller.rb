@@ -1,7 +1,7 @@
 class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   SETTINGS = %w[
     name behavior welcome_message transfer_conditions stop_ai_after_handoff silent_handoff pending_assigned_message
-    pending_unassigned_message label_conditions model history_limit read_file_limit context_limit temperature
+    pending_unassigned_message label_conditions model history_limit read_file_limit context_limit context_expansion_radius temperature
     message_await message_limit watcher_enabled timezone session_only_memory ignore_team_handoff
     scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message knowledge_gap_message
     web_search_enabled web_search_domains
@@ -10,6 +10,8 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   MAX_PLAYGROUND_MESSAGES = 100
   MAX_PLAYGROUND_MESSAGE_LENGTH = 10_000
   PLAYGROUND_ROLES = %w[user assistant].freeze
+  # Rack::Timeout ends a request after 15 s, so a playground reply leaves a second for the rest of the request (#145).
+  PLAYGROUND_REPLY_DEADLINE_MS = 14_000
 
   # inbox_ids is not a column, so the default JSON wrapping into ai_agent would drop it.
   wrap_parameters :ai_agent, include: SETTINGS + LIST_SETTINGS
@@ -55,7 +57,12 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     messages = conversation_messages(params.require(:messages))
     return render_could_not_create_error('Invalid messages') if messages.nil?
 
-    @reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages.last(@ai_agent.history_limit)).perform
+    messages = messages.last(@ai_agent.history_limit)
+    @reply = AiAgents::RequestRecorder.record(ai_agent: @ai_agent, source: :playground, input: { messages: messages }) do |log|
+      reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages, deadline_ms: PLAYGROUND_REPLY_DEADLINE_MS).perform
+      log.output = { messages: reply.messages, handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row }
+      reply
+    end
   rescue AiAgents::LlmError => e
     render_could_not_create_error(e.message)
   end
@@ -69,14 +76,21 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     return render_could_not_create_error('Invalid query') unless query_text?(query, AiAgents::KnowledgeRetriever::MAX_QUERY_CHARACTERS)
     return render_could_not_create_error('Invalid history') if history.nil?
 
-    messages = [*history, { role: :user, content: query }].last(@ai_agent.history_limit)
-    @retrieval = AiAgents::KnowledgeRetriever.new(ai_agent: @ai_agent, messages: messages).perform
-    @web_search = AiAgents::WebSearch.new(query: params[:web_query].strip).perform if params[:web_query]
+    search([*history, { role: :user, content: query }].last(@ai_agent.history_limit), params[:web_query])
   rescue AiAgents::LlmError => e
     render_could_not_create_error(e.message)
   end
 
   private
+
+  # The search of a Retrieval Test, as a run of the request log (see AiAgents::RequestRecorder).
+  def search(messages, web_query)
+    AiAgents::RequestRecorder.record(ai_agent: @ai_agent, source: :retrieval_test, input: { messages: messages, web_query: web_query }) do |log|
+      @retrieval = AiAgents::KnowledgeRetriever.new(ai_agent: @ai_agent, messages: messages).perform
+      @web_search = AiAgents::WebSearch.new(query: web_query.strip).perform if web_query
+      log.output = { hits: @retrieval.hits.size, web_search_status: @web_search&.status }
+    end
+  end
 
   def fetch_ai_agent
     @ai_agent = Current.account.ai_agents.find(params[:id])

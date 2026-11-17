@@ -1,0 +1,49 @@
+<% content_for(:title) { t('.title', id: @log.id) } %>
+
+<header class="main-content__header" role="banner">
+  <div class="flex items-center justify-between w-full">
+    <h1 class="main-content__page-title m-0" id="page-title"><%= content_for(:title) %></h1>
+    <%= link_to t('.back'), super_admin_ai_request_logs_path, class: 'text-sm text-woot-500' %>
+  </div>
+</header>
+
+<section class="main-content__body">
+  <dl class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm mb-8">
+    <dt class="m-0 text-slate-500"><%= t('.time') %></dt>
+    <dd><%= @log.created_at.utc.strftime('%Y-%m-%d %H:%M:%S') %></dd>
+    <dt class="m-0 text-slate-500"><%= t('.account') %></dt>
+    <dd><%= @log.account.name %> (<%= @log.account_id %>)</dd>
+    <dt class="m-0 text-slate-500"><%= t('.ai_agent') %></dt>
+    <dd><%= @log.ai_agent.name %> (<%= @log.ai_agent_id %>)</dd>
+    <dt class="m-0 text-slate-500"><%= t('.source') %></dt>
+    <dd class="font-mono text-xs"><%= @log.source %></dd>
+    <dt class="m-0 text-slate-500"><%= t('.status') %></dt>
+    <dd>
+      <%= render 'status', log: @log %>
+      <% if @log.error_class %><span class="ms-2 font-mono text-xs text-red-700"><%= @log.error_class %></span><% end %>
+    </dd>
+    <dt class="m-0 text-slate-500"><%= t('.latency') %></dt>
+    <dd><%= t('super_admin.ai_request_logs.milliseconds', ms: @log.latency_ms) %></dd>
+    <dt class="m-0 text-slate-500"><%= t('.conversation') %></dt>
+    <dd><%= render 'conversation_link', log: @log %></dd>
+    <dt class="m-0 text-slate-500"><%= t('.message') %></dt>
+    <dd><%= @log.message_id || '—' %></dd>
+    <dt class="m-0 text-slate-500"><%= t('.reply_trace') %></dt>
+    <dd><%= @log.reply_trace_id || '—' %></dd>
+  </dl>
+
+  <h2 class="text-base font-semibold mb-2"><%= t('.input') %></h2>
+  <div class="mb-8"><%= render 'fields', value: @log.input %></div>
+
+  <h2 class="text-base font-semibold mb-2"><%= t('.output') %></h2>
+  <div class="mb-8"><%= render 'fields', value: @log.output %></div>
+
+  <h2 class="text-base font-semibold mb-2"><%= t('.steps', count: @log.steps.size) %></h2>
+  <% if @log.steps.empty? %>
+    <p class="text-sm text-slate-500"><%= t('.no_steps') %></p>
+  <% else %>
+    <% @log.steps.each.with_index(1) do |step, position| %>
+      <%= render 'step', step: step, position: position, run_ms: @log.latency_ms %>
+    <% end %>
+  <% end %>
+</section>

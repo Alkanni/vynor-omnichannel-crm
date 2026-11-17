@@ -85,6 +85,9 @@ en:
       presence: must not be blank
     webhook:
       invalid: Invalid events
+    campaigns:
+      whatsapp_campaign_disabled: WhatsApp campaigns are not enabled for this account. Ask your installation administrator to turn on WhatsApp Campaign under Features on this account's edit page in Super Admin.
+      whatsapp_cloud_required: WhatsApp campaigns can only be sent from a WhatsApp Cloud inbox.
     signup:
       disposable_email: We do not allow disposable emails
       blocked_domain: This domain is not allowed. If you believe this is a mistake, please contact support.
@@ -213,6 +216,7 @@ en:
       invalid_token: Invalid or expired MFA token
       invalid_credentials: Invalid credentials or verification code
       feature_unavailable: MFA feature is not available. Please configure encryption keys.
+      interactive_session_required: Two-factor authentication settings cannot be managed with an API access token. Sign in to the dashboard instead.
     billing:
       invalid_currency: Invalid billing currency
       currency_locked: Billing currency cannot be changed after billing has been set up
@@ -493,7 +497,7 @@ en:
         processing_failed: 'Processing failed. Try syncing again'
     web_search:
       errors:
-        not_configured: 'Web search is not configured. Ask the installation administrator to add the Exa API key in Super Admin'
+        not_configured: 'Web search is not configured. Ask the installation administrator to add the web search API key in Super Admin'
         strict_scope_required: 'needs the Strict scope mode'
   captain:
     copilot_message_required: Message is required
@@ -681,7 +685,25 @@ en:
       subject: 'Finish setting up %{custom_domain}'
     ssl_status:
       custom_domain_not_configured: 'Custom domain is not configured'
+  helpers:
+    label:
+      account:
+        all_features: Features
   super_admin:
+    account_features:
+      label: Features
+      hint: Turn features on or off for this account. Premium, internal and deprecated features are not listed.
+      enabled: Enabled
+      disabled: Disabled
+    settings:
+      account_features:
+        title: Account features
+        description: Turn a feature on or off for every account. Premium, internal and deprecated features are not listed.
+        status: Enabled for %{count} of %{total} accounts
+        enable: Enable for all
+        disable: Disable for all
+        enabled_notice: '%{feature} is now enabled for all accounts.'
+        disabled_notice: '%{feature} is now disabled for all accounts.'
     account_suspension:
       categories:
         spam: 'Spam'
@@ -697,6 +719,75 @@ en:
         category: 'Category'
         reason: 'Reason'
         empty: 'No suspension history recorded.'
+    ai_request_logs:
+      milliseconds: '%{ms} ms'
+      index:
+        title: 'AI Request Logs'
+        description: 'What went into and came out of each step of the AI Agents in replies, the Watcher, the playground, the Retrieval Test, and knowledge indexing. Logs are deleted after %{days} days. Times are in UTC.'
+        filters:
+          account: 'Account'
+          ai_agent: 'Agent'
+          source: 'Source'
+          status: 'Status'
+          conversation: 'Conversation #'
+          from: 'From'
+          to: 'To'
+          all: 'All'
+          apply: 'Filter'
+          reset: 'Reset'
+        columns:
+          time: 'Time (UTC)'
+          account: 'Account'
+          ai_agent: 'Agent'
+          source: 'Source'
+          conversation: 'Conversation'
+          status: 'Status'
+          latency: 'Latency'
+          tokens: 'Tokens'
+          input: 'Latest customer message'
+        empty:
+          filtered: 'No request logs match these filters.'
+          none: 'There are no request logs yet.'
+          recording_off: 'The AI Agents record their runs only while AI_AGENT_REQUEST_LOG_ENABLED is on, and it is off.'
+          recording_on: 'AI_AGENT_REQUEST_LOG_ENABLED is on, so the next run of an AI Agent will appear here.'
+          settings: 'Change it in the Captain settings.'
+      show:
+        title: 'AI Request Log #%{id}'
+        back: 'Back to AI Request Logs'
+        time: 'Time (UTC)'
+        account: 'Account'
+        ai_agent: 'Agent'
+        source: 'Source'
+        status: 'Status'
+        latency: 'Latency'
+        conversation: 'Conversation'
+        message: 'Message ID'
+        reply_trace: 'Reply trace ID'
+        input: 'Input'
+        output: 'Output'
+        steps: 'Steps (%{count})'
+        no_steps: 'This run has no steps.'
+      step:
+        started: 'at +%{ms} ms'
+        model: 'Model'
+        tokens: 'Tokens'
+        token_counts: '%{input} input, %{output} output, %{cached} cached input'
+        error: 'Error'
+        input: 'Input'
+        output: 'Output'
+        hits:
+          rank: 'Rank'
+          score: 'Score'
+          distance: 'Distance'
+          neighbor_of: 'Neighbor of'
+          source: 'Source'
+          content: 'Content'
+          chunk: 'chunk %{id}'
+        results:
+          rank: 'Rank'
+          title: 'Title'
+          url: 'URL'
+          text: 'Text'
     captain_model_overrides:
       form:
         helper_text: 'Leave a model blank to use the default routing for that AI feature.'

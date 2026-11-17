@@ -38,4 +38,38 @@ describe CampaignListener do
       end
     end
   end
+
+  describe '#message_updated' do
+    let!(:recipient) { create(:campaign_recipient, campaign: campaign, contact: contact) }
+    let(:conversation) { create(:conversation, account: account, inbox: inbox, contact: contact, contact_inbox: contact_inbox) }
+    let(:message) do
+      create(:message, conversation: conversation, account: account, inbox: inbox, message_type: :outgoing,
+                       additional_attributes: { 'campaign_id' => campaign.id, 'campaign_recipient_id' => recipient.id })
+    end
+
+    it 'updates the campaign recipient of the message' do
+      message.update!(source_id: 'wamid.delivered', status: :delivered)
+
+      listener.message_updated(Events::Base.new('message.updated', Time.zone.now, message: message))
+
+      expect(recipient.reload).to have_attributes(status: 'delivered', source_id: 'wamid.delivered')
+    end
+
+    it 'ignores a message that only names the campaign, as clients can through the messages API' do
+      message.update!(additional_attributes: { 'campaign_id' => campaign.id }, source_id: 'wamid.forged')
+
+      listener.message_updated(Events::Base.new('message.updated', Time.zone.now, message: message))
+
+      expect(recipient.reload).to be_queued
+    end
+
+    it 'ignores a recipient of another contact' do
+      other_recipient = create(:campaign_recipient, campaign: campaign)
+      message.update!(additional_attributes: { 'campaign_recipient_id' => other_recipient.id }, source_id: 'wamid.other')
+
+      listener.message_updated(Events::Base.new('message.updated', Time.zone.now, message: message))
+
+      expect(other_recipient.reload).to be_queued
+    end
+  end
 end

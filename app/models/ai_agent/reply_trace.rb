@@ -9,6 +9,7 @@
 #  embedding_model             :string
 #  error_class                 :string
 #  input_tokens                :integer
+#  invalid_outputs             :jsonb            not null
 #  labels                      :jsonb            not null
 #  latency_ms                  :integer
 #  model                       :string           not null
@@ -44,13 +45,16 @@
 # What an AI Agent did for one customer message it answered (see AiAgents::ReplyJob), to explain and evaluate its replies:
 # the decision of the scope check (see AiAgents::ScopeGuard) and how long it took, what became of web search for an agent
 # with web search (web_search_status, see AiAgents::ReplyGenerator::Trace#web_search_status; the query is not kept) with
-# the rank and URL of each web result in the prompt, the search's latency and what Exa charged for it (see
-# AiAgents::WebSearch), the knowledge chunks it retrieved, kept as references with their rank and score but never their
-# content, the decision of a strict agent's reply, the ranks it cited, and why the reply was replaced with the knowledge
-# gap message (see AiAgents::ReplyValidator), the model and the tokens of all its model calls, how long the reply took
-# (the web search included), and the outcome. Customer messages, replies, and web content are not copied here either.
-# input_tokens, output_tokens, and cached_input_tokens add up the scope check and the reply model, of which the scope_*
-# tokens are the scope check's share. The Watcher run after the reply (see AiAgents::WatchJob) adds its own watcher_*
+# the rank and URL of each web result in the prompt, the search's latency and what it cost (see
+# AiAgents::WebSearch), the knowledge chunks it retrieved, kept as references with their rank and score (or, for a
+# neighbor of a match, the rank of that match as neighbor_of) but never their content, the decision of a strict agent's
+# reply, the ranks it cited, and why the reply was replaced with the knowledge gap message (see AiAgents::ReplyValidator),
+# the shape of each reply model output without a valid decision (invalid_outputs, see AiAgents::ReplyGenerator::Trace: the
+# model was asked again after the first, and a second means it had none again either), the model and the tokens of all
+# its model calls, how long the reply took (the web search included), and the outcome. Customer messages, replies, and
+# web content are not copied here either.
+# input_tokens, output_tokens, and cached_input_tokens add up the scope check and the reply model calls, of which the
+# scope_* tokens are the scope check's share. The Watcher run after the reply (see AiAgents::WatchJob) adds its own watcher_*
 # tokens. See AiAgents::LlmClient::Completion for cached input, and AiAgents::UsageReport for a summary of a period.
 class AiAgent::ReplyTrace < ApplicationRecord
   belongs_to :account

@@ -58,29 +58,35 @@ class AiAgents::UsageReport
   end
 
   def detail_lines(rows)
-    reply_calls = rows.select { |row| reply_model?(row) }
     ["- Reply latency in ms (scope check, knowledge search, web search, and reply model): #{stats(rows.map(&:latency_ms), percentiles: [50, 95])}",
      "- Scope check latency in ms: #{stats(rows.map(&:scope_latency_ms), percentiles: [50, 95])}",
-     "- Knowledge chunks sent per reply model call: #{stats(reply_calls.map { |row| row.retrieved.size })}",
+     *chunk_lines(rows.select { |row| reply_model?(row) }),
      "- Scope check decisions: #{counts(rows.filter_map(&:scope_decision))}",
      "- Reply decisions: #{counts(rows.filter_map(&:reply_decision))}"]
   end
 
+  # The knowledge chunks of each reply model call, and how many of them were sent as neighbors of a match (see
+  # AiAgents::ContextExpansion).
+  def chunk_lines(reply_calls)
+    ["- Knowledge chunks sent per reply model call: #{stats(reply_calls.map { |row| row.retrieved.size })}",
+     "- Of which neighbors of a match: #{stats(reply_calls.map { |row| row.retrieved.count { |chunk| chunk['neighbor_of'] } })}"]
+  end
+
   # The turns with web search (see AiAgents::ReplyGenerator::Trace#web_search_status): the share that needed the web, what
-  # became of them, and the requests made to Exa.
+  # became of them, and the requests made to the web search provider.
   def web_lines(rows)
     web_rows = rows.select(&:web_search_status)
     return [] if web_rows.empty?
 
     routed = web_rows.count { |row| row.web_search_status != 'not_needed' }
     ["- Turns routed to web search: #{routed} of #{web_rows.size} turns with web search (#{(routed * 100.0 / web_rows.size).round}%)",
-     "- Web search statuses: #{counts(web_rows.map(&:web_search_status))}", *exa_lines(web_rows.select(&:web_latency_ms))]
+     "- Web search statuses: #{counts(web_rows.map(&:web_search_status))}", *request_lines(web_rows.select(&:web_latency_ms))]
   end
 
-  # requests: the traces of the turns whose search made a request to Exa.
-  def exa_lines(requests)
-    ["- Exa requests: #{requests.size}, spend US$#{format('%.3f', requests.sum(&:web_cost_usd))}",
-     "- Exa request latency in ms: #{stats(requests.map(&:web_latency_ms), percentiles: [50, 95])}"]
+  # requests: the traces of the turns whose search made a request to the web search provider.
+  def request_lines(requests)
+    ["- Web search requests: #{requests.size}, spend US$#{format('%.3f', requests.sum(&:web_cost_usd))}",
+     "- Web search request latency in ms: #{stats(requests.map(&:web_latency_ms), percentiles: [50, 95])}"]
   end
 
   def conversation_lines(rows)

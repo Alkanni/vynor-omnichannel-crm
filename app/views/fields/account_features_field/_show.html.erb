@@ -1,0 +1,10 @@
+<ul class="space-y-1 text-sm">
+  <% field.features.each do |(name, display_name), enabled| %>
+    <li class="flex items-center justify-between gap-4" data-feature="<%= name %>">
+      <span class="text-n-slate-12"><%= display_name || name %></span>
+      <span class="<%= enabled ? 'text-n-teal-11' : 'text-n-slate-11' %>">
+        <%= t(enabled ? 'super_admin.account_features.enabled' : 'super_admin.account_features.disabled') %>
+      </span>
+    </li>
+  <% end %>
+</ul>

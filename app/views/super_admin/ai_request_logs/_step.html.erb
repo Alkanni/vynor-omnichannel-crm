@@ -1,0 +1,93 @@
+<%# One step of a run, with a bar for when it ran within the run (run_ms long), as percentages of the run. %>
+<% output = step['output'] %>
+<% offset = (step['started_ms'] * 100.0 / [run_ms, 1].max).clamp(0, 99.5) %>
+<% width = (step['latency_ms'] * 100.0 / [run_ms, 1].max).clamp(0.5, 100 - offset) %>
+<% cell_class = 'px-3 py-2 first:!ps-4 last:!pe-4 align-top' %>
+<% text_class = 'font-mono text-xs whitespace-pre-wrap break-words m-0' %>
+<details class="border border-slate-100 rounded-md mb-2">
+  <summary class="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm">
+    <span class="w-6 text-xs text-slate-400"><%= position %></span>
+    <span class="w-28 font-mono text-xs"><%= step['step'] %></span>
+    <svg class="flex-1 h-2" role="presentation">
+      <rect x="<%= offset %>%" width="<%= width %>%" height="100%" rx="2" class="<%= step['error_class'] ? 'fill-red-500' : 'fill-woot-500' %>" />
+    </svg>
+    <span class="w-24 text-xs text-slate-500 text-end"><%= t('.started', ms: step['started_ms']) %></span>
+    <span class="w-20 text-xs text-end"><%= t('super_admin.ai_request_logs.milliseconds', ms: step['latency_ms']) %></span>
+  </summary>
+
+  <div class="border-t border-slate-100 p-4 flex flex-col gap-4">
+    <dl class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm">
+      <dt class="m-0 text-slate-500"><%= t('.model') %></dt>
+      <dd class="font-mono text-xs"><%= step['model'] || '—' %></dd>
+      <dt class="m-0 text-slate-500"><%= t('.tokens') %></dt>
+      <dd>
+        <% if (tokens = step['tokens']) %>
+          <%= t('.token_counts', input: tokens['input'] || '—', output: tokens['output'] || '—', cached: tokens['cached_input'] || '—') %>
+        <% else %>
+          —
+        <% end %>
+      </dd>
+      <% if step['error_class'] %>
+        <dt class="m-0 text-slate-500"><%= t('.error') %></dt>
+        <dd class="font-mono text-xs text-red-700"><%= step['error_class'] %></dd>
+      <% end %>
+    </dl>
+
+    <div>
+      <h3 class="text-sm font-semibold mb-2"><%= t('.input') %></h3>
+      <%= render 'fields', value: step['input'] %>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold mb-2"><%= t('.output') %></h3>
+      <% if step['step'] == 'retrieval' && output %>
+        <table class="w-full text-sm border border-slate-100 rounded-md">
+          <thead class="text-xs text-slate-500 bg-slate-25">
+            <tr>
+              <% %w[rank score distance neighbor_of source content].each do |column| %>
+                <th class="<%= cell_class %> text-start"><%= t(".hits.#{column}") %></th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody>
+            <% output['hits'].each do |hit| %>
+              <tr class="border-t border-slate-100">
+                <td class="<%= cell_class %>"><%= hit['rank'] %></td>
+                <td class="<%= cell_class %> font-mono text-xs"><%= hit['score']&.round(4) || '—' %></td>
+                <td class="<%= cell_class %> font-mono text-xs"><%= hit['distance']&.round(4) || '—' %></td>
+                <td class="<%= cell_class %>"><%= hit['neighbor_of'] || '—' %></td>
+                <td class="<%= cell_class %> font-mono text-xs whitespace-nowrap">
+                  <%= hit['chunkable_type'] %> <%= hit['chunkable_id'] %><br><%= t('.hits.chunk', id: hit['chunk_id']) %>
+                </td>
+                <td class="<%= cell_class %>"><pre class="<%= text_class %>"><%= hit['content'] %></pre></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% elsif step['step'] == 'web_search' && output %>
+        <div class="mb-3"><%= render 'fields', value: output.except('results') %></div>
+        <table class="w-full text-sm border border-slate-100 rounded-md">
+          <thead class="text-xs text-slate-500 bg-slate-25">
+            <tr>
+              <% %w[rank title url text].each do |column| %>
+                <th class="<%= cell_class %> text-start"><%= t(".results.#{column}") %></th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody>
+            <% output['results'].each do |result| %>
+              <tr class="border-t border-slate-100">
+                <td class="<%= cell_class %>"><%= result['rank'] %></td>
+                <td class="<%= cell_class %> min-w-40"><%= result['title'] %></td>
+                <td class="<%= cell_class %> min-w-56 font-mono text-xs break-all"><%= result['url'] %></td>
+                <td class="<%= cell_class %>"><pre class="<%= text_class %>"><%= result['text'] %></pre></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <%= render 'fields', value: output %>
+      <% end %>
+    </div>
+  </div>
+</details>

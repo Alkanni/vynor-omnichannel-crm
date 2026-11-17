@@ -12,12 +12,16 @@ Regression evals for the AI Agent, run against a running app:
   web, searched on the web, or refused, and checks the scope check's decision and web query against it, the links of the
   reply, and, for the cases to search, whether a judge model finds the reply grounded and short. This is the gate of the
   web search work in `docs/ai-agent-web-search-decisions.md`.
+- **Multi-chunk context** (issue #133): each case asks something whose answer is spread over consecutive chunks of one
+  document, and checks which of its facts reached the reply model and whether the reply is complete. It is the baseline
+  for sending the chunks next to the ones the search found (issue #134).
 
 Run them before and after changes to behavior, models, chunking, or retrieval, and compare the results.
 
 Promptfoo runs through `npx` with a pinned version, so nothing is added to the app's `package.json`. Every LLM call
 uses real tokens: one end-to-end run makes 47 agent calls plus 38 judge calls, and one Scope Compliance run makes 134
-agent calls plus 142 judge calls, and one web search run makes 58 agent calls plus 26 judge calls.
+agent calls plus 142 judge calls, one web search run makes 58 agent calls plus 26 judge calls, and one multi-chunk
+context run makes 26 agent calls plus 26 judge calls.
 
 ## Files
 
@@ -32,13 +36,17 @@ agent calls plus 142 judge calls, and one web search run makes 58 agent calls pl
 | `promptfooconfig.web.yaml`, `tests/w-web.yaml`, `lib/web-assertions.mjs` | Web search eval: 58 cases with a `route`, an expected scope check decision, and the personal data a web query must leave out, the link checks of the replies, and the `web_claims` judge with its prompt (see below) |
 | `fixtures/bengkel-mobil.json` | Synthetic strict car workshop agent with web search, whose allowed topics include general car information, for the web search routing eval |
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
+| `fixtures/bengkel-qa.json` | Synthetic car care business for the retrieval eval whose knowledge is 195 Q&A: the same questions (price, duration, warranty, booking, …) for each of 30 services, plus general questions, like a Q&A list written per service (issue #141) |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
 | `report.mjs` | Markdown summary per agent variant: Scope Compliance metrics, pass rate and decisions per category, tokens per model call, latency, failures, and results that changed between two runs |
-| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 107 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, long document, no answer) |
+| `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 141 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, long document, topic change and follow-up on Q&A, no answer) |
 | `retrieval-provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/retrieval_test` |
 | `retrieval-report.mjs` | Markdown summary: hit@1, hit@5, MRR per category, chunks retrieved, score distribution of relevant vs irrelevant chunks, and request latency |
-| `lib/` | API client, conversation parsing (shared by both providers), retrieval assertion |
+| `promptfooconfig.context.yaml`, `tests/c-context.yaml`, `lib/context-assertions.mjs` | Multi-chunk context eval: 26 cases with the facts the answer needs and the chunk each sits in, the `context` and `noise` assertions over the chunks sent to the reply model (see below) |
+| `fixtures/toko-roti-konteks.json` | Synthetic documents for the multi-chunk context eval: a custom cake guide whose procedure, costs, and cancellation sections each take several chunks, a returns policy, a reseller programme as plain text without headings (like an extracted PDF, cut mid-sentence), controls (one short section per branch, a price table), and documents on neighboring topics (a design catalogue, catering, online orders, 10 FAQ entries), 69 chunks in all |
+| `context-report.mjs` | Markdown summary of the multi-chunk context eval: context recall, full context rate, completeness, noise, tokens, and the distance of each fact that was not sent to the nearest sent chunk |
+| `lib/` | API client, conversation parsing (shared by both providers), retrieval and context assertions |
 
 The cases come from the Claude Doc "Draf Dataset Eval AI Agent" (2026-10-28). The team had not reviewed it yet, so
 every case is still the draft. Case IDs (`A1-01`, `B-07`, …) match the document. Notes that wait for a team decision
@@ -66,7 +74,8 @@ node report.mjs output/run-1.json
 `node --env-file=.env setup.mjs toko-roti-large.json`). It deletes and recreates only the agents named in those
 fixtures, creates the `komplain` label if it is missing, and merges the agent ids into `.eval-agents.json`. Run it
 again after changing a fixture. The `injection` agent has an extra knowledge source with an embedded instruction and
-is used only by A2-09; the `large` and `dokumen` agents are used by the retrieval eval; the `scope-prompt` agent is
+is used only by A2-09; the `large`, `dokumen`, and `bengkel-qa` agents are used by the retrieval eval, and `konteks`
+by the multi-chunk context eval; the `scope-prompt` agent is
 `main` with a strict Business Scope Policy (`settings` in the fixture), for the Scope Compliance eval. Since issue #96 a
 strict agent also runs the scope check before each reply, and since issue #97 the reply check after it, so
 `scope-prompt` measures the prompt rule and both checks together.
@@ -178,8 +187,8 @@ node report.mjs output/web-1.json
   reply model had, compared as `AiAgents::ReplyValidator` compares them; the `citation` assertion passes when a reply
   that was sent has the link of every web result it cites. The reply check replaces a reply with an unknown link, and the
   app adds the links of the cited web results itself, so both measure that what reaches the customer holds.
-- The `bengkel` agent has web search turned on, which also needs the Exa API key in Super Admin. Turns with a web
-  query are searched (#110): the playground returns the search in `web` (query, status, and the results under their
+- The `bengkel` agent has web search turned on, which also needs a web search provider and its API key in Super Admin
+  (the numbers below were measured with Exa). Turns with a web query are searched (#110): the playground returns the search in `web` (query, status, and the results under their
   ranks in the prompt, with the `text` the reply model got), and `scope.web_search_status` says why another turn was
   not searched.
 - The `web` route cases also have a `web_claims` judge rubric, written once on W-WB-01 and reused through a YAML alias.
@@ -218,6 +227,59 @@ node report.mjs output/web-1.json
   run soon after the first mostly costs nothing on Exa. The web results then stay the same, which keeps the two runs
   comparable.
 
+## Multi-chunk context eval
+
+```bash
+node --env-file=.env setup.mjs toko-roti-konteks.json
+npx promptfoo@0.124.1 eval -c promptfooconfig.context.yaml --no-cache -o output/context-1.json
+node --env-file=.env context-report.mjs output/context-1.json
+```
+
+- A heading section longer than one chunk, or text without headings such as an extracted PDF, is split into several
+  chunks, sometimes in the middle of a numbered step or a sentence (see `AiAgents::TextChunker`). A question about such
+  a section can need facts from several of its chunks while the search sends only some of them. The `konteks` agent has
+  documents written so that each case's facts sit in two or three chunks of one section, and its behavior asks the
+  model to list every condition, step, cost, deadline, and exception the question needs, so a missing fact shows up in
+  the reply. It has no handoff or label conditions and uses the default Context Limit (8).
+- The agent also has documents on neighboring topics that use the same words but hold none of the cases' facts (a
+  catalogue of cake designs, catering packages, online orders, FAQ entries), so the search has to choose 8 of 69 chunks,
+  as it does in a real knowledge base, instead of 8 of the 25 chunks of the case documents.
+- Each case in `tests/c-context.yaml` names its `source` and lists its `facts` with the chunk each sits in, as the
+  Knowledge Preview numbers them. The `context` assertion passes when every fact is in a chunk from that source that was
+  sent to the reply model; texts compare with whitespace collapsed to one space. `completeness` is a judge rubric over
+  the reply, with the judge of `judge.yaml`.
+- `kontrol` cases need one chunk, and list `noise`: texts from the chunks around it that do not answer the question (the
+  next branch's section, other rows of the price table, another paragraph of the same section). The `noise` assertion
+  passes when none of them was sent. The search itself can send them, because neighboring sections share words; compare
+  the noise of a run with the baseline to see what sending neighboring chunks adds that the question does not need.
+
+| Metric | Meaning |
+|---|---|
+| Context recall | Share of the facts that were sent, over the cases that did not error |
+| Full context | Share of the cases whose facts were all sent |
+| Kelengkapan jawaban | Share of the cases passing the `completeness` rubric |
+| Pollution | Share of the `kontrol` cases that sent a noise text |
+| Karakter knowledge | Characters of all chunks sent per reply, apart from the input tokens, which include the gateway's own overhead |
+
+- `context-report.mjs` reads the chunks of the `konteks` agent from the app through the Knowledge Preview API, so it
+  needs `.env` and the app the eval ran against. It first checks that every fact and noise text sits in exactly the chunk
+  its case records; a change to the fixture or to chunking that moves a text is listed there and makes the case mean
+  something else, so fix the case before reading the results.
+- For each fact that was not sent, the report gives the distance from its chunk to the nearest sent chunk of the same
+  section of its source (a section is the heading path a chunk opens with; a source without headings is one section),
+  and estimates the full context rate, the context recall, and the noise of the `kontrol` cases if the neighbors within
+  ±1, ±2, or ±3 chunks of every sent chunk were sent too. The estimate ignores the Context Limit, so it is an upper bound
+  for issue #134, where neighbors take slots of the limit.
+- The chunks sent come from the search, which is deterministic for the same knowledge, so context recall and the
+  distances should repeat between two runs; completeness depends on the reply model and the judge. Pass two outputs to
+  list the cases whose full context or completeness changed. The baseline of `main` is on issue #133.
+- Since issue #134 an agent can also send the chunks next to its matches (Context Expansion Radius, see
+  `AiAgents::ContextExpansion`). The `konteks` agent has the default radius 0; to measure expansion, set
+  `context_expansion_radius` (and `context_limit` when needed) on the agent in the General tab or with
+  `PATCH /api/v1/accounts/:account_id/ai_agents/:id`, run the eval, and compare with a run at radius 0. Neighbors take
+  slots of the Context Limit, so a run with expansion can send fewer matches. The results and the slot sweep are on
+  issue #134.
+
 ## Retrieval eval
 
 ```bash
@@ -233,6 +295,10 @@ node retrieval-report.mjs output/retrieval-vector.json
 - A case runs against the `large` agent unless it sets `agent`.
 - Multi-turn and topic change cases send the messages up to the last `AI:` line as the Retrieval Test `history`, and
   the customer messages after it as `query`, so they search with the queries a reply builds.
+- `ganti-topik-qa` and `lanjutan-qa` (issue #141) run against `bengkel-qa`, where an earlier question about one service
+  also matches the Q&A of the same question about another. In `ganti-topik-qa` the customer moves to a new topic, and the
+  Q&A of the new question should rank first (hit@1); in `lanjutan-qa` the latest message leaves out its service, so only
+  the query with the earlier turns can find it.
 - The mode follows `AI_AGENT_EMBEDDING_MODEL` in Super Admin: hybrid when it is set, keyword when it is blank. To
   measure keyword mode, blank it, run the eval, and set it back. This affects every agent of the installation while it
   is blank, but no re-index is needed. Scores are Reciprocal Rank Fusion scores in both modes: higher is closer, but they
@@ -242,6 +308,10 @@ node retrieval-report.mjs output/retrieval-vector.json
 - Each case costs one embedding call in hybrid mode and no LLM call in keyword mode. Results are deterministic for the
   same knowledge, so two runs that differ point to a setup problem. Latency is the whole Retrieval Test request as the
   eval sees it, including the embedding call, so compare runs made under the same conditions.
+- With a Context Expansion Radius above 0 (#134), `rank` is the place of a chunk in the prompt, where a neighbor that
+  comes before its match in the document comes first, so hit@1 and MRR drop although the matches rank the same. Measure
+  the ranking at radius 0, which the eval agents have by default, or rank only the chunks that have a score (neighbors
+  have none).
 - Pass two outputs to `retrieval-report.mjs` to list the cases whose result changed, for example before and after a
   retrieval change.
 

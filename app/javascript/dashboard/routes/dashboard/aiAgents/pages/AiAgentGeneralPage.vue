@@ -62,6 +62,7 @@ const toForm = agent => ({
   history_limit: agent.history_limit,
   read_file_limit: agent.read_file_limit,
   context_limit: agent.context_limit,
+  context_expansion_radius: agent.context_expansion_radius,
   temperature: agent.temperature,
   message_await: agent.message_await,
   message_limit: agent.message_limit,
@@ -169,6 +170,17 @@ const memoryFields = computed(() => [
     title: t('AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.CONTEXT_LIMIT.TITLE'),
     description: t(
       'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.CONTEXT_LIMIT.DESCRIPTION'
+    ),
+  },
+  {
+    key: 'context_expansion_radius',
+    min: 0,
+    max: 3,
+    title: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.CONTEXT_EXPANSION_RADIUS.TITLE'
+    ),
+    description: t(
+      'AI_AGENTS.GENERAL.ADDITIONAL_SETTINGS.CONTEXT_EXPANSION_RADIUS.DESCRIPTION'
     ),
   },
 ]);

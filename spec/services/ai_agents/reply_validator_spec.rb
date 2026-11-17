@@ -20,6 +20,15 @@ RSpec.describe AiAgents::ReplyValidator do
     expect(result).not_to be_knowledge_gap
   end
 
+  it 'passes an answer citing a chunk sent as the neighbor of a match, with the numbers it has' do
+    hits << AiAgents::KnowledgeRetriever::Hit.new(chunk: AiAgent::KnowledgeChunk.new(content: "Profil toko\n\nParkir gratis 2 jam."), rank: 3,
+                                                  score: nil, neighbor_of: 1)
+    content['sources'] = [1, 3]
+    replies.replace(['Buka 08.00-20.00 WIB, parkir gratis 2 jam.'])
+
+    expect(result).to have_attributes(decision: 'answer', sources: [1, 3], blocked_reason: nil)
+  end
+
   it 'blocks a decision outside the list, without keeping it' do
     content['decision'] = 'out_of_scope'
 
@@ -265,6 +274,22 @@ RSpec.describe AiAgents::ReplyValidator do
 
       expect(described_class.new(content: content, replies: replies, hits: hits, messages: messages, current_time: '').perform)
         .to have_attributes(blocked_reason: nil)
+    end
+  end
+
+  describe '.without_rank_markers' do
+    it 'takes out ranks in brackets and Markdown links to a rank, with their parentheses and the spaces before them' do
+      expect(described_class.without_rank_markers(
+               ['Hasil tiap injektor dibandingkan. [1,2,5]', 'Noise Detector membantu analisis suara. ([Sumber](9))',
+                '[1, 2] Buka 08.00-20.00 WIB [2] setiap hari.', ' [3] '], 11
+             )).to eq(['Hasil tiap injektor dibandingkan.', 'Noise Detector membantu analisis suara.', 'Buka 08.00-20.00 WIB setiap hari.', ''])
+    end
+
+    it 'keeps a bracket with a number that is no rank of the prompt, and other brackets and links' do
+      replies = ['Lihat [15] dan [1, 12].', 'Produksi [2026], kode [0].', '[Katalog](https://toko.example/katalog) dan [catatan].']
+
+      expect(described_class.without_rank_markers(replies, 11)).to eq(replies)
+      expect(described_class.without_rank_markers(['Buka 08.00 [1].'], 0)).to eq(['Buka 08.00 [1].'])
     end
   end
 end

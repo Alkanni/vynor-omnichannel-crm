@@ -11,7 +11,7 @@ This is a **fork of Chatwoot v4.18.0** with **zero local modifications** at the 
 every commit in `git log` is upstream authorship; no "vynor" string exists anywhere in the tree.
 Everything documented here is therefore upstream Chatwoot architecture — the starting point for future Vynor customization.
 
-- **Backend:** Ruby 3.4.4 / Rails 7.1 schema (`load_defaults 7.0`) monolith, PostgreSQL (+pgvector, pg_trgm), Redis, Sidekiq.
+- **Backend:** Ruby 3.4.4 / Rails 8.1.4.1 (`load_defaults 7.0`, schema header 8.1) monolith, PostgreSQL (+pgvector, pg_trgm), Redis, Sidekiq.
 - **Frontend:** Vue 3 + Vite, mixed Vuex (`dashboard/store`) and Pinia (`dashboard/stores`) state.
 - **Overlay:** `enterprise/` (separately licensed) extends OSS classes at load time via `prepend_mod_with`.
 

@@ -8,8 +8,14 @@ class AiAgents::TextChunker
   HEADING_PATTERN = /\A(\#{1,6})[ \t]+(.+?)[ \t]*\#*\z/
   TABLE_DELIMITER_PATTERN = /\A\|[\s:|-]*-[\s:|-]*\z/
 
+  # section numbers the stretches of text between headings in document order, from 0, so the chunks of one section share
+  # it. Text without headings, such as an extracted PDF, is one section.
+  Chunk = Data.define(:section, :text)
+
   def self.split(text)
-    sections(text).flat_map { |path, lines| section_chunks(path, lines) }
+    sections(text).each_with_index.flat_map do |(path, lines), section|
+      section_chunks(path, lines).map { |chunk| Chunk.new(section: section, text: chunk) }
+    end
   end
 
   # [heading path, lines] of each stretch of text between headings; the text before the first heading has no path.

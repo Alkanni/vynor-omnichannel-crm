@@ -4,10 +4,12 @@
 # so vector search finds what means the same and keywords find exact names and numbers. Without one only the words count.
 # Chunks that are not relevant enough are left out of their list: those sharing no word with the question, and those
 # farther than AI_AGENT_EMBEDDING_MAX_DISTANCE when it is set. No chunk at all means the model answers without knowledge.
+# With a Context Expansion Radius the chunks next to the matches are sent too (see AiAgents::ContextExpansion).
 #
 # A follow-up question often leaves out its subject ("How much for 4?"), so a conversation with earlier customer turns
 # is searched twice: with the latest turn, and with that turn joined to the ones before it. The first keeps a change of
-# topic from being outweighed by the earlier turns. Agent replies stay out of the search, because they added noise.
+# topic in the results, and the second counts less when the latest turn names its own subject (see
+# NEW_TOPIC_QUERY_WEIGHTS). Agent replies stay out of the search, because they added noise.
 class AiAgents::KnowledgeRetriever
   MAX_QUERY_CHARACTERS = 4_000
   CONTEXT_TURNS = 2
@@ -20,13 +22,23 @@ class AiAgents::KnowledgeRetriever
 
   # Fusion settings, chosen with evals/ai-agent on lists of CANDIDATES: k evens out how much a top rank counts against a
   # lower one, keywords count half as much as embeddings because they match on any shared word, however common, and the
-  # query with earlier turns counts most because a follow-up is hardly searchable on its own.
+  # query with earlier turns counts most because a follow-up is hardly searchable on its own. When the vector and keyword
+  # searches of the latest turn agree on their top chunk, that turn names its own subject, so the query with earlier turns
+  # counts no more than it: at 4 the earlier topic outranked a new one, most of all in Q&A that ask the same questions
+  # about many services (#141). A follow-up that leaves out its subject rarely gets the same top chunk from both searches.
   RRF_K = 20
   KEYWORD_WEIGHT = 0.5
   QUERY_WEIGHTS = [1.0, 4.0].freeze
+  NEW_TOPIC_QUERY_WEIGHTS = [1.0, 1.0].freeze
 
-  # rank starts at 1. score is the RRF score: higher is closer, and it says nothing about relevance on its own.
-  Hit = Data.define(:chunk, :rank, :score)
+  # rank starts at 1 and orders the chunks in the prompt. score is the RRF score: higher is closer, and it says nothing
+  # about relevance on its own. A chunk sent as the neighbor of a match (see AiAgents::ContextExpansion) has no score, and
+  # neighbor_of is the rank of that match.
+  Hit = Data.define(:chunk, :rank, :score, :neighbor_of) do
+    def initialize(chunk:, rank:, score:, neighbor_of: nil)
+      super
+    end
+  end
   # queries: the latest customer turn, then that turn with the earlier ones when there are any.
   Result = Data.define(:mode, :embedding_model, :queries, :hits)
 
@@ -35,9 +47,9 @@ class AiAgents::KnowledgeRetriever
 
   def perform
     embedding_model = AiAgents::LlmClient.embedding_model
+    mode = embedding_model ? 'hybrid' : 'keyword'
     queries = search_queries
-    Result.new(mode: embedding_model ? 'hybrid' : 'keyword', embedding_model: embedding_model, queries: queries,
-               hits: hits(embedding_model, queries))
+    Result.new(mode: mode, embedding_model: embedding_model, queries: queries, hits: hits(mode, embedding_model, queries))
   end
 
   private
@@ -58,27 +70,51 @@ class AiAgents::KnowledgeRetriever
             .map { |turn| turn.pluck(:content).join("\n") }
   end
 
-  def hits(embedding_model, queries)
+  # The request log gets the search after its embedding step, with the content of each chunk it found (see
+  # AiAgents::RequestRecorder).
+  def hits(mode, embedding_model, queries)
     chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
     return [] if queries.empty? || !chunks.exists?
 
     vectors = embedding_model ? AiAgents::LlmClient.new.embed(queries, input_type: :query) : []
-    scores = fused(chunks, queries, vectors).first(ai_agent.context_limit)
-    scores.map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) }
+    AiAgents::RequestRecorder.step(:retrieval, { mode: mode, queries: queries }) do |step|
+      ranked(chunks, queries, vectors).tap { |hits| step.output = { hits: hits.map { |hit| logged_hit(hit) } } }
+    end
+  end
+
+  def ranked(chunks, queries, vectors)
+    matches = fused(chunks, queries, vectors).first(ai_agent.context_limit)
+    radius = ai_agent.context_expansion_radius
+    return matches.map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) } if radius.zero?
+
+    AiAgents::ContextExpansion.new(chunks: chunks, matches: matches, radius: radius, limit: ai_agent.context_limit).perform
+  end
+
+  # distance is the cosine distance of a chunk the embedding search found, nil for the others.
+  def logged_hit(hit)
+    chunk = hit.chunk
+    { rank: hit.rank, chunk_id: chunk.id, chunkable_type: chunk.chunkable_type, chunkable_id: chunk.chunkable_id, score: hit.score,
+      distance: chunk.attributes['neighbor_distance'], neighbor_of: hit.neighbor_of, content: chunk.content }
   end
 
   # A chunk scores weight / (RRF_K + rank) for each list it is in, so one found by several searches ranks above one found
   # by a single search. The vector list goes first so that a chunk it found keeps its distance.
   def fused(chunks, queries, vectors)
+    lists = queries.zip(vectors).map do |query, vector|
+      [vector ? nearest_chunks(chunks, vector).to_a : [], keyword_matches(chunks, query)]
+    end
     scores = Hash.new(0.0)
-    queries.zip(vectors, QUERY_WEIGHTS) do |query, vector, query_weight|
-      lists = [[keyword_matches(chunks, query), KEYWORD_WEIGHT]]
-      lists.unshift([nearest_chunks(chunks, vector), 1.0]) if vector
-      lists.each do |list, list_weight|
+    lists.zip(query_weights(*lists.first)) do |(nearest, keyword), query_weight|
+      [[nearest, 1.0], [keyword, KEYWORD_WEIGHT]].each do |list, list_weight|
         list.each.with_index(1) { |chunk, rank| scores[chunk] += query_weight * list_weight / (RRF_K + rank) }
       end
     end
     scores.sort_by { |chunk, score| [-score, chunk.id] }
+  end
+
+  # nearest and keyword are the lists of the latest turn.
+  def query_weights(nearest, keyword)
+    nearest.any? && nearest.first == keyword.first ? NEW_TOPIC_QUERY_WEIGHTS : QUERY_WEIGHTS
   end
 
   def nearest_chunks(chunks, vector)

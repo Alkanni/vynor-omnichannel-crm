@@ -1,0 +1,19 @@
+<% if f.object.persisted? %>
+  <div class="field-unit__label">
+    <%= label_tag :enabled_features, t('super_admin.account_features.label') %>
+  </div>
+
+  <div class="field-unit__field">
+    <p class="mb-2 text-xs text-n-slate-11"><%= t('super_admin.account_features.hint') %></p>
+    <%# Marks the list as submitted, so unchecking every feature still turns them off. %>
+    <%= hidden_field_tag 'enabled_features[_submitted]', '1', id: nil %>
+    <div class="space-y-1">
+      <% field.features.each do |(name, display_name), enabled| %>
+        <label class="flex items-center gap-2 font-normal">
+          <%= check_box_tag "enabled_features[#{name}]", '1', enabled, id: "enabled_features_#{name}" %>
+          <span><%= display_name || name %></span>
+        </label>
+      <% end %>
+    </div>
+  </div>
+<% end %>

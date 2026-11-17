@@ -800,6 +800,362 @@
     expected: Daftar harga grosir
     answer: '| GR-083 |'
 
+# Ganti topik pada knowledge Q&A besar (issue #141): agent "bengkel-qa" (fixtures/bengkel-qa.json), 195 Q&A dengan pola
+# pertanyaan yang sama untuk tiap layanan ("Berapa harga …", "Berapa lama proses …"). Pelanggan bertanya topik baru
+# setelah topik lain, kadang dengan pola pertanyaan yang sama, sehingga Q&A topik sebelumnya ikut cocok dengan query
+# gabungan. Bentuk R-Q01 dan R-Q02 meniru trace 177 dan 163 agent live. Semua kasus ditulis sebelum pengukuran.
+- description: 'R-Q01: Berapa lama proses cuci mobil biasa? (setelah membongkar saat body repair)'
+  metadata: { id: R-Q01, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apakah perlu membongkar bagian dalam saat body repair?
+      AI: Tergantung kerusakannya, Kak. Bila penyok mengenai rangka pintu, panel bagian dalam dibongkar dulu.
+      Berapa lama proses cuci mobil biasa di vynor auto care?
+    expected: |-
+      Berapa lama proses cuci mobil reguler di Vynor Auto Care?
+      Cuci mobil biasa butuh waktu berapa lama?
+
+- description: 'R-Q02: Apa itu balancing ban? (setelah komponen AC)'
+  metadata: { id: R-Q02, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Komponen AC mobil apa saja yang sering rusak?
+      AI: Yang paling sering rusak kompresor, kondensor, evaporator, extra fan, dan magnetic clutch.
+      Apa itu balancing ban?
+    expected: Apa itu balancing ban?
+
+- description: 'R-Q03: Kalau balancing berapa? (setelah harga spooring)'
+  metadata: { id: R-Q03, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa harga spooring?
+      AI: Spooring Rp150.000 untuk city car dan sedan, Rp200.000 untuk SUV dan MPV.
+      Kalau balancing berapa?
+    expected: Berapa harga balancing ban?
+
+- description: 'R-Q04: Ada garansinya ga kalau poles bodi? (setelah lama coating keramik)'
+  metadata: { id: R-Q04, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa lama proses coating keramik?
+      AI: Coating keramik 2 hari, Kak, dan mobil menginap di workshop.
+      Ada garansinya ga kalau poles bodi?
+    expected: Apakah poles bodi ada garansi?
+
+- description: 'R-Q05: Kalau tune up harus booking? (setelah booking ganti oli)'
+  metadata: { id: R-Q05, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Mau ganti oli mesin, harus booking dulu nggak?
+      AI: Tidak perlu booking, Kak, silakan datang langsung.
+      Kalau tune up harus booking?
+    expected: Apakah tune up harus booking dulu?
+
+- description: 'R-Q06: Cuci mesin aman nggak buat mobil hybrid? (setelah jok detailing interior)'
+  metadata: { id: R-Q06, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apakah detailing interior jok nya dilepas?
+      AI: Ya, Kak. Jok dilepas agar karpet dan bagian bawah jok bisa dibersihkan.
+      Cuci mesin aman nggak buat mobil hybrid?
+    expected: Apakah cuci mesin aman untuk mobil matic dan hybrid?
+
+- description: 'R-Q07: Ganti aki berapa lama? (setelah harga derek)'
+  metadata: { id: R-Q07, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Derek dalam kota berapa?
+      AI: Derek dalam kota Semarang Rp350.000, Kak.
+      Ganti aki berapa lama?
+    expected: Berapa lama proses ganti aki di Vynor Auto Care?
+
+- description: 'R-Q08: Kalau ganti oli transmisi matic kapan? (setelah kapan kuras radiator)'
+  metadata: { id: R-Q08, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Kapan sebaiknya kuras radiator?
+      AI: Setiap 40.000 km atau 2 tahun, Kak.
+      Kalau ganti oli transmisi matic kapan?
+    expected: Kapan sebaiknya ganti oli transmisi matic dilakukan?
+
+- description: 'R-Q09: Bisa bayar pakai QRIS? (setelah isi tune up)'
+  metadata: { id: R-Q09, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apa saja yang dikerjakan saat tune up?
+      AI: Pembersihan throttle body, injektor, dan filter udara, cek busi, scanner, dan cek kelistrikan.
+      Bisa bayar pakai QRIS?
+    expected: Metode pembayaran apa saja yang diterima?
+
+- description: 'R-Q10: Jam berapa bengkelnya buka? (setelah harga cuci jok)'
+  metadata: { id: R-Q10, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa harga cuci jok kulit?
+      AI: Rp500.000 untuk jok kulit, sudah termasuk conditioner.
+      Jam berapa bengkelnya buka?
+    expected: Jam berapa Vynor Auto Care buka?
+
+- description: 'R-Q11: Kalau spooring berapa lama? (setelah dua giliran body repair)'
+  metadata: { id: R-Q11, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Body repair bisa klaim asuransi?
+      AI: Bisa, Kak, dengan Asuransi Astra, Sinar Mas, dan ACA.
+      Berapa lama prosesnya?
+      AI: 3-7 hari kerja, tergantung kerusakannya.
+      Kalau spooring berapa lama?
+    expected: Berapa lama proses spooring di Vynor Auto Care?
+
+- description: 'R-Q12: Ada promo bulan ini? (setelah dua giliran servis AC)'
+  metadata: { id: R-Q12, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Servis AC berapa harganya?
+      AI: Isi freon Rp250.000, kuras evaporator Rp850.000.
+      Garansi servis AC berapa lama?
+      AI: 1 bulan, Kak.
+      Ada promo bulan ini?
+    expected: Apakah ada promo bulan ini?
+
+- description: 'R-Q13: Apa itu fogging? (setelah harga cuci salju)'
+  metadata: { id: R-Q13, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Cuci salju berapa?
+      AI: Rp75.000 untuk city car dan sedan, Rp90.000 untuk SUV dan MPV.
+      Apa itu fogging?
+    expected: Apa itu fogging kabin?
+
+- description: 'R-Q14: Berapa lama proses cuci kolong? (setelah lama detailing interior)'
+  metadata: { id: R-Q14, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa lama proses detailing interior?
+      AI: Sekitar 6-8 jam, Kak.
+      Berapa lama proses cuci kolong?
+    expected: Berapa lama proses cuci kolong di Vynor Auto Care?
+
+- description: 'R-Q15: Restorasi lampu harganya berapa? (setelah garansi servis rem)'
+  metadata: { id: R-Q15, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apakah servis rem ada garansi?
+      AI: Ada, Kak, 1 bulan.
+      Restorasi lampu harganya berapa?
+    expected: Berapa harga restorasi lampu?
+
+- description: 'R-Q16: Kalau kaca film ada yang dibongkar? (setelah membongkar saat cat ulang)'
+  metadata: { id: R-Q16, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apakah perlu membongkar bagian dalam saat cat ulang?
+      AI: Untuk cat ulang full body, lampu, handle pintu, dan list kaca dilepas dulu.
+      Kalau kaca film ada yang dibongkar?
+    expected: Apakah perlu membongkar bagian dalam saat pasang kaca film?
+
+- description: 'R-Q17: Anti karat kolong berapa lama? (setelah home service)'
+  metadata: { id: R-Q17, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Home service bisa untuk apa aja?
+      AI: Ganti oli, ganti aki, isi freon AC, dan cek ringan, Kak.
+      Anti karat kolong berapa lama?
+    expected: Berapa lama proses anti karat kolong di Vynor Auto Care?
+
+- description: 'R-Q18: Mekaniknya bersertifikat? (setelah merek ban)'
+  metadata: { id: R-Q18, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Merek ban apa saja yang ada?
+      AI: Bridgestone, Dunlop, GT Radial, dan Michelin, Kak.
+      Mekaniknya bersertifikat?
+    expected: Apakah mekaniknya bersertifikat?
+
+- description: 'R-Q19: Scan kelistrikan berapa? (setelah kapan ganti aki)'
+  metadata: { id: R-Q19, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Kapan harus ganti aki?
+      AI: Umumnya 2-3 tahun sekali, atau saat mesin sulit dinyalakan.
+      Scan kelistrikan berapa?
+    expected: Berapa harga scan kelistrikan?
+
+- description: 'R-Q20: Kalau poles bodi itu apa? (setelah apa itu coating keramik)'
+  metadata: { id: R-Q20, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apa itu coating keramik?
+      AI: Lapisan pelindung cat berbahan dasar silika, Kak.
+      Kalau poles bodi itu apa?
+    expected: Apa itu poles bodi?
+
+- description: 'R-Q21: Cuci interior perlu booking? (setelah estimasi body repair)'
+  metadata: { id: R-Q21, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Bisa minta estimasi biaya body repair?
+      AI: Bisa, Kak. Kirim foto kerusakan lewat chat ini.
+      Cuci interior perlu booking?
+    expected: Apakah cuci interior harus booking dulu?
+
+- description: 'R-Q22: Berapa harga kuras radiator? (setelah harga oli transmisi matic)'
+  metadata: { id: R-Q22, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa harga ganti oli transmisi matic?
+      AI: Rp650.000 termasuk oli ATF, atau Rp850.000 untuk oli CVT.
+      Berapa harga kuras radiator?
+    expected: Berapa harga kuras radiator?
+
+- description: 'R-Q23: Melayani mobil listrik? (setelah lama servis kaki-kaki)'
+  metadata: { id: R-Q23, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Servis kaki-kaki berapa lama?
+      AI: Sekitar 2-3 jam, Kak.
+      Melayani mobil listrik?
+    expected: Apakah melayani mobil listrik?
+
+- description: 'R-Q24: Kalau cuci mesin bisa ditunggu? (setelah ruang tunggu)'
+  metadata: { id: R-Q24, category: ganti-topik-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Ada ruang tunggu?
+      AI: Ada ruang tunggu ber-AC dengan WiFi, kopi, musala, dan toilet.
+      Kalau cuci mesin bisa ditunggu?
+    expected: Apakah cuci mesin bisa ditunggu?
+
+# Lanjutan pada knowledge Q&A besar (issue #141): pesan terbaru tidak menyebut layanannya, jadi hanya query gabungan yang
+# bisa menemukan Q&A-nya. Menjaga agar perbaikan ganti topik tidak merusak follow-up seperti kategori multi-turn.
+- description: 'R-QL01: Garansinya berapa lama? (setelah harga kaca film)'
+  metadata: { id: R-QL01, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa harga pasang kaca film?
+      AI: Mulai Rp1.200.000 untuk kaca depan, samping, dan belakang.
+      Garansinya berapa lama?
+    expected: Apakah pasang kaca film ada garansi?
+
+- description: 'R-QL02: Harganya berapa? (setelah apa itu spooring)'
+  metadata: { id: R-QL02, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apa itu spooring?
+      AI: Penyetelan sudut roda agar mobil berjalan lurus dan ban tidak aus sebelah.
+      Harganya berapa?
+    expected: |-
+      Berapa harga spooring?
+      Spooring harganya berapa?
+
+- description: 'R-QL03: Harus booking dulu? (setelah mau coating keramik)'
+  metadata: { id: R-QL03, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Saya mau coating keramik.
+      AI: Baik, Kak. Coating keramik Rp3.500.000 untuk city car dan sedan.
+      Harus booking dulu?
+    expected: Apakah coating keramik harus booking dulu?
+
+- description: 'R-QL04: Jok nya dilepas? (setelah harga cuci jok)'
+  metadata: { id: R-QL04, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa harga cuci jok?
+      AI: Rp400.000 untuk jok kain, Rp500.000 untuk jok kulit.
+      Jok nya dilepas?
+    expected: Apakah perlu membongkar bagian dalam saat cuci jok?
+
+- description: 'R-QL05: Ada garansinya? (setelah lama tune up)'
+  metadata: { id: R-QL05, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa lama proses tune up?
+      AI: Sekitar 2 jam, Kak.
+      Ada garansinya?
+    expected: Apakah tune up ada garansi?
+
+- description: 'R-QL06: Kapan harus dilakukan? (setelah harga balancing)'
+  metadata: { id: R-QL06, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Berapa harga balancing ban?
+      AI: Rp25.000 per roda, Kak.
+      Kapan harus dilakukan?
+    expected: Kapan sebaiknya balancing ban dilakukan?
+
+- description: 'R-QL07: Berapa lama sampainya? (setelah derek)'
+  metadata: { id: R-QL07, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Mobil saya mogok, ada derek?
+      AI: Ada, Kak. Derek dalam kota Semarang Rp350.000.
+      Berapa lama sampainya?
+    expected: Berapa lama proses derek di Vynor Auto Care?
+
+- description: 'R-QL08: Bisa ditunggu? (setelah apa itu cuci kolong)'
+  metadata: { id: R-QL08, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Apa itu cuci kolong?
+      AI: Pembersihan bagian bawah mobil dari lumpur dan pasir.
+      Bisa ditunggu?
+    expected: Apakah cuci kolong bisa ditunggu?
+
+- description: 'R-QL09: Ada garansinya? (setelah dua giliran body repair)'
+  metadata: { id: R-QL09, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Body repair bisa klaim asuransi?
+      AI: Bisa, Kak.
+      Harganya mulai berapa?
+      AI: Mulai Rp500.000 per panel.
+      Ada garansinya?
+    expected: Apakah body repair ada garansi?
+
+- description: 'R-QL10: Dashboard dibongkar? (setelah harga servis AC)'
+  metadata: { id: R-QL10, category: lanjutan-qa }
+  vars:
+    agent: bengkel-qa
+    conversation: |-
+      Servis AC berapa?
+      AI: Isi freon Rp250.000, kuras evaporator Rp850.000.
+      Dashboard dibongkar?
+    expected: Apakah perlu membongkar bagian dalam saat servis AC?
+
 # Tanpa jawaban: tidak ada knowledge yang menjawab pertanyaan.
 - description: 'R-N01: Apakah ada cabang di Surabaya?'
   metadata: { id: R-N01, category: tanpa-jawaban }

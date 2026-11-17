@@ -4,8 +4,12 @@
 # search and the reply model. When the check wrote a web query that may be searched, the web results go into the prompt
 # after the knowledge (see AiAgents::WebSearch); a search that fails or is skipped leaves the reply to the knowledge. The
 # reply of a strict agent is checked against the knowledge and web results it cites before it is sent (see
-# AiAgents::ReplyValidator), and one that fails gets the agent's knowledge gap message. The links of the web results a
-# reply cites are added to it after the check, so the model never writes them.
+# AiAgents::ReplyValidator), and one that fails gets the agent's knowledge gap message. A reply without a valid decision,
+# such as text written instead of the reply function, is asked for once more first, since the model usually gives one on
+# the next call; text goes back to the model with a note to call the function for it (see
+# AiAgents::ReplyValidator.retry_messages). The links of the web results a reply cites are added to it after the check,
+# so the model never writes them. The [rank] markers a model still writes in a reply of any agent are taken out of its
+# bubbles before the check and before they are sent (see AiAgents::ReplyValidator.without_rank_markers).
 # Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
@@ -23,21 +27,30 @@ class AiAgents::ReplyGenerator
   # scope is an AiAgents::ScopeGuard::Result, nil when the check did not run; retrieval is an
   # AiAgents::KnowledgeRetriever::Result, nil for a scope reply; web_search is the AiAgents::WebSearch::Result of a turn
   # that was searched, with the ranks its results had in the prompt, nil otherwise; validation is an
-  # AiAgents::ReplyValidator::Result for a reply of a strict agent's reply model, nil otherwise. Tokens add up the scope
-  # check and the reply model (see AiAgents::LlmClient::Completion for cached_input_tokens), and latency_ms covers the
-  # scope check, the knowledge search, the web search, and the model call.
-  Trace = Data.define(:scope, :retrieval, :web_search, :validation, :input_tokens, :output_tokens, :cached_input_tokens, :latency_ms) do
+  # AiAgents::ReplyValidator::Result for a reply of a strict agent's reply model, nil otherwise, and of the second call
+  # when the first had no valid decision; invalid_outputs is the shape of each reply model output without a valid
+  # decision, in order (see AiAgents::ReplyValidator.output_shape): one when the model was asked again, two when the second
+  # output had none either, empty otherwise. Tokens add up the scope check and the reply model calls (see
+  # AiAgents::LlmClient::Completion for cached_input_tokens), and latency_ms covers the scope check, the knowledge search,
+  # the web search, and the model calls.
+  Trace = Data.define(:scope, :retrieval, :web_search, :validation, :invalid_outputs, :input_tokens, :output_tokens, :cached_input_tokens,
+                      :latency_ms) do
     # The AiAgent::ReplyTrace columns it fills; chunks are kept as references, without their content, web results as their
-    # rank and URL, and the web query is not kept at all.
+    # rank and URL, invalid outputs as their shape, and the web query is not kept at all.
     def attributes
       { retrieval_mode: retrieval&.mode, embedding_model: retrieval&.embedding_model, retrieved: retrieved, **scope_attributes,
         **web_attributes, input_tokens: input_tokens, output_tokens: output_tokens, cached_input_tokens: cached_input_tokens,
-        latency_ms: latency_ms, **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks) }
+        latency_ms: latency_ms, **validation.to_h.transform_keys(decision: :reply_decision, sources: :cited_ranks),
+        invalid_outputs: invalid_outputs }
     end
 
     # What became of web search for the turn: the status of the search, else the scope check's (see
     # AiAgents::ScopeGuard::Result); nil for an agent without web search.
     def web_search_status = web_search&.status || scope&.web_search_status
+
+    # Whether a strict reply without a valid decision was not asked for again, because the deadline came first: one that
+    # was asked again either has a valid decision or a second invalid output. nil when the reply was not checked.
+    def retry_skipped? = validation&.invalid_decision? && invalid_outputs.one?
 
     private
 
@@ -53,7 +66,8 @@ class AiAgents::ReplyGenerator
 
     def retrieved
       Array(retrieval&.hits).map do |hit|
-        { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score }
+        { chunk_id: hit.chunk.id, chunkable_type: hit.chunk.chunkable_type, chunkable_id: hit.chunk.chunkable_id, rank: hit.rank, score: hit.score,
+          neighbor_of: hit.neighbor_of }
       end
     end
   end
@@ -80,8 +94,11 @@ class AiAgents::ReplyGenerator
     so use more than one item only when separate bubbles help, and never more than #{MAX_REPLY_MESSAGES}.
   TEXT
 
-  # written_rows: the Google Sheets rows already written for the conversation (see AiAgents::ActionSchema).
-  pattr_initialize [:ai_agent!, :messages!, :written_rows]
+  # written_rows: the Google Sheets rows already written for the conversation (see AiAgents::ActionSchema). deadline_ms:
+  # how long a reply made inside a request may take (see Api::V1::Accounts::AiAgentsController#playground); the reply model
+  # is not asked again when the first call took long enough that a second one of the same length would end past it. nil,
+  # as for live replies, always asks again.
+  pattr_initialize [:ai_agent!, :messages!, :written_rows, :deadline_ms]
 
   def perform
     @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
@@ -97,43 +114,59 @@ class AiAgents::ReplyGenerator
 
   private
 
+  # The reply of the last call: a strict reply without a valid decision is asked for once more, in time for the deadline.
   def model_reply
-    completion = client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
-                             messages: llm_messages, schema: actions.json_schema('ai_agent_reply', reply_properties))
-    content = completion.content
-    content = {} unless content.is_a?(Hash)
-    validation = validate(content) if ai_agent.scope_strict?
+    completions = [complete]
+    validation = validate(completions.last) if ai_agent.scope_strict?
+    if validation&.invalid_decision? && in_time_for_another_call?(completions.last)
+      completions << complete(AiAgents::ReplyValidator.retry_messages(completions.last.content))
+      validation = validate(completions.last)
+    end
+    content = completions.last.arguments
     # The actions still apply to a reply that failed the check, because they state nothing to the customer.
-    Reply.new(messages: sent_messages(content, validation), **actions.parse(content), trace: trace(completion, validation))
+    Reply.new(messages: sent_messages(content, validation), **actions.parse(content), trace: trace(completions, validation))
+  end
+
+  # Another call as long as the last one has to end before the deadline.
+  def in_time_for_another_call?(completion) = deadline_ms.nil? || elapsed_ms + completion.latency_ms < deadline_ms
+
+  # retry_messages follow the conversation when the model is asked once more (see AiAgents::ReplyValidator.retry_messages).
+  def complete(retry_messages = [])
+    client.chat(model: ai_agent.model, temperature: TEMPERATURES.fetch(ai_agent.temperature), instructions: instructions,
+                messages: llm_messages + retry_messages, schema: actions.json_schema('ai_agent_reply', reply_properties), step: :reply)
   end
 
   def reply_properties
     ai_agent.scope_strict? ? AiAgents::ReplyValidator::PROPERTIES.merge(MESSAGES_PROPERTY) : MESSAGES_PROPERTY
   end
 
-  def validate(content)
-    AiAgents::ReplyValidator.new(content: content, replies: reply_messages(content), hits: retrieval.hits,
+  def validate(completion)
+    AiAgents::ReplyValidator.new(content: completion.arguments, replies: reply_messages(completion.arguments), hits: retrieval.hits,
                                  web_results: (Array(web_search&.results) if ai_agent.web_search?), messages: messages,
                                  current_time: current_time).perform
   end
 
   def scope_reply
-    trace = Trace.new(scope: @scope, retrieval: nil, web_search: nil, validation: nil, input_tokens: @scope.input_tokens,
+    trace = Trace.new(scope: @scope, retrieval: nil, web_search: nil, validation: nil, invalid_outputs: [], input_tokens: @scope.input_tokens,
                       output_tokens: @scope.output_tokens, cached_input_tokens: @scope.cached_input_tokens, latency_ms: elapsed_ms)
     Reply.new(messages: [ai_agent.public_send(@scope.reply_attribute)], handoff: false, labels: [], trace: trace)
   end
 
-  def trace(completion, validation)
+  def trace(completions, validation)
     Trace.new(scope: @scope, retrieval: retrieval, web_search: web_search, validation: validation,
-              input_tokens: tokens(@scope&.input_tokens, completion.input_tokens),
-              output_tokens: tokens(@scope&.output_tokens, completion.output_tokens),
-              cached_input_tokens: tokens(@scope&.cached_input_tokens, completion.cached_input_tokens), latency_ms: elapsed_ms)
+              invalid_outputs: invalid_outputs(completions, validation),
+              input_tokens: tokens(@scope&.input_tokens, *completions.map(&:input_tokens)),
+              output_tokens: tokens(@scope&.output_tokens, *completions.map(&:output_tokens)),
+              cached_input_tokens: tokens(@scope&.cached_input_tokens, *completions.map(&:cached_input_tokens)), latency_ms: elapsed_ms)
+  end
+
+  # Every call but the last had no valid decision, and the last one too when the check still says so.
+  def invalid_outputs(completions, validation)
+    (validation&.invalid_decision? ? completions : completions[0...-1]).map { |completion| AiAgents::ReplyValidator.output_shape(completion.content) }
   end
 
   # nil when the gateway reported no usage.
-  def tokens(*counts)
-    counts.compact.presence&.sum
-  end
+  def tokens(*counts) = counts.compact.presence&.sum
 
   def elapsed_ms
     Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - @started_at
@@ -155,8 +188,10 @@ class AiAgents::ReplyGenerator
     Array(web_search&.results).filter_map { |item| item.url if sources.include?(item.rank) && replies.none? { |reply| reply.include?(item.url) } }
   end
 
+  # The bubbles the check reads and the customer gets, without the [rank] of a knowledge or web entry the model wrote.
   def reply_messages(content)
-    Array(content['messages']).grep(String).map(&:strip).compact_blank.first(MAX_REPLY_MESSAGES)
+    last_rank = retrieval.hits.size + Array(web_search&.results).size
+    AiAgents::ReplyValidator.without_rank_markers(Array(content['messages']).grep(String), last_rank).compact_blank.first(MAX_REPLY_MESSAGES)
   end
 
   def instructions

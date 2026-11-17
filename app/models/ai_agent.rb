@@ -8,6 +8,7 @@
 #  behavior                   :text
 #  business_description       :text
 #  clarification_message      :text
+#  context_expansion_radius   :integer          default(0), not null
 #  context_limit              :integer          default(8), not null
 #  disallowed_topics          :text
 #  history_limit              :integer          default(30), not null
@@ -53,7 +54,7 @@ class AiAgent < ApplicationRecord
     scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message knowledge_gap_message
     web_search_enabled web_search_domains
   ].freeze
-  # A host name such as kompas.com or otomotif.kompas.com, as Exa's includeDomains takes it (see AiAgents::WebSearch).
+  # A host name such as kompas.com or otomotif.kompas.com, as the web search providers take it (see AiAgents::WebSearch).
   WEB_SEARCH_DOMAIN = /\A(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\z/i
   TRAINING_DELAY = 10.seconds
 
@@ -62,6 +63,7 @@ class AiAgent < ApplicationRecord
   has_many :products, class_name: 'AiAgent::Product', dependent: :destroy
   has_many :knowledge_chunks, class_name: 'AiAgent::KnowledgeChunk', dependent: :delete_all
   has_many :reply_traces, class_name: 'AiAgent::ReplyTrace', dependent: :delete_all
+  has_many :request_logs, class_name: 'AiAgent::RequestLog', dependent: :delete_all
   has_many :ai_agent_inboxes, dependent: :destroy
   has_one :google_sheets_integration, -> { where(integration_type: 'google_sheets') },
           class_name: 'AiAgent::Integration', dependent: :destroy, inverse_of: :ai_agent
@@ -87,6 +89,7 @@ class AiAgent < ApplicationRecord
   validates :history_limit, numericality: { only_integer: true, in: 1..100 }
   validates :read_file_limit, numericality: { only_integer: true, in: 0..10 }
   validates :context_limit, numericality: { only_integer: true, in: 1..100 }
+  validates :context_expansion_radius, numericality: { only_integer: true, in: 0..3 }
   validates :message_await, numericality: { only_integer: true, in: 0..300 }
   validates :message_limit, numericality: { only_integer: true, in: 1..1000 }
   validates :temperature, inclusion: { in: TEMPERATURES }
@@ -126,7 +129,7 @@ class AiAgent < ApplicationRecord
     scope_mode == 'strict'
   end
 
-  # Only strict agents can turn web search on, and it stays off for every agent while the Exa API key is blank (see
+  # Only strict agents can turn web search on, and it stays off for every agent while the web search API key is blank (see
   # AiAgents::WebSearch.configured?).
   def web_search?
     web_search_enabled && AiAgents::WebSearch.configured?

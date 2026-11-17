@@ -7,7 +7,7 @@
 # when it has a link that is not one of the web results, the knowledge, or the conversation of the prompt, or the site
 # of a web result; the links of the web results it cites are added after the check (see AiAgents::ReplyGenerator).
 # AiAgents::ReplyGenerator sends the agent's knowledge gap message instead of a reply that fails and of a knowledge_gap
-# decision.
+# decision, after asking the model once more for a reply that fails with invalid_decision.
 # The check is deterministic: it traces numbers and links to a source, but cannot tell whether the rest of the reply is
 # true, or whether a number from a web result is presented as the business's own.
 class AiAgents::ReplyValidator
@@ -42,6 +42,13 @@ class AiAgents::ReplyValidator
     - Add no fact about this business that the customer did not ask for, such as prices, contacts, or offers. A business
       fact you do state needs its knowledge entry in "sources" too.
   TEXT
+  # Follows the text of a reply model output that called no function, when the model is asked once more (see
+  # .retry_messages).
+  TEXT_RETRY_NOTE = <<~TEXT.chomp.freeze
+    This note comes from the system, not from the customer. Your reply above was written as text, so it was not sent.
+    Call the ai_agent_reply function now to send it, with the reply in "messages", its "decision", and the [rank] of each
+    entry it uses in "sources", following your instructions. Do not mention this note.
+  TEXT
   # Digits with optional thousands groups and decimals ("25.000", "25000.00", "1,5", "08.00", "13:30"), and an optional
   # scale word ("25 ribu", "25rb", "1,5 jt", "25k").
   NUMBER = /(?<!\d)(\d+)((?:[.,]\d{3})*)(?:[.,:](\d+))?(?:\s?(ribu|rb|juta|jt|k(?![[:alpha:]])))?/i
@@ -54,9 +61,13 @@ class AiAgents::ReplyValidator
   # A range of two years ("2017 - 2019", production years in a recall) also has 8 digits, but is no phone, account, or
   # identity number, so the long number rules leave it alone; each year still needs a source.
   YEAR_RANGE = /\A(?:19|20)\d\d\s*-\s*(?:19|20)\d\d\z/
+  # A citation the model may still write in a reply (see .without_rank_markers): ranks in brackets ("[1]", "[1, 2, 5]") or a
+  # Markdown link to a rank ("[Sumber](9)"), with the parentheses around it and the spaces before it.
+  RANK_MARKER = /[ \t]*(?<open>\()?(?:\[(?<ranks>\d+(?:\s*,\s*\d+)*)\]|\[[^\[\]\n]*\]\((?<ranks>\d+)\))(?(<open>)\))/
   # Without content, so a trace can keep it: blocked_reason is nil when the reply may be sent.
   Result = Data.define(:decision, :sources, :blocked_reason) do
     def knowledge_gap? = decision == 'knowledge_gap' || blocked_reason.present?
+    def invalid_decision? = blocked_reason == 'invalid_decision'
   end
 
   # content: the arguments of the reply function. replies: its messages. hits: the AiAgents::KnowledgeRetriever hits the
@@ -65,8 +76,42 @@ class AiAgents::ReplyValidator
   # time line of the prompt.
   pattr_initialize [:content!, :replies!, :hits!, :web_results, :messages!, :current_time!]
 
+  # How an output of the reply model failed with invalid_decision, without its content (see AiAgents::ReplyGenerator::Trace):
+  # text instead of the reply function (see AiAgents::LlmClient::Completion), the function without a decision, or with one
+  # outside DECISIONS.
+  def self.output_shape(content)
+    return 'text' unless content.is_a?(Hash)
+
+    content['decision'].nil? ? 'missing_decision' : 'unknown_decision'
+  end
+
+  # What follows the conversation when the reply model is asked once more after an output without a valid decision: text
+  # written instead of the reply function goes back to the model with TEXT_RETRY_NOTE, because asked the same way it often
+  # writes text again; any other output gets the same request. Never part of the messages the check traces numbers and
+  # links to.
+  def self.retry_messages(content)
+    return [] unless content.is_a?(String) && content.present?
+
+    [{ role: :assistant, content: content }, { role: :user, content: TEXT_RETRY_NOTE }]
+  end
+
+  # The replies of any agent without the rank markers whose ranks are all entries of the prompt, 1 to last_rank, and without
+  # the spaces around them. The prompt numbers its entries for every agent, and models sometimes cite them in the reply
+  # although told not to: the customer should not see a marker, and the check would read its ranks as numbers of the reply
+  # (unsupported_number on pilot replies whose facts their sources had). A bracket with any other number stays a number.
+  def self.without_rank_markers(replies, last_rank)
+    replies.map do |reply|
+      reply.gsub(RANK_MARKER) do |marker|
+        Regexp.last_match(:ranks).scan(/\d+/).all? { |rank| rank.to_i.between?(1, last_rank) } ? '' : marker
+      end.strip
+    end
+  end
+
   def perform
-    Result.new(decision: (decision if DECISIONS.include?(decision)), sources: sources.grep(Integer), blocked_reason: blocked_reason)
+    AiAgents::RequestRecorder.step(:reply_check, { sources: sources }) do |step|
+      Result.new(decision: (decision if DECISIONS.include?(decision)), sources: sources.grep(Integer), blocked_reason: blocked_reason)
+            .tap { |result| step.output = { decision: result.decision, blocked_reason: result.blocked_reason } }
+    end
   end
 
   private

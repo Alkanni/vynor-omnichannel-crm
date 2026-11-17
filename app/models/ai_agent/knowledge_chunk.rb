@@ -8,6 +8,7 @@
 #  content              :text             not null
 #  embedding            :vector
 #  embedding_model      :string
+#  section              :integer
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  account_id           :bigint           not null

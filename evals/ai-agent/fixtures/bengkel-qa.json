@@ -1,0 +1,997 @@
+{
+  "labels": ["komplain"],
+  "settings": {
+    "behavior": "Kamu adalah CS Vynor Auto Care. Jawab singkat, ramah, dan dalam Bahasa Indonesia.",
+    "welcome_message": "Halo! Selamat datang di Vynor Auto Care. Ada yang bisa kami bantu?",
+    "transfer_conditions": "Alihkan ke tim CS manusia bila pelanggan komplain, marah, atau meminta refund.",
+    "label_conditions": "Beri label komplain bila pelanggan menyampaikan keluhan.",
+    "temperature": "precise",
+    "timezone": "Asia/Jakarta",
+    "history_limit": 30,
+    "context_limit": 8
+  },
+  "knowledge": [
+    {
+      "source_type": "qa",
+      "title": "Apa itu cuci mobil reguler?",
+      "content": "Cuci mobil reguler adalah cuci bodi luar dengan sampo pH netral, bilas, keringkan dengan lap microfiber, lalu semir ban."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga cuci mobil reguler?",
+      "content": "Cuci mobil reguler Rp50.000 untuk city car dan sedan, Rp60.000 untuk SUV dan MPV."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses cuci mobil reguler di Vynor Auto Care?",
+      "content": "Proses cuci mobil reguler sekitar 40-60 menit, tergantung antrean."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya cuci mobil reguler dilakukan?",
+      "content": "Cuci mobil reguler disarankan seminggu sekali, atau setelah mobil terkena hujan dan lumpur."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci mobil reguler harus booking dulu?",
+      "content": "Tidak perlu booking untuk cuci mobil reguler. Silakan datang langsung, antrean dilayani berurutan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci mobil reguler bisa ditunggu?",
+      "content": "Bisa. Cuci mobil reguler bisa ditunggu di ruang tunggu ber-AC yang ada WiFi dan kopi gratis."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa saja yang dikerjakan saat cuci mobil reguler?",
+      "content": "Cuci mobil reguler mencakup cuci bodi, velg, dan ban, pengeringan, semir ban, dan lap kaca dalam. Vakum interior tidak termasuk."
+    },
+    {
+      "source_type": "qa",
+      "title": "Cuci mobil biasa harganya berapa?",
+      "content": "Cuci mobil reguler Rp50.000 untuk city car dan sedan, Rp60.000 untuk SUV dan MPV."
+    },
+    {
+      "source_type": "qa",
+      "title": "Cuci mobil biasa butuh waktu berapa lama?",
+      "content": "Proses cuci mobil reguler sekitar 40-60 menit, tergantung antrean."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu cuci salju?",
+      "content": "Cuci salju (snow wash) memakai busa salju tebal yang didiamkan beberapa menit untuk mengangkat kotoran sebelum bodi dilap, sehingga cat lebih aman dari baret."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga cuci salju?",
+      "content": "Cuci salju Rp75.000 untuk city car dan sedan, Rp90.000 untuk SUV dan MPV, sudah termasuk vakum interior."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses cuci salju di Vynor Auto Care?",
+      "content": "Proses cuci salju sekitar 60 menit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya cuci salju dilakukan?",
+      "content": "Cuci salju cocok dua minggu sekali untuk mobil yang sering dipakai di jalan berdebu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci salju bisa ditunggu?",
+      "content": "Bisa, cuci salju bisa ditunggu di ruang tunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa saja yang dikerjakan saat cuci salju?",
+      "content": "Cuci salju mencakup busa salju, cuci velg, pengeringan, vakum interior, lap dashboard, dan semir ban."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu cuci interior?",
+      "content": "Cuci interior adalah pembersihan kabin: vakum, cuci karpet dasar, dan lap dashboard serta panel pintu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga cuci interior?",
+      "content": "Cuci interior Rp150.000 untuk city car dan sedan, Rp200.000 untuk SUV dan MPV."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses cuci interior di Vynor Auto Care?",
+      "content": "Proses cuci interior sekitar 2-3 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya cuci interior dilakukan?",
+      "content": "Cuci interior disarankan sebulan sekali, atau segera bila ada tumpahan minuman."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci interior harus booking dulu?",
+      "content": "Sebaiknya booking dulu untuk cuci interior lewat chat ini, karena slotnya terbatas 6 mobil per hari."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa saja yang dikerjakan saat cuci interior?",
+      "content": "Cuci interior mencakup vakum seluruh kabin dan bagasi, cuci karpet dasar, lap dashboard, panel pintu, dan kaca dalam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat cuci interior?",
+      "content": "Tidak. Cuci interior tidak membongkar jok maupun panel. Bila jok perlu dilepas, pilih layanan cuci jok atau detailing interior."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu cuci mesin?",
+      "content": "Cuci mesin adalah pembersihan ruang mesin dari debu, oli, dan kerak dengan cairan degreaser, lalu dibilas tekanan rendah."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga cuci mesin?",
+      "content": "Cuci mesin Rp100.000 untuk semua jenis mobil."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses cuci mesin di Vynor Auto Care?",
+      "content": "Proses cuci mesin sekitar 45 menit, termasuk pengeringan dengan blower."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya cuci mesin dilakukan?",
+      "content": "Cuci mesin cukup 6 bulan sekali, atau saat ruang mesin terlihat berminyak."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci mesin bisa ditunggu?",
+      "content": "Bisa, cuci mesin bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat cuci mesin?",
+      "content": "Tidak ada yang dibongkar saat cuci mesin. Kabel, sekring, dan sensor hanya ditutup plastik agar tidak terkena air."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci mesin aman untuk mobil matic dan hybrid?",
+      "content": "Aman. Untuk mobil hybrid, area baterai dan kabel tegangan tinggi tidak disemprot air."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu cuci kolong?",
+      "content": "Cuci kolong adalah pembersihan bagian bawah mobil dari lumpur dan pasir, dengan mobil diangkat memakai lift hidrolik."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga cuci kolong?",
+      "content": "Cuci kolong Rp60.000, atau Rp40.000 bila diambil bersama cuci mobil reguler."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses cuci kolong di Vynor Auto Care?",
+      "content": "Proses cuci kolong sekitar 30 menit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya cuci kolong dilakukan?",
+      "content": "Cuci kolong disarankan setelah melewati banjir atau jalan berlumpur, dan minimal 3 bulan sekali."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci kolong bisa ditunggu?",
+      "content": "Bisa, cuci kolong bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu poles bodi?",
+      "content": "Poles bodi adalah proses compound dan polish dengan mesin untuk menghilangkan baret halus, jamur cat, dan water spot, sehingga cat kembali mengilap."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga poles bodi?",
+      "content": "Poles bodi Rp450.000 untuk city car dan sedan, Rp550.000 untuk SUV dan MPV."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses poles bodi di Vynor Auto Care?",
+      "content": "Proses poles bodi sekitar 4-5 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya poles bodi dilakukan?",
+      "content": "Poles bodi cukup setahun sekali, karena setiap poles mengikis sedikit lapisan clear coat."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah poles bodi harus booking dulu?",
+      "content": "Poles bodi harus booking minimal H-1 lewat chat ini."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah poles bodi ada garansi?",
+      "content": "Poles bodi tidak bergaransi karena hasilnya bergantung pada pemakaian dan perawatan mobil."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa saja yang dikerjakan saat poles bodi?",
+      "content": "Poles bodi mencakup cuci, clay bar, compound, polish, dan wax pelindung."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu coating keramik?",
+      "content": "Coating keramik (ceramic coating) adalah lapisan pelindung cat berbahan dasar silika yang membuat bodi lebih tahan baret halus, sinar UV, dan mudah dibersihkan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga coating keramik?",
+      "content": "Coating keramik Rp3.500.000 untuk city car dan sedan, Rp4.200.000 untuk SUV dan MPV, sudah termasuk poles bodi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses coating keramik di Vynor Auto Care?",
+      "content": "Proses coating keramik 2 hari, dan mobil menginap di workshop."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah coating keramik harus booking dulu?",
+      "content": "Coating keramik harus booking minimal 3 hari sebelumnya dengan DP Rp500.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah coating keramik ada garansi?",
+      "content": "Coating keramik bergaransi 2 tahun, dengan syarat maintenance coating setiap 6 bulan di Vynor Auto Care."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah coating keramik bisa ditunggu?",
+      "content": "Tidak bisa ditunggu. Coating keramik butuh 2 hari, jadi mobil menginap."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa saja yang dikerjakan saat coating keramik?",
+      "content": "Coating keramik mencakup cuci, dekontaminasi, poles bodi, 2 lapis coating, coating velg, dan kartu garansi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu detailing interior?",
+      "content": "Detailing interior adalah pembersihan kabin menyeluruh sampai ke sela-sela: jok, plafon, karpet, panel, dan ventilasi AC, lalu diberi pelindung."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga detailing interior?",
+      "content": "Detailing interior Rp750.000 untuk city car dan sedan, Rp900.000 untuk SUV dan MPV."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses detailing interior di Vynor Auto Care?",
+      "content": "Proses detailing interior sekitar 6-8 jam, jadi mobil sebaiknya ditinggal."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah detailing interior harus booking dulu?",
+      "content": "Detailing interior harus booking minimal H-1 lewat chat ini."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa saja yang dikerjakan saat detailing interior?",
+      "content": "Detailing interior mencakup cuci jok, plafon, karpet, dan door trim, pembersihan ventilasi AC, fogging, dan dressing panel."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat detailing interior?",
+      "content": "Ya. Saat detailing interior jok dilepas agar karpet dan bagian bawah jok bisa dibersihkan, lalu dipasang kembali."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu fogging kabin?",
+      "content": "Fogging kabin adalah pengasapan cairan anti bakteri ke seluruh kabin dan saluran AC untuk menghilangkan bau apek dan kuman."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga fogging kabin?",
+      "content": "Fogging kabin Rp125.000 untuk semua jenis mobil."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses fogging kabin di Vynor Auto Care?",
+      "content": "Proses fogging kabin sekitar 30 menit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya fogging kabin dilakukan?",
+      "content": "Fogging kabin disarankan 3 bulan sekali, atau setelah musim hujan saat kabin mulai bau apek."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah fogging kabin bisa ditunggu?",
+      "content": "Bisa, fogging kabin bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu ganti oli mesin?",
+      "content": "Ganti oli mesin adalah penggantian oli dan filter oli agar mesin tetap terlumasi dan awet."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga ganti oli mesin?",
+      "content": "Jasa ganti oli mesin gratis bila oli dibeli di Vynor Auto Care. Oli mulai Rp350.000 untuk 4 liter, filter oli mulai Rp60.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses ganti oli mesin di Vynor Auto Care?",
+      "content": "Proses ganti oli mesin sekitar 30 menit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya ganti oli mesin dilakukan?",
+      "content": "Ganti oli mesin setiap 10.000 km atau 6 bulan, mana yang lebih dulu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ganti oli mesin harus booking dulu?",
+      "content": "Tidak perlu booking untuk ganti oli mesin, silakan datang langsung."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ganti oli mesin bisa ditunggu?",
+      "content": "Bisa, ganti oli mesin bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Biaya ganti oli berapa?",
+      "content": "Jasa ganti oli mesin gratis bila oli dibeli di Vynor Auto Care. Oli mulai Rp350.000 untuk 4 liter, filter oli mulai Rp60.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Merek oli apa saja yang tersedia?",
+      "content": "Tersedia oli Shell, Castrol, Motul, dan oli resmi Toyota, Honda, serta Daihatsu dengan berbagai kekentalan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Boleh bawa oli sendiri?",
+      "content": "Boleh. Jasa ganti oli dengan oli bawaan sendiri Rp50.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu ganti oli transmisi matic?",
+      "content": "Ganti oli transmisi matic adalah penggantian oli ATF atau CVT agar perpindahan gigi tetap halus."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga ganti oli transmisi matic?",
+      "content": "Ganti oli transmisi matic Rp650.000 termasuk oli ATF, atau Rp850.000 untuk oli CVT."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses ganti oli transmisi matic di Vynor Auto Care?",
+      "content": "Proses ganti oli transmisi matic sekitar 1 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya ganti oli transmisi matic dilakukan?",
+      "content": "Ganti oli transmisi matic setiap 40.000 km."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ganti oli transmisi matic bisa ditunggu?",
+      "content": "Bisa, ganti oli transmisi matic bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu tune up?",
+      "content": "Tune up adalah servis untuk mengembalikan performa mesin: pembersihan throttle body dan injektor, pengecekan busi, filter udara, dan scanner."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga tune up?",
+      "content": "Jasa tune up Rp350.000, belum termasuk part yang perlu diganti."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses tune up di Vynor Auto Care?",
+      "content": "Proses tune up sekitar 2 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya tune up dilakukan?",
+      "content": "Tune up disarankan setiap 20.000 km, atau saat mesin terasa berat dan boros."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah tune up harus booking dulu?",
+      "content": "Tune up sebaiknya booking dulu lewat chat ini agar mekanik siap saat Kakak datang."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah tune up ada garansi?",
+      "content": "Tune up bergaransi 1 bulan untuk pekerjaan yang sama."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa saja yang dikerjakan saat tune up?",
+      "content": "Tune up mencakup pembersihan throttle body, injektor, dan filter udara, cek busi, scanner, dan cek kelistrikan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu servis AC?",
+      "content": "Servis AC mobil adalah pengecekan dan perbaikan sistem AC: tekanan freon, kompresor, kondensor, blower, dan evaporator."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga servis AC?",
+      "content": "Servis AC: cek dan isi freon Rp250.000, kuras evaporator Rp850.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses servis AC di Vynor Auto Care?",
+      "content": "Isi freon sekitar 1 jam, kuras evaporator sekitar 3 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya servis AC dilakukan?",
+      "content": "Servis AC disarankan setahun sekali, atau saat AC kurang dingin dan berbau."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah servis AC harus booking dulu?",
+      "content": "Untuk kuras evaporator sebaiknya booking dulu. Isi freon bisa datang langsung."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah servis AC ada garansi?",
+      "content": "Servis AC bergaransi 1 bulan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat servis AC?",
+      "content": "Untuk isi freon tidak ada yang dibongkar. Untuk kuras evaporator, dashboard dibongkar sebagian agar evaporator bisa dikeluarkan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Komponen AC mobil apa saja yang sering rusak?",
+      "content": "Yang paling sering rusak adalah kompresor, kondensor, evaporator, extra fan, dan magnetic clutch."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu spooring?",
+      "content": "Spooring adalah penyetelan sudut roda (camber, caster, dan toe) agar mobil berjalan lurus dan ban tidak aus sebelah."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga spooring?",
+      "content": "Spooring Rp150.000 untuk city car dan sedan, Rp200.000 untuk SUV dan MPV."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses spooring di Vynor Auto Care?",
+      "content": "Proses spooring sekitar 45 menit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya spooring dilakukan?",
+      "content": "Spooring setiap 10.000 km, setelah ganti ban atau kaki-kaki, atau saat setir terasa menarik ke satu sisi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah spooring bisa ditunggu?",
+      "content": "Bisa, spooring bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Spooring harganya berapa?",
+      "content": "Spooring Rp150.000 untuk city car dan sedan, Rp200.000 untuk SUV dan MPV."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu balancing ban?",
+      "content": "Balancing ban adalah penyeimbangan putaran roda dengan timah pemberat agar setir tidak bergetar di kecepatan tinggi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga balancing ban?",
+      "content": "Balancing ban Rp25.000 per roda, sudah termasuk timah pemberat."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses balancing ban di Vynor Auto Care?",
+      "content": "Proses balancing ban sekitar 30 menit untuk 4 roda."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya balancing ban dilakukan?",
+      "content": "Balancing ban setiap 10.000 km, setelah ganti ban, atau saat setir bergetar di atas 80 km/jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah balancing ban bisa ditunggu?",
+      "content": "Bisa, balancing ban bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu ganti ban?",
+      "content": "Ganti ban adalah penggantian ban lama dengan ban baru, termasuk pelepasan, pemasangan, dan pengisian angin."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga ganti ban?",
+      "content": "Jasa pasang ban Rp20.000 per roda, gratis bila ban dibeli di Vynor Auto Care. Ban tersedia mulai Rp650.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses ganti ban di Vynor Auto Care?",
+      "content": "Proses ganti ban sekitar 30-45 menit untuk 4 roda."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya ganti ban dilakukan?",
+      "content": "Ganti ban saat ketebalan alur di bawah 1,6 mm, ban retak, atau usia ban lebih dari 5 tahun."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ganti ban ada garansi?",
+      "content": "Ban baru bergaransi pabrik terhadap cacat produksi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Merek ban apa saja yang tersedia?",
+      "content": "Tersedia ban Bridgestone, Dunlop, GT Radial, dan Michelin untuk ring 13 sampai 20."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu servis rem?",
+      "content": "Servis rem adalah pembersihan dan penyetelan rem di keempat roda, serta pengecekan kampas, cakram, dan minyak rem."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga servis rem?",
+      "content": "Servis rem Rp200.000 untuk 4 roda. Ganti kampas rem depan jasa Rp150.000, belum termasuk kampas."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses servis rem di Vynor Auto Care?",
+      "content": "Proses servis rem sekitar 1-2 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya servis rem dilakukan?",
+      "content": "Servis rem setiap 20.000 km, atau saat rem berbunyi dan terasa kurang pakem."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah servis rem ada garansi?",
+      "content": "Servis rem bergaransi 1 bulan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah servis rem bisa ditunggu?",
+      "content": "Bisa, servis rem bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu ganti aki?",
+      "content": "Ganti aki adalah penggantian aki lama dengan aki baru, termasuk pengecekan sistem pengisian (alternator)."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga ganti aki?",
+      "content": "Aki mulai Rp850.000, pemasangan gratis."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses ganti aki di Vynor Auto Care?",
+      "content": "Proses ganti aki sekitar 15 menit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya ganti aki dilakukan?",
+      "content": "Aki umumnya perlu diganti setiap 2-3 tahun, atau saat mesin sulit dinyalakan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ganti aki ada garansi?",
+      "content": "Aki baru bergaransi 12 bulan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah bisa antar aki ke rumah?",
+      "content": "Bisa. Antar dan pasang aki di lokasi Kakak gratis untuk wilayah Semarang kota."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu body repair?",
+      "content": "Body repair adalah perbaikan bodi yang penyok atau tergores dalam, termasuk ketok, dempul, dan cat ulang panel yang rusak."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga body repair?",
+      "content": "Body repair mulai Rp500.000 per panel. Biaya pasti ditentukan setelah mobil dicek langsung."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses body repair di Vynor Auto Care?",
+      "content": "Proses body repair 3-7 hari kerja, tergantung jumlah panel dan tingkat kerusakan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah body repair harus booking dulu?",
+      "content": "Body repair perlu survei dulu: datang langsung atau kirim foto kerusakan lewat chat ini untuk estimasi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah body repair ada garansi?",
+      "content": "Body repair bergaransi cat 6 bulan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat body repair?",
+      "content": "Tergantung kerusakannya. Bila penyok mengenai rangka pintu atau bagasi, panel bagian dalam dibongkar dulu, lalu dipasang kembali setelah selesai."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah body repair bisa klaim asuransi?",
+      "content": "Bisa. Vynor Auto Care bekerja sama dengan Asuransi Astra, Sinar Mas, dan ACA untuk klaim body repair."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu cat ulang?",
+      "content": "Cat ulang (repaint) adalah pengecatan ulang panel atau seluruh bodi mobil dengan cat oven."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga cat ulang?",
+      "content": "Cat ulang Rp750.000 per panel, dan full body mulai Rp8.000.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses cat ulang di Vynor Auto Care?",
+      "content": "Cat ulang per panel 2-3 hari, full body 2-3 minggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cat ulang harus booking dulu?",
+      "content": "Cat ulang perlu survei dan booking dulu lewat chat ini."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cat ulang ada garansi?",
+      "content": "Cat ulang bergaransi 1 tahun terhadap cat mengelupas atau berbintik."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat cat ulang?",
+      "content": "Untuk cat ulang full body, lampu, handle pintu, dan list kaca dilepas dulu agar hasilnya rapi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu pasang kaca film?",
+      "content": "Kaca film adalah lapisan film pada kaca mobil untuk menahan panas, sinar UV, dan menjaga privasi kabin."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga pasang kaca film?",
+      "content": "Pasang kaca film mulai Rp1.200.000 untuk kaca depan, samping, dan belakang."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses pasang kaca film di Vynor Auto Care?",
+      "content": "Proses pasang kaca film sekitar 3 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah pasang kaca film harus booking dulu?",
+      "content": "Pasang kaca film sebaiknya booking dulu agar stok film tersedia."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah pasang kaca film ada garansi?",
+      "content": "Kaca film bergaransi 5 tahun dari pabrikan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat pasang kaca film?",
+      "content": "Tidak ada panel yang dibongkar saat pasang kaca film, kecuali lampu rem atas untuk kaca belakang di beberapa mobil."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu derek?",
+      "content": "Derek (towing) adalah layanan angkut mobil mogok atau kecelakaan ke workshop dengan mobil towing."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga derek?",
+      "content": "Derek dalam kota Semarang Rp350.000, luar kota Rp10.000 per km."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses derek di Vynor Auto Care?",
+      "content": "Mobil derek tiba sekitar 30-60 menit setelah pesanan dikonfirmasi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah derek harus booking dulu?",
+      "content": "Derek bisa dipesan kapan saja lewat chat ini atau telepon 024-7600-1234, tersedia 24 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah derek tersedia 24 jam?",
+      "content": "Ya, layanan derek tersedia 24 jam setiap hari, termasuk hari libur."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu servis kaki-kaki?",
+      "content": "Servis kaki-kaki adalah pengecekan dan perbaikan suspensi: shock absorber, tie rod, ball joint, dan bushing."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga servis kaki-kaki?",
+      "content": "Cek kaki-kaki gratis. Ganti shock absorber jasa Rp150.000 per roda, belum termasuk part."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses servis kaki-kaki di Vynor Auto Care?",
+      "content": "Proses servis kaki-kaki sekitar 2-3 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya servis kaki-kaki dilakukan?",
+      "content": "Servis kaki-kaki saat ada bunyi gluduk di jalan rusak, atau setiap 40.000 km."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah servis kaki-kaki ada garansi?",
+      "content": "Servis kaki-kaki bergaransi 3 bulan untuk part yang dipasang."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu scan kelistrikan?",
+      "content": "Scan kelistrikan adalah pembacaan kode kerusakan ECU dengan OBD scanner untuk mencari penyebab lampu check engine menyala."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga scan kelistrikan?",
+      "content": "Scan kelistrikan Rp100.000, gratis bila dilanjutkan dengan perbaikan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses scan kelistrikan di Vynor Auto Care?",
+      "content": "Proses scan kelistrikan sekitar 30 menit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah scan kelistrikan bisa ditunggu?",
+      "content": "Bisa, scan kelistrikan bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu kuras radiator?",
+      "content": "Kuras radiator adalah pembuangan air radiator lama, pembersihan kerak, dan pengisian coolant baru agar mesin tidak overheat."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga kuras radiator?",
+      "content": "Kuras radiator Rp200.000 termasuk coolant."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses kuras radiator di Vynor Auto Care?",
+      "content": "Proses kuras radiator sekitar 1 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya kuras radiator dilakukan?",
+      "content": "Kuras radiator setiap 40.000 km atau 2 tahun."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah kuras radiator bisa ditunggu?",
+      "content": "Bisa, kuras radiator bisa ditunggu."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu home service?",
+      "content": "Home service adalah servis panggilan oleh mekanik ke rumah atau kantor Kakak untuk ganti oli, ganti aki, dan cek ringan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga home service?",
+      "content": "Biaya kunjungan home service Rp75.000 dalam kota Semarang, belum termasuk jasa dan part."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah home service harus booking dulu?",
+      "content": "Home service harus booking minimal H-1 lewat chat ini."
+    },
+    {
+      "source_type": "qa",
+      "title": "Home service bisa untuk pekerjaan apa saja?",
+      "content": "Home service untuk ganti oli, ganti aki, isi freon AC, dan cek ringan. Perbaikan berat tetap di workshop."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu cuci jok?",
+      "content": "Cuci jok adalah pencucian jok dengan mesin ekstraksi untuk mengangkat noda, bau, dan kotoran di dalam busa jok."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga cuci jok?",
+      "content": "Cuci jok Rp400.000 untuk jok kain, Rp500.000 untuk jok kulit termasuk conditioner."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses cuci jok di Vynor Auto Care?",
+      "content": "Proses cuci jok sekitar 5-6 jam, dan jok kering di hari yang sama."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah cuci jok harus booking dulu?",
+      "content": "Cuci jok sebaiknya booking dulu lewat chat ini."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah perlu membongkar bagian dalam saat cuci jok?",
+      "content": "Ya. Saat cuci jok, jok dilepas dari mobil agar bisa dicuci dan dikeringkan merata."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu anti karat kolong?",
+      "content": "Anti karat kolong (undercoating) adalah pelapisan bagian bawah mobil dengan bahan anti karat dan peredam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga anti karat kolong?",
+      "content": "Anti karat kolong Rp1.250.000 untuk semua jenis mobil."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses anti karat kolong di Vynor Auto Care?",
+      "content": "Proses anti karat kolong 1 hari kerja."
+    },
+    {
+      "source_type": "qa",
+      "title": "Kapan sebaiknya anti karat kolong dilakukan?",
+      "content": "Anti karat kolong disarankan untuk mobil baru, atau mobil yang sering melewati banjir dan daerah pantai."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah anti karat kolong ada garansi?",
+      "content": "Anti karat kolong bergaransi 1 tahun."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apa itu restorasi lampu?",
+      "content": "Restorasi lampu adalah pengamplasan dan pelapisan ulang mika lampu yang kusam atau menguning agar kembali bening."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa harga restorasi lampu?",
+      "content": "Restorasi lampu Rp200.000 sepasang."
+    },
+    {
+      "source_type": "qa",
+      "title": "Berapa lama proses restorasi lampu di Vynor Auto Care?",
+      "content": "Proses restorasi lampu sekitar 1 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah restorasi lampu ada garansi?",
+      "content": "Restorasi lampu bergaransi 6 bulan terhadap mika kembali kusam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Jam berapa Vynor Auto Care buka?",
+      "content": "Vynor Auto Care buka setiap hari pukul 08.00-20.00 WIB. Layanan derek tersedia 24 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Di mana alamat Vynor Auto Care?",
+      "content": "Vynor Auto Care ada di Jl. Pemuda No. 88, Semarang, di samping SPBU Pemuda."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah Vynor Auto Care punya cabang lain?",
+      "content": "Saat ini Vynor Auto Care hanya punya satu lokasi di Jl. Pemuda No. 88, Semarang."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah buka saat hari libur nasional?",
+      "content": "Buka, kecuali hari pertama Idul Fitri. Pada hari libur nasional jam buka 09.00-17.00 WIB."
+    },
+    {
+      "source_type": "qa",
+      "title": "Metode pembayaran apa saja yang diterima?",
+      "content": "Pembayaran bisa tunai, transfer BCA dan Mandiri, QRIS, serta kartu debit dan kredit."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah bisa bayar dengan cicilan kartu kredit?",
+      "content": "Bisa, cicilan 0% 3 dan 6 bulan dengan kartu kredit BCA dan Mandiri untuk transaksi minimal Rp1.000.000."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ada ruang tunggu?",
+      "content": "Ada ruang tunggu ber-AC dengan WiFi gratis, kopi, musala, dan toilet."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ada promo bulan ini?",
+      "content": "Promo bulan ini: cuci salju gratis fogging kabin setiap hari Senin sampai Kamis."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ada kartu member?",
+      "content": "Ada. Member Vynor Auto Care gratis, dapat diskon 10% untuk cuci dan detailing, dan cuci ke-10 gratis."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ada layanan antar jemput mobil?",
+      "content": "Ada, antar jemput mobil Rp50.000 sekali jalan untuk wilayah Semarang kota, untuk servis yang memakan waktu lebih dari 3 jam."
+    },
+    {
+      "source_type": "qa",
+      "title": "Bagaimana cara booking servis?",
+      "content": "Booking bisa lewat chat ini dengan menyebutkan nama, jenis mobil, layanan, dan jadwal yang diinginkan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah booking bisa dibatalkan atau diubah jadwalnya?",
+      "content": "Bisa, paling lambat 3 jam sebelum jadwal lewat chat ini. DP coating keramik tidak hangus bila jadwal diubah."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah melayani mobil listrik?",
+      "content": "Untuk mobil listrik kami melayani cuci, detailing, coating, spooring, balancing, dan ganti ban. Servis mesin dan baterai belum tersedia."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah melayani motor?",
+      "content": "Tidak. Vynor Auto Care hanya melayani mobil."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ada garansi untuk semua servis?",
+      "content": "Garansi berbeda untuk tiap layanan dan tertulis di nota. Simpan nota untuk klaim garansi."
+    },
+    {
+      "source_type": "qa",
+      "title": "Bagaimana cara klaim garansi?",
+      "content": "Bawa mobil dan nota ke Vynor Auto Care dalam masa garansi. Pemeriksaan klaim garansi gratis."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah bisa minta estimasi biaya dulu?",
+      "content": "Bisa. Kirim jenis mobil, tahun, dan keluhan atau foto lewat chat ini, kami beri estimasi biaya sebelum dikerjakan."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah tempat parkirnya luas?",
+      "content": "Ada parkir untuk 20 mobil di area workshop, gratis selama servis."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ada nomor telepon yang bisa dihubungi?",
+      "content": "Telepon dan WhatsApp Vynor Auto Care di 024-7600-1234."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah mekaniknya bersertifikat?",
+      "content": "Ya, semua mekanik Vynor Auto Care bersertifikat dan berpengalaman minimal 3 tahun."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah suku cadangnya asli?",
+      "content": "Kami memakai suku cadang asli (OEM) atau aftermarket bersertifikat, dan selalu menawarkan pilihan dan harganya sebelum dipasang."
+    },
+    {
+      "source_type": "qa",
+      "title": "Apakah ada paket servis berkala?",
+      "content": "Ada paket servis berkala 10.000 km Rp550.000: ganti oli mesin, filter oli, cek rem, cek kaki-kaki, dan cuci mobil reguler."
+    }
+  ],
+  "products": [],
+  "agents": {
+    "bengkel-qa": {
+      "name": "Eval - CS Vynor Auto Care (Q&A besar)",
+      "knowledge": []
+    }
+  }
+}

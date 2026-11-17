@@ -10,12 +10,12 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_05_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_12_030000) do
   # These extensions should be enabled to support this database
+  enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
-  enable_extension "plpgsql"
   enable_extension "vector"
 
   create_table "access_tokens", force: :cascade do |t|
@@ -209,6 +209,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_030000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "embedding_model"
+    t.integer "section"
     t.index ["account_id"], name: "index_ai_agent_knowledge_chunks_on_account_id"
     t.index ["ai_agent_id"], name: "index_ai_agent_knowledge_chunks_on_ai_agent_id"
     t.index ["chunkable_type", "chunkable_id"], name: "index_ai_agent_knowledge_chunks_on_chunkable"
@@ -277,8 +278,28 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_030000) do
     t.jsonb "web_results", default: [], null: false
     t.integer "web_latency_ms"
     t.decimal "web_cost_usd", precision: 10, scale: 6
+    t.jsonb "invalid_outputs", default: [], null: false
     t.index ["ai_agent_id", "created_at"], name: "index_ai_agent_reply_traces_on_ai_agent_id_and_created_at"
     t.index ["conversation_id"], name: "index_ai_agent_reply_traces_on_conversation_id"
+  end
+
+  create_table "ai_agent_request_logs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "ai_agent_id", null: false
+    t.string "source", null: false
+    t.bigint "conversation_id"
+    t.bigint "message_id"
+    t.bigint "reply_trace_id"
+    t.string "status", null: false
+    t.string "error_class"
+    t.integer "latency_ms"
+    t.jsonb "input", default: {}, null: false
+    t.jsonb "output", default: {}, null: false
+    t.jsonb "steps", default: [], null: false
+    t.datetime "created_at", null: false
+    t.index ["ai_agent_id", "created_at"], name: "index_ai_agent_request_logs_on_ai_agent_id_and_created_at"
+    t.index ["conversation_id"], name: "index_ai_agent_request_logs_on_conversation_id"
+    t.index ["created_at"], name: "index_ai_agent_request_logs_on_created_at"
   end
 
   create_table "ai_agents", force: :cascade do |t|
@@ -319,6 +340,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_030000) do
     t.text "knowledge_gap_message"
     t.boolean "web_search_enabled", default: false, null: false
     t.text "web_search_domains"
+    t.integer "context_expansion_radius", default: 0, null: false
     t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 
@@ -651,8 +673,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_030000) do
     t.integer "status", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
     t.index ["account_id", "assistant_id", "status", "language"], name: "idx_cap_faq_suggestions_on_account_assistant_status_language"
+    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
     t.index ["assistant_id"], name: "index_captain_faq_suggestions_on_assistant_id"
     t.index ["embedding"], name: "vector_idx_captain_faq_suggestions_embedding", opclass: :vector_cosine_ops, using: :ivfflat
   end
@@ -897,8 +919,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_030000) do
     t.jsonb "phone_number_health", default: {}, null: false
     t.datetime "phone_number_health_checked_at"
     t.string "phone_number_health_error", limit: 500
-    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
+    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
   end
 
   create_table "companies", force: :cascade do |t|
@@ -1238,10 +1260,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_030000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "inbox_id"
-    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "(account_id IS NOT NULL) AND (inbox_id IS NULL)"
+    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "((account_id IS NOT NULL) AND (inbox_id IS NULL))"
     t.index ["inbox_id", "name", "template_type", "locale"], name: "index_email_templates_on_inbox_scope", unique: true, where: "(inbox_id IS NOT NULL)"
     t.index ["inbox_id"], name: "index_email_templates_on_inbox_id"
-    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "(account_id IS NULL) AND (inbox_id IS NULL)"
+    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "((account_id IS NULL) AND (inbox_id IS NULL))"
   end
 
   create_table "folders", force: :cascade do |t|

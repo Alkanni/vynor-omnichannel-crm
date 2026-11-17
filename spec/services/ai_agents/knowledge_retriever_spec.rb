@@ -8,9 +8,9 @@ RSpec.describe AiAgents::KnowledgeRetriever do
   let(:far_vector) { Array.new(1536) { |index| index == 2 ? 1.0 : 0.0 } }
   let(:embedding_requests) { [] }
 
-  def create_chunk(content, embedding: nil, embedding_model: nil)
+  def create_chunk(content, embedding: nil, embedding_model: nil, section: nil)
     ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
-                                      content: content, embedding: embedding, embedding_model: embedding_model)
+                                      content: content, embedding: embedding, embedding_model: embedding_model, section: section)
   end
 
   before do
@@ -79,7 +79,17 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       result = described_class.new(ai_agent: ai_agent, messages: messages).perform
 
       expect(embedding_requests.sole['input']).to eq(['query: Kalau beli 4?', "query: Ada Roti Keju?\nKalau beli 4?"])
+      # Only the vector search of the latest turn finds the chunk, so the query with earlier turns counts four times.
       expect(result.hits.sole).to have_attributes(chunk: chunk, rank: 1, score: be_within(1e-9).of(5 / 21.0))
+    end
+
+    it 'counts the query with earlier turns no more than the latest turn when both searches of the latest turn rank the same chunk first' do
+      chunk = create_chunk('Tempat parkir luas', embedding: query_vector, embedding_model: 'text-embedding-3-small')
+      messages = [{ role: :user, content: 'Ada Roti Keju?' }, { role: :assistant, content: 'Ada.' }, { role: :user, content: 'Tempat parkir?' }]
+
+      result = described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+      expect(result.hits.sole).to have_attributes(chunk: chunk, rank: 1, score: be_within(1e-9).of(3 / 21.0))
     end
 
     it 'does not embed the query when no chunk uses the current embedding model' do
@@ -118,6 +128,39 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       create_chunk('Jam buka setiap hari')
 
       expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'harga cuci' }]).perform.hits.map(&:chunk)).to eq([match])
+    end
+  end
+
+  describe 'context expansion' do
+    let(:messages) { [{ role: :user, content: 'harga detailing interior' }] }
+    let!(:chunks) do
+      ['Langkah 1: daftar.', 'Harga detailing interior Rp750.000', 'Langkah 3: bayar.', 'Harga detailing mobil'].map do |content|
+        create_chunk(content, section: 0)
+      end
+    end
+
+    before { ai_agent.update!(context_limit: 4) }
+
+    it 'sends the matches alone, in the order and with the ranks and scores of the search, at radius 0' do
+      ai_agent.update!(context_expansion_radius: 0)
+
+      hits = described_class.new(ai_agent: ai_agent, messages: messages).perform.hits
+
+      expect(hits.map { |hit| [hit.chunk, hit.rank, hit.neighbor_of] }).to eq([[chunks[1], 1, nil], [chunks[3], 2, nil]])
+      expect(hits.first.score).to be > hits.last.score
+    end
+
+    it 'adds the neighbors of the matches in document order, within the context limit, at a radius above 0' do
+      ai_agent.update!(context_expansion_radius: 0)
+      scores = described_class.new(ai_agent: ai_agent, messages: messages).perform.hits.to_h { |hit| [hit.chunk, hit.score] }
+      ai_agent.update!(context_expansion_radius: 1)
+
+      hits = described_class.new(ai_agent: ai_agent, messages: messages).perform.hits
+
+      expect(hits.map { |hit| [hit.chunk, hit.rank, hit.neighbor_of] }).to eq(
+        [[chunks[0], 1, 2], [chunks[1], 2, nil], [chunks[2], 3, 2], [chunks[3], 4, nil]]
+      )
+      expect(hits.map(&:score)).to eq([nil, scores[chunks[1]], nil, scores[chunks[3]]])
     end
   end
 
