@@ -34,52 +34,6 @@ module Integrations::LlmInstrumentationSpans
     Rails.logger.warn "Failed to end LLM turn span: #{e.message}"
   end
 
-  def start_tool_span(tool_call)
-    return unless ChatwootApp.otel_enabled?
-
-    tool_name = tool_call.name.to_s
-    span = tracer.start_span(format(TOOL_SPAN_NAME, tool_name))
-    apply_current_langfuse_attributes(span)
-    span.set_attribute(ATTR_LANGFUSE_OBSERVATION_TYPE, 'tool')
-    span.set_attribute(ATTR_LANGFUSE_OBSERVATION_INPUT, tool_call.arguments.to_json)
-
-    @pending_tool_spans ||= []
-    @pending_tool_spans.push(span)
-  rescue StandardError => e
-    Rails.logger.warn "Failed to start tool span: #{e.message}"
-  end
-
-  def end_tool_span(result)
-    return unless ChatwootApp.otel_enabled?
-
-    span = @pending_tool_spans&.pop
-    return unless span
-
-    output = result.is_a?(String) ? result : result.to_json
-    span.set_attribute(ATTR_LANGFUSE_OBSERVATION_OUTPUT, output)
-    span.finish
-  rescue StandardError => e
-    Rails.logger.warn "Failed to end tool span: #{e.message}"
-  end
-
-  def instrument_with_span(span_name, params, &)
-    result = nil
-    executed = false
-    tracer.in_span(span_name) do |span|
-      set_metadata_attributes(span, params)
-      track_result = lambda do |r|
-        executed = true
-        result = r
-      end
-      yield(span, track_result)
-    end
-  rescue StandardError => e
-    ChatwootExceptionTracker.new(e, account: resolve_account(params)).capture_exception
-    raise unless executed
-
-    result
-  end
-
   private
 
   def set_llm_turn_request_attributes(span, params)

@@ -16,8 +16,6 @@ module Integrations::LlmInstrumentationConstants
   ATTR_GEN_AI_RESPONSE_ERROR = 'gen_ai.response.error'
   ATTR_GEN_AI_RESPONSE_ERROR_CODE = 'gen_ai.response.error_code'
 
-  TOOL_SPAN_NAME = 'tool.%s'
-
   # Langfuse-specific attributes
   # https://langfuse.com/integrations/native/opentelemetry#property-mapping
   ATTR_LANGFUSE_USER_ID = 'langfuse.user.id'
@@ -26,7 +24,6 @@ module Integrations::LlmInstrumentationConstants
   ATTR_LANGFUSE_METADATA = 'langfuse.trace.metadata.%s'
   ATTR_LANGFUSE_TRACE_INPUT = 'langfuse.trace.input'
   ATTR_LANGFUSE_TRACE_OUTPUT = 'langfuse.trace.output'
-  ATTR_LANGFUSE_OBSERVATION_TYPE = 'langfuse.observation.type'
   ATTR_LANGFUSE_OBSERVATION_INPUT = 'langfuse.observation.input'
   ATTR_LANGFUSE_OBSERVATION_OUTPUT = 'langfuse.observation.output'
   ATTR_LANGFUSE_OBSERVATION_METADATA = 'langfuse.observation.metadata.%s'

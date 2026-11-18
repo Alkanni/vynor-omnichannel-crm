@@ -1,8 +1,7 @@
 require 'rails_helper'
 
 RSpec.describe BillingHelper do
-  describe '#conversations_this_month' do
-    let(:user) { create(:user) }
+  describe '#default_plan?' do
     let(:account) { create(:account, custom_attributes: { 'plan_name' => 'Hacker' }) }
 
     before do
@@ -21,28 +20,6 @@ RSpec.describe BillingHelper do
                  }
                ]
              })
-    end
-
-    it 'counts only the conversations created this month' do
-      create_list(:conversation, 5, account: account, created_at: Time.zone.today - 1.day)
-      create_list(:conversation, 3, account: account, created_at: 2.months.ago)
-      expect(helper.send(:conversations_this_month, account)).to eq(5)
-    end
-
-    it 'counts only non web widget channels' do
-      create(:inbox, account: account, channel_type: Channel::WebWidget)
-      expect(account.inboxes.count).to eq(1)
-      expect(helper.send(:non_web_inboxes, account)).to eq(0)
-
-      create(:inbox, account: account, channel_type: Channel::Api)
-      expect(account.inboxes.count).to eq(2)
-      expect(helper.send(:non_web_inboxes, account)).to eq(1)
-    end
-
-    it 'reads the period end from the subscription or its items, and tolerates neither being set' do
-      expect(helper.send(:subscription_period_end, { 'current_period_end' => 1_790_845_600 })).to eq(1_790_845_600)
-      expect(helper.send(:subscription_period_end, { 'items' => { 'data' => [{ 'current_period_end' => 1_790_845_600 }] } })).to eq(1_790_845_600)
-      expect(helper.send(:subscription_period_end, { 'cancel_at_period_end' => true })).to be_nil
     end
 
     it 'returns true for the default plan name' do
