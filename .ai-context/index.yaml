@@ -18,7 +18,7 @@ documents:
     path: repository-inventory.md
     purpose: Environment/tooling assessment, directory map, tech stack, process topology
     source_refs: [Gemfile, package.json, Procfile, Procfile.dev, config/sidekiq.yml, config/schedule.yml]
-    last_analyzed_commit: 9f920b549c (+ issue #129: Rails 8.0.5.2, Administrate 1.0; issue #130: Rails 8.1.4.1)
+    last_analyzed_commit: 9f920b549c (+ issue #129: Rails 8.0.5.2, Administrate 1.0; issue #130: Rails 8.1.4.1; issue #118: ai-agents gem removed)
     verification: VERIFIED
 
   - id: system-overview

@@ -207,9 +207,8 @@ gem 'rubyzip', require: 'zip'
 
 gem 'iso-639'
 gem 'ruby-openai'
-gem 'ai-agents', '>= 0.12.0'
 
-# TODO: Move this gem as a dependency of ai-agents
+# Used directly by the AI Agent (AiAgents::LlmClient) and Llm::Config.
 gem 'ruby_llm', '>= 1.14.1'
 gem 'ruby_llm-schema'
 
