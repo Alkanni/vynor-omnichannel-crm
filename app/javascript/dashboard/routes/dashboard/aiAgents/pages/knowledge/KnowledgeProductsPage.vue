@@ -27,6 +27,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 const { t, locale } = useI18n();
 
 const products = ref([]);
+const currency = ref('');
 const searchQuery = ref('');
 const selectedIds = ref([]);
 const isLoading = ref(true);
@@ -63,6 +64,11 @@ const deleteDialogDescription = computed(() =>
 );
 
 const formatNumber = value => new Intl.NumberFormat(locale.value).format(value);
+const formatPrice = value =>
+  new Intl.NumberFormat(locale.value, {
+    style: 'currency',
+    currency: currency.value,
+  }).format(value);
 
 const fetchProducts = async () => {
   isLoading.value = true;
@@ -72,6 +78,7 @@ const fetchProducts = async () => {
       searchQuery.value.trim()
     );
     products.value = data.payload;
+    currency.value = data.currency;
     const ids = new Set(data.payload.map(product => product.id));
     selectedIds.value = selectedIds.value.filter(id => ids.has(id));
   } catch {
@@ -242,28 +249,36 @@ watch(() => props.agent.id, fetchProducts, { immediate: true });
           class="grid grid-cols-3 gap-4 text-body-main tabular-nums sm:w-[26rem]"
         >
           <div class="flex gap-1">
-            <dt class="text-n-slate-10">
-              {{ t('AI_AGENTS.KNOWLEDGE.PRODUCT.WEIGHT') }}
-            </dt>
-            <dd class="text-n-slate-12">
-              {{
-                t('AI_AGENTS.KNOWLEDGE.PRODUCT.WEIGHT_VALUE', {
-                  weight: formatNumber(product.weight),
-                })
-              }}
-            </dd>
+            <template v-if="product.weight !== null">
+              <dt class="text-n-slate-10">
+                {{ t('AI_AGENTS.KNOWLEDGE.PRODUCT.WEIGHT') }}
+              </dt>
+              <dd class="text-n-slate-12">
+                {{
+                  t('AI_AGENTS.KNOWLEDGE.PRODUCT.WEIGHT_VALUE', {
+                    weight: formatNumber(product.weight),
+                  })
+                }}
+              </dd>
+            </template>
           </div>
           <div class="flex gap-1">
-            <dt class="text-n-slate-10">
-              {{ t('AI_AGENTS.KNOWLEDGE.PRODUCT.STOCK') }}
-            </dt>
-            <dd class="text-n-slate-12">{{ formatNumber(product.stock) }}</dd>
+            <template v-if="product.stock !== null">
+              <dt class="text-n-slate-10">
+                {{ t('AI_AGENTS.KNOWLEDGE.PRODUCT.STOCK') }}
+              </dt>
+              <dd class="text-n-slate-12">
+                {{ formatNumber(product.stock) }}
+              </dd>
+            </template>
           </div>
           <div class="flex gap-1">
-            <dt class="text-n-slate-10">
-              {{ t('AI_AGENTS.KNOWLEDGE.PRODUCT.PRICE') }}
-            </dt>
-            <dd class="text-n-slate-12">{{ formatNumber(product.price) }}</dd>
+            <template v-if="product.price !== null">
+              <dt class="text-n-slate-10">
+                {{ t('AI_AGENTS.KNOWLEDGE.PRODUCT.PRICE') }}
+              </dt>
+              <dd class="text-n-slate-12">{{ formatPrice(product.price) }}</dd>
+            </template>
           </div>
         </dl>
         <Button
@@ -285,6 +300,7 @@ watch(() => props.agent.id, fetchProducts, { immediate: true });
     <ProductFormDialog
       ref="formDialogRef"
       :agent-id="agent.id"
+      :currency="currency"
       @saved="onProductSaved"
     />
     <ConfirmDeleteDialog

@@ -15,7 +15,7 @@ RSpec.describe AiAgents::KnowledgeIndexer do
   it 'indexes ready knowledge sources and products and records the training time' do
     text = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
     qa = create(:ai_agent_knowledge_source, :qa, ai_agent: ai_agent)
-    create(:ai_agent_product, ai_agent: ai_agent, name: 'Paket Detailing', price: 750_000, weight: 0, stock: 3, description: nil)
+    create(:ai_agent_product, ai_agent: ai_agent, name: 'Paket Detailing', price: 750_000, weight: nil, stock: 3, description: nil)
     create(:ai_agent_knowledge_source, ai_agent: ai_agent, source_type: :website, external_url: 'https://example.com', content: nil)
 
     indexer.perform
@@ -23,11 +23,24 @@ RSpec.describe AiAgents::KnowledgeIndexer do
     expect(ai_agent.knowledge_chunks.pluck(:content)).to contain_exactly(
       "#{text.title}\n\n#{text.content}",
       "Q: #{qa.title}\nA: #{qa.content}",
-      "Product: Paket Detailing\nPrice: 750000.00\nWeight: 0 grams\nStock: 3"
+      "Product: Paket Detailing\nPrice: IDR 750000.00\nStock: 3"
     )
     expect(ai_agent.knowledge_chunks.distinct.pluck(:embedding_model)).to eq(['text-embedding-3-small'])
     expect(client).to have_received(:embed).with(["#{text.title}\n\n#{text.content}"], input_type: :passage)
     expect(ai_agent.reload.trained_at).to be_present
+  end
+
+  it 'writes the recorded numbers of a product, 0 too, with the price in the installation currency, and leaves out blank ones' do
+    create(:installation_config, name: 'AI_AGENT_PRODUCT_CURRENCY', value: 'USD')
+    create(:ai_agent_product, ai_agent: ai_agent, name: 'Roti Sobek', price: 0, weight: 400, stock: 0, description: 'Gratis untuk pembeli pertama')
+    create(:ai_agent_product, ai_agent: ai_agent, name: 'Konsultasi', price: nil, weight: nil, stock: nil, description: nil)
+
+    indexer.perform
+
+    expect(ai_agent.knowledge_chunks.pluck(:content)).to contain_exactly(
+      "Product: Roti Sobek\nPrice: USD 0.00\nWeight: 400 grams\nStock: 0\nDescription: Gratis untuk pembeli pertama",
+      'Product: Konsultasi'
+    )
   end
 
   it 'logs each batch it embedded without the texts, with the request log on' do

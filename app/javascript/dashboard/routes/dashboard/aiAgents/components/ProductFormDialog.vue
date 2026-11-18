@@ -16,6 +16,11 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  // ISO 4217 code of the prices, blank until the product list has loaded.
+  currency: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits(['saved']);
@@ -31,15 +36,23 @@ const productId = ref(null);
 const imageFile = ref(null);
 const imagePreview = ref('');
 const isSaving = ref(false);
+// Price, weight, and stock stay blank when they are not recorded; the API stores a blank one as null.
 const form = reactive({
   name: '',
   description: '',
-  price: 0,
-  weight: 0,
-  stock: 0,
+  price: '',
+  weight: '',
+  stock: '',
 });
 
 const isEditing = computed(() => Boolean(productId.value));
+const priceLabel = computed(() =>
+  props.currency
+    ? t('AI_AGENTS.KNOWLEDGE.PRODUCT.FORM.PRICE_IN_CURRENCY', {
+        currency: props.currency,
+      })
+    : t('AI_AGENTS.KNOWLEDGE.PRODUCT.FORM.PRICE')
+);
 const canSubmit = computed(() => Boolean(form.name.trim()));
 
 const revokePreview = () => {
@@ -54,9 +67,9 @@ const open = (product = null) => {
   Object.assign(form, {
     name: product?.name || '',
     description: product?.description || '',
-    price: product?.price ?? 0,
-    weight: product?.weight ?? 0,
-    stock: product?.stock ?? 0,
+    price: product?.price ?? '',
+    weight: product?.weight ?? '',
+    stock: product?.stock ?? '',
   });
   imageFile.value = null;
   imagePreview.value = product?.image_url || '';
@@ -205,7 +218,7 @@ defineExpose({ open });
           v-model="form.price"
           type="number"
           min="0"
-          :label="t('AI_AGENTS.KNOWLEDGE.PRODUCT.FORM.PRICE')"
+          :label="priceLabel"
         />
         <Input
           id="ai-agent-product-weight"
@@ -222,6 +235,9 @@ defineExpose({ open });
           :label="t('AI_AGENTS.KNOWLEDGE.PRODUCT.FORM.STOCK')"
         />
       </div>
+      <p class="-mt-2 text-label-small text-n-slate-11">
+        {{ t('AI_AGENTS.KNOWLEDGE.PRODUCT.FORM.OPTIONAL_NUMBERS_HINT') }}
+      </p>
     </div>
   </Dialog>
 </template>

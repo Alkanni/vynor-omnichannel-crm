@@ -50,4 +50,21 @@ RSpec.describe InstallationConfig do
       end
     end
   end
+
+  describe 'AI_AGENT_PRODUCT_CURRENCY' do
+    it 'accepts a blank value or a three-letter ISO 4217 code' do
+      ['', 'IDR', 'USD'].each do |value|
+        expect(described_class.new(name: 'AI_AGENT_PRODUCT_CURRENCY', value: value)).to be_valid
+      end
+    end
+
+    it 'rejects anything else' do
+      ['idr', 'Rp', 'RUPIAH', 'ID R'].each do |value|
+        config = described_class.new(name: 'AI_AGENT_PRODUCT_CURRENCY', value: value)
+
+        expect(config).not_to be_valid
+        expect(config.errors[:base]).to eq(['AI Agent Product Currency must be a three-letter ISO 4217 code in capitals, such as IDR'])
+      end
+    end
+  end
 end

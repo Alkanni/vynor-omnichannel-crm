@@ -5,9 +5,9 @@
 #  id          :bigint           not null, primary key
 #  description :text
 #  name        :string           not null
-#  price       :decimal(15, 2)   default(0.0), not null
-#  stock       :integer          default(0), not null
-#  weight      :integer          default(0), not null
+#  price       :decimal(15, 2)
+#  stock       :integer
+#  weight      :integer
 #  created_at  :datetime         not null
 #  updated_at  :datetime         not null
 #  account_id  :bigint           not null
@@ -18,11 +18,13 @@
 #  index_ai_agent_products_on_account_id   (account_id)
 #  index_ai_agent_products_on_ai_agent_id  (ai_agent_id)
 #
+# Price, weight (in grams), and stock are optional: a blank one is not recorded, while 0 is (free, or sold out).
 class AiAgent::Product < ApplicationRecord
   include Rails.application.routes.url_helpers
 
   IMAGE_CONTENT_TYPES = %w[image/jpeg image/png image/gif image/webp].freeze
   MAX_IMAGE_SIZE = 5.megabytes
+  DEFAULT_CURRENCY = 'IDR'.freeze
 
   belongs_to :account
   belongs_to :ai_agent
@@ -33,9 +35,14 @@ class AiAgent::Product < ApplicationRecord
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :description, length: { maximum: 5_000 }
-  validates :price, numericality: { greater_than_or_equal_to: 0, less_than: 10**13 }
-  validates :weight, :stock, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than: 2**31 }
+  validates :price, numericality: { greater_than_or_equal_to: 0, less_than: 10**13 }, allow_nil: true
+  validates :weight, :stock, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than: 2**31 }, allow_nil: true
   validate :acceptable_image, if: -> { image.attached? && attachment_changes['image'].present? }
+
+  # The ISO 4217 code of every product price in the installation, from AI_AGENT_PRODUCT_CURRENCY.
+  def self.currency
+    AiAgents::LlmClient.setting('AI_AGENT_PRODUCT_CURRENCY') || DEFAULT_CURRENCY
+  end
 
   def image_url
     return '' unless image.attached? && image.representable?

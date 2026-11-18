@@ -3,7 +3,7 @@ require 'rails_helper'
 RSpec.describe AiAgents::ReplyValidator do
   let(:hits) do
     ["Profil toko\n\nBuka setiap hari pukul 08.00-20.00 WIB. Ongkos kirim ke luar Bandung Rp20.000 per pesanan.",
-     "Product: Roti Sobek Coklat\nPrice: 25000.00\nWeight: 400 grams\nStock: 12"].map.with_index(1) do |content, rank|
+     "Product: Roti Sobek Coklat\nPrice: IDR 25000.00\nWeight: 400 grams\nStock: 12"].map.with_index(1) do |content, rank|
       AiAgents::KnowledgeRetriever::Hit.new(chunk: AiAgent::KnowledgeChunk.new(content: content), rank: rank, score: 0.1)
     end
   end

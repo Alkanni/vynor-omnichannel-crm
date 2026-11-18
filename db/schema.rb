@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_12_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_000100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -236,9 +236,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_030000) do
     t.bigint "ai_agent_id", null: false
     t.string "name", null: false
     t.text "description"
-    t.decimal "price", precision: 15, scale: 2, default: "0.0", null: false
-    t.integer "weight", default: 0, null: false
-    t.integer "stock", default: 0, null: false
+    t.decimal "price", precision: 15, scale: 2
+    t.integer "weight"
+    t.integer "stock"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_ai_agent_products_on_account_id"
