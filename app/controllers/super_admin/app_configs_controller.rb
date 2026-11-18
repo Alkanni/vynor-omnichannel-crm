@@ -7,10 +7,6 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     SHOPIFY_CLIENT_ID
     SHOPIFY_CLIENT_SECRET
     SHOPIFY_APP_STORE_URL
-    SHOPIFY_PARTNER_ORGANIZATION_ID
-    SHOPIFY_PARTNER_APP_ID
-    SHOPIFY_PARTNER_ACCESS_TOKEN
-    SHOPIFY_PARTNER_API_VERSION
   ].freeze
 
   before_action :set_config
@@ -29,7 +25,7 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
   end
 
   def create
-    errors = shopify_partner_config_errors
+    errors = []
     params['app_config'].each do |key, value|
       break if errors.any?
       next unless @allowed_configs.include?(key)
@@ -73,19 +69,6 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     }
 
     @allowed_configs = mapping.fetch(@config, general_configs)
-  end
-
-  def shopify_partner_config_errors
-    return [] unless @config == 'shopify'
-
-    saved_values = InstallationConfig.where(name: Shopify::PartnerConfiguration::KEYS).each_with_object({}) do |config, values|
-      values[config.name] = config.value
-    end
-    submitted_values = params.fetch('app_config', {}).permit(*SHOPIFY_CONFIGS).to_h
-    Shopify::PartnerConfiguration.validate_for_save!(saved_values.merge(submitted_values))
-    []
-  rescue Shopify::PartnerClient::ConfigurationError => e
-    [e.message]
   end
 
   def success_notice
