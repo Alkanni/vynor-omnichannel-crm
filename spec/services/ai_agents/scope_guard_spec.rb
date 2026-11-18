@@ -134,7 +134,8 @@ RSpec.describe AiAgents::ScopeGuard do
       'a landline number' => 'bengkel (022) 7654321', 'a NIK' => 'pajak progresif 3273012345670001',
       'an e-mail address' => 'AC bau apek rina.putri@example.com', 'a plate' => 'Avanza D 1234 XYZ bunyi saat belok',
       'a plate without spaces' => 'B1234CD bunyi', 'a VIN' => 'recall airbag MHFM1BA3JBK123456',
-      'a VIN in lower case' => 'recall airbag mhfm1ba3jbk123456', 'more than 200 characters' => "rem bunyi #{'a' * 191}"
+      'a VIN in lower case' => 'recall airbag mhfm1ba3jbk123456', 'more than 200 characters' => "rem bunyi #{'a' * 191}",
+      'a dose that reads as a plate' => 'dosis vitamin D 1000 IU aman untuk anak'
     }.each do |personal_data, query|
       context "when the query has #{personal_data}" do
         let(:web_query) { query }
@@ -165,8 +166,8 @@ RSpec.describe AiAgents::ScopeGuard do
       'Cari nomor WhatsApp dealer Honda terdekat dong.', 'Nomor WA bengkel ketok magic yang bagus?',
       'Nomor layanan derek 24 jam di tol Cipularang berapa?', 'Nomor darurat Jasa Marga berapa?',
       'Nomor pengaduan dealer mana?', 'WhatsApp-nya bengkel resmi Daihatsu?', 'Hotline Toyota berapa?',
-      'Call center asuransi mobil apa?', 'Alamat bengkel resmi Suzuki di Bandung di mana?', 'Kontak dealer Wuling ada?',
-      'Kontaknya montir panggilan dong.'
+      'Call center asuransi mobil apa?', 'Alamat bengkel resmi Suzuki di Bandung di mana?', 'Nomor WA bengkel berapa?',
+      'Alamat apotek terdekat di mana?', 'Nomor kontak klinik gigi di Bandung?', 'Nomor kontaknya dokter hewan dong.'
     ].each do |message|
       context "when the customer asks #{message.inspect}" do
         let(:messages) { [{ role: :user, content: message }] }
@@ -190,7 +191,7 @@ RSpec.describe AiAgents::ScopeGuard do
     [
       'Nomor rangka mobil Avanza letaknya di mana?', 'Kunci kontak susah diputar, kenapa ya?',
       'Lampu aki menyala saat kontak ON, normal tidak?', 'Saya Budi, HP 081298765432. Avanza saya bunyi kalau belok, kenapa?',
-      'Kode cat no warna 1F7 itu silver apa?'
+      'Kode cat no warna 1F7 itu silver apa?', 'Efek samping lensa kontak apa saja?', 'Alergi kontak dermatitis bisa sembuh?'
     ].each do |message|
       context "when the customer writes #{message.inspect}" do
         let(:messages) { [{ role: :user, content: message }] }
@@ -198,6 +199,14 @@ RSpec.describe AiAgents::ScopeGuard do
         it 'would search it' do
           expect(guard.perform.web_search_status).to eq('pending')
         end
+      end
+    end
+
+    context 'when the customer asks for a contact without a contact phrase' do
+      let(:messages) { [{ role: :user, content: 'Kontak dealer Wuling ada?' }] }
+
+      it 'leaves it to the rule of the scope check' do
+        expect(guard.perform.web_search_status).to eq('pending')
       end
     end
 

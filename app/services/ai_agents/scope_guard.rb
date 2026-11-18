@@ -48,35 +48,38 @@ class AiAgents::ScopeGuard
       other than this one, is OUT_OF_SCOPE, even as a search request or when the customer needs it.
 
     "web_query" is a short search query in the customer's language, for an IN_SCOPE turn that asks for general information
-    (how something works, symptoms and causes, maintenance, product types and specifications, news, recalls, regulations),
-    also when the same turn asks about this business too:
+    (how something works, symptoms and causes, care and maintenance, product types and specifications, news, safety
+    warnings, regulations), also when the same turn asks about this business too:
     - It covers only the general part. It goes to an outside search service, so never copy people's names, phone numbers,
-      plates, addresses, e-mail addresses, identity or frame (VIN) numbers, or the name of this business into it: a car is
-      only its make and model. Name the subject of a follow-up from the earlier messages, and add the business's country
-      for news, recalls, and regulations.
+      addresses, e-mail addresses, identity, registration, or serial numbers, or the name of this business into it: an
+      item is only its brand and model. Name the subject of a follow-up from the earlier messages, and add the business's
+      country for news, safety warnings, and regulations.
     - It is "" for a turn without such a part: one that asks only for the business's own facts (prices, stock, products,
       hours, contacts, orders, policies), complaints, greetings, and every decision other than IN_SCOPE.
   TEXT
   WEB_SCHEMA = SCHEMA.deep_merge(schema: { properties: { web_query: { type: 'string' } }, required: %w[decision web_query] }).freeze
-  # The backstop to the rule against personal data in WEB_INSTRUCTIONS: a query that matches any of these is never searched,
-  # and neither is one longer than AiAgents::WebSearch::MAX_QUERY_CHARACTERS, which likely copies the customer's message.
-  # Names cannot be told apart from other words, so only the rule keeps them out.
+  # The backstop to the rule against personal data in WEB_INSTRUCTIONS, for every agent with web search whatever its
+  # business: a query that matches any of these is never searched, and neither is one longer than
+  # AiAgents::WebSearch::MAX_QUERY_CHARACTERS, which likely copies the customer's message. Names cannot be told apart from
+  # other words, so only the rule keeps them out.
   # Phone numbers, NIK, and any other 8 or more digits, also with spaces, dots, dashes, or parentheses between them.
   LONG_NUMBER = /\d(?:[\s.()-]*\d){7,}/
   PERSONAL_DATA_PATTERNS = [
     LONG_NUMBER,
     /[^\s@]+@[^\s@]+\.[^\s@]+/, # e-mail addresses
-    /\b[A-Z]{1,2} ?\d{1,4} ?[A-Z]{1,3}\b/, # Indonesian plates such as D 1234 ABC, which some model names (XL7 AT) also match
-    /\b(?=[A-HJ-NPR-Z]*\d)[A-HJ-NPR-Z\d]{17}\b/i # VINs: 17 letters and digits, without I, O, and Q
+    # Indonesian vehicle registrations (D 1234 ABC), which identify their owner. Some other terms match them too, such as
+    # "vitamin D 1000 IU" or the model name "XL7 AT", so they are not searched either: failing closed keeps personal data in.
+    /\b[A-Z]{1,2} ?\d{1,4} ?[A-Z]{1,3}\b/,
+    /\b(?=[A-HJ-NPR-Z]*\d)[A-HJ-NPR-Z\d]{17}\b/i # vehicle identification numbers: 17 letters and digits, without I, O, and Q
   ].freeze
   # The backstop to the rule against contact requests in WEB_INSTRUCTIONS: a turn whose latest customer messages or web
   # query match this is never searched, whatever the decision. The query alone is not enough, because the model can leave
-  # out "nomor". "nomor" alone is not one, so a question about the frame number ("nomor rangka") is still searched, and
-  # neither are the ignition terms "kunci kontak" and "kontak ON".
+  # out "nomor". Only phrases that ask for a contact count, so "nomor" or "kontak" alone ("nomor rangka", "lensa kontak",
+  # "alergi kontak") is still searched, and a request worded otherwise ("kontak CS") relies on the rule.
   CONTACT_REQUEST = /
     \b(?:
       (?:nomor|nomer|no\.?)\s*(?:telepon|telpon|telp|tlp|hp|handphone|ponsel|wa|whatsapp|kontak|layanan|darurat|pengaduan)
-      | whatsapp | hotline | call\s*cent(?:er|re) | alamat | (?<!kunci\s)kontak(?!\s+o(?:n|ff)\b)
+      | whatsapp | hotline | call\s*cent(?:er|re) | alamat
     )(?:-?nya)?\b
   /ix
   # Token counts are nil when the gateway does not report usage (see AiAgents::LlmClient::Completion). web_query and
