@@ -69,7 +69,8 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
 
   # Searches the knowledge for a customer question exactly as a reply would (see AiAgents::KnowledgeRetriever), after the
   # optional history of earlier messages, in the format of the playground. An optional web query is also searched on the
-  # web (see AiAgents::WebSearch), so admins can judge the results before customers see any.
+  # web within the agent's domains, as a reply would (see AiAgents::WebSearch), so admins can judge the results before
+  # customers see any.
   def retrieval_test
     query = params[:query]
     history = conversation_messages(params.fetch(:history, []))
@@ -87,7 +88,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   def search(messages, web_query)
     AiAgents::RequestRecorder.record(ai_agent: @ai_agent, source: :retrieval_test, input: { messages: messages, web_query: web_query }) do |log|
       @retrieval = AiAgents::KnowledgeRetriever.new(ai_agent: @ai_agent, messages: messages).perform
-      @web_search = AiAgents::WebSearch.new(query: web_query.strip).perform if web_query
+      @web_search = AiAgents::WebSearch.new(query: web_query.strip, domains: @ai_agent.web_search_domain_list).perform if web_query
       log.output = { hits: @retrieval.hits.size, web_search_status: @web_search&.status }
     end
   end

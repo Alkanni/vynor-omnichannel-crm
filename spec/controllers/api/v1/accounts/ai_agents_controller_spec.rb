@@ -666,6 +666,20 @@ RSpec.describe 'AI Agents API', type: :request do
       )
     end
 
+    it 'searches the web within the domains of the agent, as a reply does' do
+      create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-key')
+      ai_agent.update!(web_search_domains: "alodokter.com, kemkes.go.id\nhalodoc.com")
+      exa_request = stub_request(:post, 'https://api.exa.ai/search').with(
+        body: hash_including(query: 'efek samping lensa kontak', includeDomains: %w[alodokter.com kemkes.go.id halodoc.com])
+      ).to_return(status: 200, headers: { 'Content-Type' => 'application/json' }, body: { results: [], costDollars: { total: 0.004 } }.to_json)
+
+      post url, params: { query: 'Lensa kontak aman?', web_query: 'efek samping lensa kontak' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(exa_request).to have_been_made.once
+      expect(ai_agent.web_search_domain_list).to eq(%w[alodokter.com kemkes.go.id halodoc.com])
+    end
+
     it 'logs the search and the web search without a conversation, with the request log on' do
       create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
       create(:installation_config, name: 'AI_AGENT_WEB_SEARCH_API_KEY', value: 'exa-key')

@@ -102,13 +102,14 @@ Why this point:
 |---|---|---|---|---|
 | `internal` | The business's own facts: prices, stock, products, hours, location, contacts, booking, orders, payment, warranty, policies; greetings | `IN_SCOPE` or `GREETING`, `web_query` blank | yes | no |
 | `internal` | A complaint about the business's service, products, or an order | `HANDOFF_REQUEST`, `web_query` blank | yes | no |
-| `web` | External information within an allowed topic: how things work, symptoms and causes, maintenance practice, part types and specs in general, recent news, recalls, regulations | `IN_SCOPE` with `web_query` | yes | yes |
+| `web` | External information within an allowed topic: how things work, symptoms and causes, care and maintenance, product types and specs in general, recent news, safety warnings, regulations | `IN_SCOPE` with `web_query` | yes | yes |
 | `web` (mixed) | Both of the above in one turn | `IN_SCOPE` with `web_query` for the external part only | yes | yes |
 | `blocked` | Off topic, a disallowed topic, an injection, or a lookup of a phone number, address, or other personal data of a person or another business | `OUT_OF_SCOPE` or `SUSPICIOUS` | no | no |
 
 - **Web rules and the `web_query` field.** Only agents with web search enabled get them, in the scope check's instructions and its function schema.
   - They add the phone and personal-data rule.
-  - They ask for a `web_query` that names the subject only, with no names, numbers, plates, addresses, or other personal data.
+  - They ask for a `web_query` that names the subject only, with no names, phone numbers, addresses, e-mail addresses, identity, registration, or serial numbers, or the business's name; an item is only its brand and model.
+  - Their wording names no kind of business (#120): they apply to every agent with web search, so their examples are categories that fit any business. The bengkel eval stays their regression gate (`tests/w-web.yaml`).
   - They leave the `OUT_OF_SCOPE` wording alone: in the baseline, the scope check already treated general car questions in the allowed topics as `IN_SCOPE` despite its "general knowledge" item.
 - **Agents without web search** keep the exact scope check prompt and schema they have today, so the #94 Scope Compliance gate still describes them.
 - **Business facts always come from the knowledge.** A business-fact question that the knowledge cannot answer still gets `knowledge_gap_message`, as today. It is never searched on the web.
@@ -122,16 +123,17 @@ Why this point:
   - When the query contains any of the following, the turn is not searched and gets status `skipped_personal_data`:
     - a phone number or any run of 8 or more digits (after spaces, dots, and dashes are removed), which also covers NIK;
     - an e-mail address;
-    - an Indonesian plate pattern;
+    - an Indonesian vehicle registration (plate) pattern;
     - a 17-character VIN.
+  - The patterns apply to every agent with web search, whatever its business, because a registration or a VIN identifies a person. Some other terms match the plate pattern too, such as "vitamin D 1000 IU" or a few model names; they are not searched either. The owner kept both patterns for that price (#120, Q1 = a).
   - The reply then goes on with the knowledge only.
   - Names cannot be detected deterministically. Keeping them out relies on the guard's instruction, and the eval checks it (`pii` metadata in `tests/w-web.yaml`).
 - **Phone and personal-data lookups** are `blocked` at the scope check, per owner decision 2.
 - **Contact request backstop** (owner decision 1b on #109, added in #110). The scope check sometimes lets a contact lookup through as `IN_SCOPE`: W-PH-06 (a towing number on the toll road) did so in 2 of 6 runs of #109 and 1 of 5 runs of #110. So a deterministic check also fails closed:
   - When the latest customer messages or the query contain a contact phrase, the turn is not searched and gets status `skipped_contact_request`, whatever the decision. The reply goes on with the knowledge only, so the business's own contacts are still answered.
   - Both texts are checked, because the model can leave out "nomor" from the query.
-  - The phrases (`ScopeGuard::CONTACT_REQUEST`): "nomor", "nomer", or "no." followed by telepon, telpon, telp, tlp, HP, handphone, ponsel, WA, WhatsApp, kontak, layanan, darurat, or pengaduan; WhatsApp, hotline, call center, alamat, and kontak, each also with "-nya".
-  - "nomor" alone is not a contact request, so a question about where the frame number sits is still searched. Neither are the ignition terms "kunci kontak" and "kontak ON/OFF".
+  - The phrases (`ScopeGuard::CONTACT_REQUEST`): "nomor", "nomer", or "no." followed by telepon, telpon, telp, tlp, HP, handphone, ponsel, WA, WhatsApp, kontak, layanan, darurat, or pengaduan; WhatsApp, hotline, call center, and alamat, each also with "-nya".
+  - "nomor" or "kontak" alone is not a contact request, so "nomor rangka", "kunci kontak", "lensa kontak", and "alergi kontak" are still searched. Until #120, "kontak" alone counted too, with exceptions for the ignition terms of one kind of business, so questions such as "efek samping lensa kontak" were never searched. The owner dropped it (#120, Q2 = a): a request worded without a contact phrase ("kontak dealer X ada?") relies on the scope check rule, and the `phone` cases of the gate (0 searches) measure that rule.
   - A turn that asks for the business's own contact and a general question at once ("Nomor WA bengkel berapa? Sekalian, rem bunyi kenapa?") gets no search either, and neither does a customer who gives their own number or address in such words ("nomor HP saya …"). That is the price of failing closed.
   - Other languages and other wordings ("WA bengkel resmi", "phone number") rely on the scope check rule only.
 - **No content in traces.** Traces keep not storing content, so the query is not stored. The playground and the Retrieval Test show it to admins.
@@ -185,7 +187,7 @@ Content-Type: application/json
 
 - **Search type: `lite`.** It costs US$4 per 1,000 requests; the base price covers up to 10 results. It does not support `contents.maxAgeHours`, so freshness depends on Exa's index (see assumptions). `auto` (US$7) is not used in v1.
 - **Three results, all used.** The price is the same up to 10 results, but each result costs prompt tokens.
-- **`includeDomains`** is sent only when the agent sets `web_search_domains`.
+- **`includeDomains`** is sent only when the agent sets `web_search_domains`, by a reply and by the Retrieval Test alike (the Retrieval Test searched without them until #120), so admins judge the results customers get.
 - **Normalized result:** `{ rank, title, url, published_at (Date or nil), highlights: [String] }`. `costDollars.total` from the response feeds the budget.
 - **Text in the prompt.** EXA-02 measured that a result's highlight holds up to about three times `maxCharacters`, so the reply prompt gets the highlights of each result joined and cut to 800 characters (`WebSearch::Item#text`, EXA-04). The request keeps `maxCharacters: 800`.
 
