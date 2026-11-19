@@ -19,12 +19,13 @@ class AiAgents::KnowledgeIndexer
     AiAgents::TextChunker.split(record.content).map { |chunk| chunk.with(text: "#{record.title}\n\n#{chunk.text}") }
   end
 
+  # A blank price, weight, or stock is left out, so the model never reads it as 0.
   def self.product_text(product)
     [
       "Product: #{product.name}",
-      "Price: #{format('%.2f', product.price)}",
-      "Weight: #{product.weight} grams",
-      "Stock: #{product.stock}",
+      ("Price: #{AiAgent::Product.currency} #{format('%.2f', product.price)}" if product.price),
+      ("Weight: #{product.weight} grams" if product.weight),
+      ("Stock: #{product.stock}" if product.stock),
       ("Description: #{product.description}" if product.description.present?)
     ].compact.join("\n")
   end

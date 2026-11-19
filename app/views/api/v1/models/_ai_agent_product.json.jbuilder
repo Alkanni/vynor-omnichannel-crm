@@ -2,7 +2,7 @@ json.id product.id
 json.ai_agent_id product.ai_agent_id
 json.name product.name
 json.description product.description
-json.price product.price.to_f
+json.price product.price&.to_f
 json.weight product.weight
 json.stock product.stock
 json.image_url product.image_url

@@ -8,13 +8,15 @@ RSpec.describe 'AI Agent products API', type: :request do
   let(:base_url) { "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}/products" }
 
   describe 'GET index' do
-    it 'returns the products of the AI agent, newest first, filtered by name' do
+    it 'returns the products of the AI agent, newest first, filtered by name, with the currency of their prices' do
       stabill = create(:ai_agent_product, ai_agent: ai_agent, name: 'Stabill')
-      jok = create(:ai_agent_product, ai_agent: ai_agent, name: 'Jok Mobil Lederlux')
+      jok = create(:ai_agent_product, ai_agent: ai_agent, name: 'Jok Mobil Lederlux', price: nil, weight: nil, stock: nil)
       create(:ai_agent_product, ai_agent: create(:ai_agent, account: account), name: 'Jok Lain')
 
       get base_url, headers: admin.create_new_auth_token, as: :json
       expect(response.parsed_body['payload'].pluck('id')).to eq([jok.id, stabill.id])
+      expect(response.parsed_body['payload'].first).to include('price' => nil, 'weight' => nil, 'stock' => nil)
+      expect(response.parsed_body['currency']).to eq('IDR')
 
       get base_url, params: { q: 'jok' }, headers: admin.create_new_auth_token, as: :json
       expect(response.parsed_body['payload'].pluck('id')).to eq([jok.id])
@@ -42,6 +44,14 @@ RSpec.describe 'AI Agent products API', type: :request do
       expect(response.parsed_body['image_url']).to be_present
     end
 
+    it 'creates a product without price, weight, and stock' do
+      post base_url, params: { name: 'Konsultasi', price: '', weight: '', stock: '' }, headers: admin.create_new_auth_token
+
+      expect(response).to have_http_status(:success)
+      expect(ai_agent.products.last).to have_attributes(name: 'Konsultasi', price: nil, weight: nil, stock: nil)
+      expect(response.parsed_body).to include('price' => nil, 'weight' => nil, 'stock' => nil)
+    end
+
     it 'rejects invalid products' do
       post base_url, params: { name: '', price: '-5' }, headers: admin.create_new_auth_token
 
@@ -67,6 +77,10 @@ RSpec.describe 'AI Agent products API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(product.reload).to have_attributes(stock: 5, price: BigDecimal('1600000.50'))
+
+      patch "#{base_url}/#{product.id}", params: { stock: '', weight: '' }, headers: admin.create_new_auth_token
+
+      expect(product.reload).to have_attributes(stock: nil, weight: nil, price: BigDecimal('1600000.50'))
     end
 
     it 'returns not found for a product of another AI agent' do

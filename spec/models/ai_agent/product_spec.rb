@@ -14,6 +14,20 @@ RSpec.describe AiAgent::Product do
     expect(product.errors.attribute_names).to contain_exactly(:name, :description, :price, :weight, :stock)
   end
 
+  it 'leaves price, weight, and stock blank when they are not recorded' do
+    product = create(:ai_agent_product, ai_agent: ai_agent, price: nil, weight: nil, stock: nil)
+
+    expect(product.reload).to have_attributes(price: nil, weight: nil, stock: nil)
+  end
+
+  it 'prices products in the installation currency, IDR unless set' do
+    expect(described_class.currency).to eq('IDR')
+
+    create(:installation_config, name: 'AI_AGENT_PRODUCT_CURRENCY', value: 'USD')
+
+    expect(described_class.currency).to eq('USD')
+  end
+
   it 'accepts image uploads' do
     product = build(:ai_agent_product, ai_agent: ai_agent)
     product.image.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'avatar.png', content_type: 'image/png')
