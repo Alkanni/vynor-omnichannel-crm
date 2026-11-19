@@ -1,0 +1,112 @@
+require 'rails_helper'
+
+RSpec.describe 'Bookings API', type: :request do
+  let(:account) { create(:account) }
+  let(:administrator) { create(:user, account: account, role: :administrator) }
+  let(:agent) { create(:user, account: account, role: :agent) }
+  let(:inbox) { create(:inbox, account: account) }
+  let(:other_inbox) { create(:inbox, account: account) }
+  let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+  let(:url) { "/api/v1/accounts/#{account.id}/bookings" }
+  let!(:tomorrow) { create(:booking, account: account, conversation: conversation, scheduled_at: Time.utc(2026, 11, 20, 3, 0)) }
+  let!(:later) do
+    create(:booking, account: account, conversation: create(:conversation, account: account, inbox: other_inbox), status: :confirmed,
+                     scheduled_at: Time.utc(2026, 11, 22, 3, 0), details: { 'Plat nomor' => 'B 1' })
+  end
+
+  before do
+    account.enable_features!('bookings')
+    create(:inbox_member, user: agent, inbox: inbox)
+  end
+
+  describe 'GET /api/v1/accounts/{account.id}/bookings' do
+    it 'lists every booking of the account for an administrator, soonest first, with its contact, conversation, and agent' do
+      get url, headers: administrator.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['payload'].pluck('id')).to eq([tomorrow.id, later.id])
+      expect(response.parsed_body['payload'].last).to eq(
+        'id' => later.id, 'status' => 'confirmed', 'scheduled_at' => '2026-11-22T03:00:00Z', 'service' => 'Cuci salon',
+        'customer_name' => 'Budi', 'notes' => nil, 'details' => { 'Plat nomor' => 'B 1' }, 'ai_agent' => nil,
+        'contact' => { 'id' => later.contact.id, 'name' => later.contact.name, 'phone_number' => later.contact.phone_number },
+        'conversation' => { 'id' => later.conversation.id, 'display_id' => later.conversation.display_id, 'inbox_id' => other_inbox.id },
+        'created_at' => later.created_at.iso8601
+      )
+      expect(response.parsed_body['meta']).to eq('count' => 2, 'current_page' => 1)
+    end
+
+    it 'lists only the bookings of the inboxes an agent is a member of' do
+      get url, headers: agent.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['payload'].pluck('id')).to eq([tomorrow.id])
+    end
+
+    it 'filters by status, time range with the end left out, and contact' do
+      headers = administrator.create_new_auth_token
+
+      get url, params: { status: %w[confirmed cancelled] }, headers: headers
+      expect(response.parsed_body['payload'].pluck('id')).to eq([later.id])
+      get url, params: { from: '2026-11-21T00:00:00+07:00', to: '2026-11-23T00:00:00+07:00' }, headers: headers
+      expect(response.parsed_body['payload'].pluck('id')).to eq([later.id])
+      get url, params: { to: '2026-11-20T03:00:00Z' }, headers: headers
+      expect(response.parsed_body['payload'].pluck('id')).to be_empty
+      get url, params: { contact_id: tomorrow.contact_id }, headers: headers
+      expect(response.parsed_body['payload'].pluck('id')).to eq([tomorrow.id])
+    end
+
+    it 'returns unprocessable entity for an unknown status or a time that does not parse' do
+      headers = administrator.create_new_auth_token
+
+      get url, params: { status: 'done' }, headers: headers
+      expect(response).to have_http_status(:unprocessable_entity)
+      get url, params: { from: 'besok' }, headers: headers
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it 'returns unauthorized while the account lacks the bookings feature, and without a login' do
+      account.disable_features!('bookings')
+
+      get url, headers: administrator.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unauthorized)
+      get url, as: :json
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe 'PATCH /api/v1/accounts/{account.id}/bookings/:id' do
+    it 'changes only the status and records who changed it in the conversation' do
+      patch "#{url}/#{tomorrow.id}", params: { status: 'confirmed', service: 'Lain' }, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include('id' => tomorrow.id, 'status' => 'confirmed', 'service' => 'Cuci salon')
+      expect(tomorrow.reload).to have_attributes(status: 'confirmed', service: 'Cuci salon')
+      expect(conversation.messages.activity.pluck(:content)).to include("#{agent.name} marked booking ##{tomorrow.id} as Confirmed")
+    end
+
+    it 'returns unprocessable entity for a status outside the list' do
+      patch "#{url}/#{tomorrow.id}", params: { status: 'done' }, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(tomorrow.reload).to be_requested
+    end
+
+    it 'does not find a booking outside the agent\'s inboxes or of another account' do
+      patch "#{url}/#{later.id}", params: { status: 'cancelled' }, headers: agent.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+
+      elsewhere = create(:booking)
+      patch "#{url}/#{elsewhere.id}", params: { status: 'cancelled' }, headers: administrator.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+      expect([later.reload, elsewhere.reload]).to all(be_requested.or(be_confirmed))
+    end
+
+    it 'returns unauthorized while the account lacks the bookings feature' do
+      account.disable_features!('bookings')
+
+      patch "#{url}/#{tomorrow.id}", params: { status: 'confirmed' }, headers: administrator.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(tomorrow.reload).to be_requested
+    end
+  end
+end

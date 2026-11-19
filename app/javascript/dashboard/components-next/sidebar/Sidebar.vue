@@ -74,6 +74,14 @@ const hasConversationUnreadCounts = computed(() => {
   );
 });
 
+// A community install shows a route whatever its feature flag (see usePolicy#shouldShow), so Bookings checks its own.
+const hasBookings = computed(() => {
+  return isFeatureEnabledonAccount.value(
+    accountId.value,
+    FEATURE_FLAGS.BOOKINGS
+  );
+});
+
 const hasDataImport = computed(() => {
   return isFeatureEnabledonAccount.value(
     accountId.value,
@@ -363,6 +371,17 @@ const menuItems = computed(() => {
         'ai_agents_knowledge_products',
       ],
     },
+    ...(hasBookings.value
+      ? [
+          {
+            name: 'Bookings',
+            label: t('SIDEBAR.BOOKINGS'),
+            icon: 'i-lucide-calendar-check',
+            to: accountScopedRoute('bookings_index'),
+            activeOn: ['bookings_index'],
+          },
+        ]
+      : []),
     ...(isCallsAvailable.value
       ? [
           {

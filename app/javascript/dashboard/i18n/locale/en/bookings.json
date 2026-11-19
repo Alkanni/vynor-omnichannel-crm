@@ -1,0 +1,33 @@
+{
+  "BOOKINGS": {
+    "HEADER": "Bookings",
+    "DESCRIPTION": "Booking requests that AI agents recorded from conversations. Confirm them here or from the conversation.",
+    "DISABLED": "Bookings are not turned on for this account. An administrator can turn them on in the account features.",
+    "FILTERS": {
+      "ALL": "All",
+      "FROM": "From",
+      "TO": "To"
+    },
+    "STATUS": {
+      "REQUESTED": "Requested",
+      "CONFIRMED": "Confirmed",
+      "CANCELLED": "Cancelled",
+      "COMPLETED": "Completed",
+      "NO_SHOW": "No-show"
+    },
+    "TABLE": {
+      "SCHEDULE": "Schedule",
+      "CUSTOMER": "Customer",
+      "SERVICE": "Service",
+      "STATUS": "Status",
+      "CONVERSATION": "Conversation",
+      "OPEN_CONVERSATION": "Conversation #{id}"
+    },
+    "EMPTY": "No bookings match these filters.",
+    "PANEL_EMPTY": "This contact has no bookings.",
+    "LOAD_ERROR": "Could not load the bookings. Please try again.",
+    "UPDATE_SUCCESS": "Booking status updated",
+    "UPDATE_ERROR": "Could not update the booking status. Please try again.",
+    "FIELD_VALUE": "{field}: {value}"
+  }
+}

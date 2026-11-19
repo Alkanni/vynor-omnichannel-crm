@@ -5,6 +5,7 @@ import aiAgents from './aiAgents.json';
 import attributesMgmt from './attributesMgmt.json';
 import auditLogs from './auditLogs.json';
 import automation from './automation.json';
+import bookings from './bookings.json';
 import bulkActions from './bulkActions.json';
 import calls from './calls.json';
 import campaign from './campaign.json';
@@ -54,6 +55,7 @@ export default {
   ...attributesMgmt,
   ...auditLogs,
   ...automation,
+  ...bookings,
   ...bulkActions,
   ...calls,
   ...campaign,
