@@ -6,6 +6,9 @@
 #  allowed_label_ids          :jsonb            not null
 #  allowed_topics             :text
 #  behavior                   :text
+#  booking_conditions         :text
+#  booking_enabled            :boolean          default(FALSE), not null
+#  booking_fields             :jsonb            not null
 #  business_description       :text
 #  clarification_message      :text
 #  context_expansion_radius   :integer          default(0), not null
@@ -41,6 +44,7 @@
 #  created_at                 :datetime         not null
 #  updated_at                 :datetime         not null
 #  account_id                 :bigint           not null
+#  booking_label_id           :bigint
 #
 # Indexes
 #
@@ -57,6 +61,11 @@ class AiAgent < ApplicationRecord
   # A host name such as kompas.com or otomotif.kompas.com, as the web search providers take it (see AiAgents::WebSearch).
   WEB_SEARCH_DOMAIN = /\A(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\z/i
   TRAINING_DELAY = 10.seconds
+  # The booking fields every booking has (see AiAgents::ActionSchema); booking_fields adds the agent's own.
+  BOOKING_CORE_FIELDS = %w[customer_name service date time notes].freeze
+  MAX_BOOKING_FIELDS = 10
+  # A trimmed name of 1 to 50 characters on one line.
+  BOOKING_FIELD_NAME = /\A\S(?:.{0,48}\S)?\z/
 
   belongs_to :account
   has_many :knowledge_sources, class_name: 'AiAgent::KnowledgeSource', dependent: :destroy
@@ -64,6 +73,7 @@ class AiAgent < ApplicationRecord
   has_many :knowledge_chunks, class_name: 'AiAgent::KnowledgeChunk', dependent: :delete_all
   has_many :reply_traces, class_name: 'AiAgent::ReplyTrace', dependent: :delete_all
   has_many :request_logs, class_name: 'AiAgent::RequestLog', dependent: :delete_all
+  has_many :bookings, dependent: :nullify
   has_many :ai_agent_inboxes, dependent: :destroy
   has_one :google_sheets_integration, -> { where(integration_type: 'google_sheets') },
           class_name: 'AiAgent::Integration', dependent: :destroy, inverse_of: :ai_agent
@@ -84,7 +94,9 @@ class AiAgent < ApplicationRecord
   validates :name, presence: true, length: { maximum: 255 }
   validates :behavior, length: { maximum: 15_000 }
   validates :welcome_message, length: { maximum: 5_000 }
-  validates :transfer_conditions, :label_conditions, length: { maximum: 3_000 }
+  validates :transfer_conditions, :label_conditions, :booking_conditions, length: { maximum: 3_000 }
+  validates :booking_conditions, :booking_label_id, presence: true, if: :booking_enabled
+  validates :booking_fields, length: { maximum: MAX_BOOKING_FIELDS }
   validates :pending_assigned_message, :pending_unassigned_message, length: { maximum: 200 }
   validates :history_limit, numericality: { only_integer: true, in: 1..100 }
   validates :read_file_limit, numericality: { only_integer: true, in: 0..10 }
@@ -105,6 +117,8 @@ class AiAgent < ApplicationRecord
   validate -> { errors.add(:web_search_domains, :invalid) }, unless: -> { web_search_domain_list.all?(WEB_SEARCH_DOMAIN) }
   validate :model_supported
   validate :allowed_labels_belong_to_account
+  validate -> { errors.add(:booking_label_id, :invalid) }, if: -> { booking_label_id && !account.labels.exists?(booking_label_id) }
+  validate :booking_fields_valid
 
   before_update -> { self.scope_policy_version += 1 }, if: -> { changed.intersect?(SCOPE_POLICY_ATTRIBUTES) }
 
@@ -133,6 +147,11 @@ class AiAgent < ApplicationRecord
   # AiAgents::WebSearch.configured?).
   def web_search?
     web_search_enabled && AiAgents::WebSearch.configured?
+  end
+
+  # Booking needs the account's bookings feature as well, so turning that off stops every agent from recording bookings.
+  def booking?
+    booking_enabled && account.feature_enabled?('bookings')
   end
 
   # The domains of web_search_domains, which may be separated by commas, spaces, or line breaks.
@@ -201,6 +220,15 @@ class AiAgent < ApplicationRecord
 
   def model_supported
     errors.add(:model, :inclusion) unless self.class.available_models.any? { |available| available[:id] == model }
+  end
+
+  # Each name becomes a field of the booking function, so names are unique, case aside, and not core field names.
+  def booking_fields_valid
+    names = Array(booking_fields)
+    return errors.add(:booking_fields, :invalid) unless names.all? { |name| name.is_a?(String) && name.match?(BOOKING_FIELD_NAME) }
+
+    names = names.map(&:downcase)
+    errors.add(:booking_fields, :invalid) if names.uniq.size < names.size || names.intersect?(BOOKING_CORE_FIELDS)
   end
 
   def allowed_labels_belong_to_account

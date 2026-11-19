@@ -4,15 +4,18 @@ import { useI18n } from 'vue-i18n';
 import { useStore } from 'vuex';
 import { useIntervalFn } from '@vueuse/core';
 import { useAlert } from 'dashboard/composables';
+import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { timeZoneOptions } from 'dashboard/routes/dashboard/settings/inbox/helpers/businessHour';
 import { dynamicTime } from 'shared/helpers/timeHelper';
+import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import AiAgentsAPI from 'dashboard/api/aiAgents';
 
 import Banner from 'dashboard/components-next/banner/Banner.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import TagInput from 'dashboard/components-next/taginput/TagInput.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import AiAgentPlayground from '../components/AiAgentPlayground.vue';
@@ -35,6 +38,7 @@ const TEXT_LIMITS = {
   transferConditions: 3000,
   pendingMessage: 200,
   labelConditions: 3000,
+  bookingConditions: 3000,
   scopePolicy: 3000,
   scopeReply: 1000,
   webSearchDomains: 1000,
@@ -42,6 +46,7 @@ const TEXT_LIMITS = {
 
 const { t } = useI18n();
 const store = useStore();
+const { isCloudFeatureEnabled } = useAccount();
 
 const labels = useMapGetter('labels/getLabels');
 const inboxes = useMapGetter('inboxes/getInboxes');
@@ -79,6 +84,10 @@ const toForm = agent => ({
   knowledge_gap_message: agent.knowledge_gap_message || '',
   web_search_enabled: agent.web_search_enabled,
   web_search_domains: agent.web_search_domains || '',
+  booking_enabled: agent.booking_enabled,
+  booking_conditions: agent.booking_conditions || '',
+  booking_label_id: agent.booking_label_id,
+  booking_fields: [...agent.booking_fields],
 });
 
 const form = reactive(toForm(props.agent));
@@ -104,6 +113,12 @@ const selectedLabelIds = computed({
     form.allowed_label_ids = ids;
   },
 });
+// Bookings need the account feature; the agent setting alone records none (see AiAgent#booking?).
+const isBookingFeatureEnabled = computed(() =>
+  isCloudFeatureEnabled(FEATURE_FLAGS.BOOKINGS)
+);
+// A deleted booking label is sent as none, so saving asks for a new one.
+const existingLabelOrNull = id => (existingLabelIds.value.has(id) ? id : null);
 
 const modelOptions = computed(() => {
   const options = availableModels.value.map(model => ({
@@ -236,6 +251,7 @@ const toPayload = values => ({
   ...values,
   name: values.name.trim(),
   allowed_label_ids: existingLabelsOnly(values.allowed_label_ids),
+  booking_label_id: existingLabelOrNull(values.booking_label_id),
 });
 const payload = computed(() => toPayload(form));
 const isDirty = computed(
@@ -748,6 +764,67 @@ onMounted(async () => {
                 min-height="5rem"
               />
             </SettingsField>
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            v-if="isBookingFeatureEnabled"
+            icon="i-lucide-calendar-check"
+            :title="t('AI_AGENTS.GENERAL.BOOKING.TITLE')"
+            :description="t('AI_AGENTS.GENERAL.BOOKING.DESCRIPTION')"
+          >
+            <ToggleField
+              v-model="form.booking_enabled"
+              :title="t('AI_AGENTS.GENERAL.BOOKING.ENABLED.TITLE')"
+              :description="t('AI_AGENTS.GENERAL.BOOKING.ENABLED.DESCRIPTION')"
+            />
+            <template v-if="form.booking_enabled">
+              <SettingsField
+                :title="t('AI_AGENTS.GENERAL.BOOKING.CONDITIONS.TITLE')"
+                :description="
+                  t('AI_AGENTS.GENERAL.BOOKING.CONDITIONS.DESCRIPTION')
+                "
+              >
+                <TextArea
+                  id="ai-agent-booking-conditions"
+                  v-model="form.booking_conditions"
+                  :placeholder="
+                    t('AI_AGENTS.GENERAL.BOOKING.CONDITIONS.PLACEHOLDER')
+                  "
+                  :max-length="TEXT_LIMITS.bookingConditions"
+                  show-character-count
+                  auto-height
+                  resize
+                  min-height="5rem"
+                />
+              </SettingsField>
+              <SettingsField
+                :title="t('AI_AGENTS.GENERAL.BOOKING.LABEL.TITLE')"
+                :description="t('AI_AGENTS.GENERAL.BOOKING.LABEL.DESCRIPTION')"
+              >
+                <ComboBox
+                  v-model="form.booking_label_id"
+                  :options="labelOptions"
+                  :placeholder="
+                    t('AI_AGENTS.GENERAL.BOOKING.LABEL.PLACEHOLDER')
+                  "
+                  :search-placeholder="
+                    t('AI_AGENTS.GENERAL.BOOKING.LABEL.SEARCH_PLACEHOLDER')
+                  "
+                  :empty-state="t('AI_AGENTS.GENERAL.BOOKING.LABEL.EMPTY')"
+                />
+              </SettingsField>
+              <SettingsField
+                :title="t('AI_AGENTS.GENERAL.BOOKING.FIELDS.TITLE')"
+                :description="t('AI_AGENTS.GENERAL.BOOKING.FIELDS.DESCRIPTION')"
+              >
+                <TagInput
+                  v-model="form.booking_fields"
+                  :placeholder="
+                    t('AI_AGENTS.GENERAL.BOOKING.FIELDS.PLACEHOLDER')
+                  "
+                />
+              </SettingsField>
+            </template>
           </CollapsiblePanel>
 
           <SettingsField

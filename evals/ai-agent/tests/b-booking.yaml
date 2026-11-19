@@ -1,0 +1,230 @@
+# B-BK. Booking requests (issue #177) against the strict `booking` agent of fixtures/bengkel-booking.json. `booking` in a
+# case's metadata is what the reply must request (see lib/booking-assertions.mjs): `days` after the day the case runs or
+# the next `weekday`, the time, and a part of the service, the customer name, the notes, and the agent fields; null when it
+# must request none. The earlier agent replies only use relative days ("besok", "lusa", "Sabtu"), so the cases hold on
+# any run date whose target day the workshop is open (Monday to Saturday).
+
+# Positive: the customer confirms the summary of a booking.
+- description: 'B-BK-01: servis berkala besok jam 10, dikonfirmasi'
+  metadata:
+    id: B-BK-01
+    category: positive
+    booking:
+      {
+        days: 1,
+        time: '10:00',
+        service: 'servis berkala',
+        name: 'andi',
+        details: { Mobil: 'avanza' },
+      }
+  vars:
+    conversation: |-
+      Mau booking servis berkala besok jam 10 pagi, atas nama Andi. Mobilnya Avanza 2019.
+      AI: Baik, Kak Andi. Saya ringkas dulu: servis berkala untuk Toyota Avanza 2019, besok pukul 10.00. Sudah benar, Kak?
+      Ya, benar.
+
+- description: 'B-BK-02: ganti oli lusa jam 1 siang, data dikumpulkan bertahap'
+  metadata:
+    id: B-BK-02
+    category: positive
+    booking:
+      {
+        days: 2,
+        time: '13:00',
+        service: 'ganti oli',
+        name: 'rina',
+        details: { Mobil: 'brio' },
+      }
+  vars:
+    conversation: |-
+      Saya Rina, mau ganti oli lusa jam 1 siang.
+      AI: Siap, Kak Rina. Mobilnya apa, Kak?
+      Honda Brio 2020.
+      AI: Baik. Ganti oli untuk Honda Brio 2020 atas nama Kak Rina, lusa pukul 13.00. Sudah sesuai, Kak?
+      Betul, sesuai.
+
+- description: 'B-BK-03: tune up hari Sabtu jam 9 pagi'
+  metadata:
+    id: B-BK-03
+    category: positive
+    booking:
+      {
+        weekday: Saturday,
+        time: '09:00',
+        service: 'tune up',
+        name: 'dodi',
+        details: { Mobil: 'xenia' },
+      }
+  vars:
+    conversation: |-
+      Booking tune up hari Sabtu jam 9 pagi ya. Nama saya Dodi, mobil Xenia.
+      AI: Baik, Kak Dodi. Tune up untuk Daihatsu Xenia, Sabtu pukul 09.00. Sudah benar?
+      Oke sip.
+
+- description: 'B-BK-04: konfirmasi dengan permintaan tambahan sebagai catatan'
+  metadata:
+    id: B-BK-04
+    category: positive
+    booking:
+      {
+        days: 1,
+        time: '15:00',
+        service: 'spooring',
+        name: 'sari',
+        notes: 'rem',
+        details: { Mobil: 'jazz' },
+      }
+  vars:
+    conversation: |-
+      Mau spooring dan balancing besok jam 3 sore, atas nama Sari, mobil Jazz.
+      AI: Baik, Kak Sari. Spooring dan balancing untuk Honda Jazz, besok pukul 15.00. Sudah benar, Kak?
+      Ya benar. Tolong sekalian cek bunyi di rem depan ya.
+
+- description: 'B-BK-05: cek aki besok jam 08.30'
+  metadata:
+    id: B-BK-05
+    category: positive
+    booking:
+      {
+        days: 1,
+        time: '08:30',
+        service: 'aki',
+        name: 'budi',
+        details: { Mobil: 'ertiga' },
+      }
+  vars:
+    conversation: |-
+      Halo, saya Budi. Mau cek aki besok jam 08.30.
+      AI: Halo, Kak Budi. Mobilnya apa, Kak?
+      Ertiga 2018
+      AI: Baik. Cek aki untuk Suzuki Ertiga 2018 atas nama Kak Budi, besok pukul 08.30. Sudah sesuai?
+      Siap, sesuai.
+
+- description: 'B-BK-06: ganti kampas rem lusa jam 11, konfirmasi singkat'
+  metadata:
+    id: B-BK-06
+    category: positive
+    booking:
+      {
+        days: 2,
+        time: '11:00',
+        service: 'kampas rem',
+        name: 'wati',
+        details: { Mobil: 'avanza' },
+      }
+  vars:
+    conversation: |-
+      Mau ganti kampas rem depan lusa jam 11 siang. Nama Wati, Avanza.
+      AI: Baik, Kak Wati. Ganti kampas rem depan untuk Toyota Avanza, lusa pukul 11.00. Sudah benar?
+      Iya kak
+
+- description: 'B-BK-07: servis berkala besok jam 1 siang, konfirmasi "ok"'
+  metadata:
+    id: B-BK-07
+    category: positive
+    booking:
+      {
+        days: 1,
+        time: '13:00',
+        service: 'servis berkala',
+        name: 'hendra',
+        details: { Mobil: 'innova' },
+      }
+  vars:
+    conversation: |-
+      Servis berkala besok jam 1 siang bisa? Atas nama Hendra, Innova 2017.
+      AI: Bisa, Kak Hendra. Servis berkala untuk Toyota Innova 2017, besok pukul 13.00. Sudah benar, Kak?
+      Ok
+
+# Negative: no booking yet, or none at all.
+- description: 'B-BK-08: tanya harga'
+  metadata: { id: B-BK-08, category: negative, booking: null }
+  vars:
+    conversation: Berapa harga servis berkala?
+
+- description: 'B-BK-09: tanya jam buka besok'
+  metadata: { id: B-BK-09, category: negative, booking: null }
+  vars:
+    conversation: Besok bengkel buka jam berapa?
+
+- description: 'B-BK-10: minta booking tanpa ringkasan yang dikonfirmasi'
+  metadata: { id: B-BK-10, category: negative, booking: null }
+  vars:
+    conversation: Mau booking servis berkala besok jam 10.
+
+- description: 'B-BK-11: pelanggan menunda setelah ringkasan'
+  metadata: { id: B-BK-11, category: negative, booking: null }
+  vars:
+    conversation: |-
+      Mau booking ganti oli besok jam 10, atas nama Andi, mobil Avanza.
+      AI: Baik, Kak Andi. Ganti oli untuk Toyota Avanza, besok pukul 10.00. Sudah benar, Kak?
+      Eh nanti dulu deh, saya cek jadwal dulu.
+
+- description: 'B-BK-12: pelanggan mengoreksi jam pada ringkasan'
+  metadata: { id: B-BK-12, category: negative, booking: null }
+  vars:
+    conversation: |-
+      Mau tune up besok jam 10 atas nama Rudi, mobil Brio.
+      AI: Baik, Kak Rudi. Tune up untuk Honda Brio, besok pukul 10.00. Sudah benar?
+      Bukan jam 10, jam 2 siang.
+
+- description: 'B-BK-13: tanya DP booking'
+  metadata: { id: B-BK-13, category: negative, booking: null }
+  vars:
+    conversation: Kalau booking servis harus DP dulu nggak?
+
+- description: 'B-BK-14: tanya servis di rumah'
+  metadata: { id: B-BK-14, category: negative, booking: null }
+  vars:
+    conversation: Bisa nggak montirnya datang servis ke rumah saya?
+
+- description: 'B-BK-15: pelanggan membatalkan setelah ringkasan'
+  metadata: { id: B-BK-15, category: negative, booking: null }
+  vars:
+    conversation: |-
+      Mau servis berkala besok jam 9, nama Tono, Avanza.
+      AI: Baik, Kak Tono. Servis berkala untuk Toyota Avanza, besok pukul 09.00. Sudah benar?
+      Nggak jadi deh, makasih.
+
+# Change: a booking was already requested earlier in the conversation.
+- description: 'B-BK-16: terima kasih setelah booking dicatat'
+  metadata: { id: B-BK-16, category: change, booking: null }
+  vars:
+    conversation: |-
+      Mau servis berkala besok jam 10, atas nama Andi, Avanza.
+      AI: Baik, Kak Andi. Servis berkala untuk Toyota Avanza, besok pukul 10.00. Sudah benar?
+      Ya benar.
+      AI: Terima kasih, Kak Andi. Permintaan booking Kakak sudah kami catat dan akan dikonfirmasi oleh staff kami.
+      Oke makasih ya.
+
+- description: 'B-BK-17: minta ganti jam, belum dikonfirmasi'
+  metadata: { id: B-BK-17, category: change, booking: null }
+  vars:
+    conversation: |-
+      Mau servis berkala besok jam 10, atas nama Andi, Avanza.
+      AI: Baik, Kak Andi. Servis berkala untuk Toyota Avanza, besok pukul 10.00. Sudah benar?
+      Ya benar.
+      AI: Terima kasih, Kak Andi. Permintaan booking Kakak sudah kami catat dan akan dikonfirmasi oleh staff kami.
+      Oh iya, jamnya bisa diganti jadi jam 2 siang?
+
+- description: 'B-BK-18: ganti jam yang sudah dikonfirmasi menjadi permintaan baru'
+  metadata:
+    id: B-BK-18
+    category: change
+    booking:
+      {
+        days: 1,
+        time: '14:00',
+        service: 'servis berkala',
+        name: 'andi',
+        details: { Mobil: 'avanza' },
+      }
+  vars:
+    conversation: |-
+      Mau servis berkala besok jam 10, atas nama Andi, Avanza.
+      AI: Baik, Kak Andi. Servis berkala untuk Toyota Avanza, besok pukul 10.00. Sudah benar?
+      Ya benar.
+      AI: Terima kasih, Kak Andi. Permintaan booking Kakak sudah kami catat dan akan dikonfirmasi oleh staff kami.
+      Oh iya, jamnya bisa diganti jadi jam 2 siang?
+      AI: Bisa, Kak Andi. Servis berkala untuk Toyota Avanza jadi besok pukul 14.00. Sudah benar?
+      Ya, benar.

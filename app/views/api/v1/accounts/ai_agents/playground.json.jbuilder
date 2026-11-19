@@ -2,6 +2,8 @@ json.messages @reply.messages
 json.handoff @reply.handoff
 json.labels @reply.labels
 json.sheet_row @reply.sheet_row
+# What a live reply would request as a booking (see AiAgents::ActionSchema#parse); the playground records none.
+json.booking @reply.booking
 json.model @ai_agent.model
 json.scope @reply.trace.scope&.to_h&.slice(:decision, :web_query, :web_search_status, :latency_ms, :input_tokens, :output_tokens)
 # retry_skipped: the reply model was not asked again for a reply without a valid decision, for lack of time.

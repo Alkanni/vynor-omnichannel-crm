@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -341,6 +341,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_000100) do
     t.boolean "web_search_enabled", default: false, null: false
     t.text "web_search_domains"
     t.integer "context_expansion_radius", default: 0, null: false
+    t.boolean "booking_enabled", default: false, null: false
+    t.text "booking_conditions"
+    t.bigint "booking_label_id"
+    t.jsonb "booking_fields", default: [], null: false
     t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 
@@ -486,6 +490,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_000100) do
     t.boolean "active", default: true, null: false
     t.integer "execution_delay"
     t.index ["account_id"], name: "index_automation_rules_on_account_id"
+  end
+
+  create_table "bookings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "ai_agent_id"
+    t.integer "status", default: 0, null: false
+    t.datetime "scheduled_at", null: false
+    t.string "service", null: false
+    t.string "customer_name", null: false
+    t.text "notes"
+    t.jsonb "details", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "scheduled_at"], name: "index_bookings_on_account_id_and_scheduled_at"
+    t.index ["account_id", "status"], name: "index_bookings_on_account_id_and_status"
+    t.index ["ai_agent_id"], name: "index_bookings_on_ai_agent_id"
+    t.index ["contact_id"], name: "index_bookings_on_contact_id"
+    t.index ["conversation_id"], name: "index_bookings_on_conversation_id"
   end
 
   create_table "calls", force: :cascade do |t|

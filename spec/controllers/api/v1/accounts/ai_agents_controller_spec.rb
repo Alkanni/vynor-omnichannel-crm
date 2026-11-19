@@ -164,6 +164,23 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response.parsed_body['attributes']).to contain_exactly('scope_mode', 'allowed_topics')
     end
 
+    it 'saves the booking settings, and refuses bookings without a condition, with another account\'s label, or with core field names' do
+      booking_settings = { booking_enabled: true, booking_conditions: 'Saat customer ingin datang ke bengkel.', booking_label_id: label.id,
+                           booking_fields: ['Plat nomor'] }
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}", params: booking_settings, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include(booking_settings.stringify_keys)
+
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { booking_conditions: '', booking_label_id: create(:label).id, booking_fields: ['service'] },
+            headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['attributes']).to contain_exactly('booking_conditions', 'booking_label_id', 'booking_fields')
+      expect(ai_agent.reload).to have_attributes(booking_settings)
+    end
+
     it 'clears the allowed labels with an empty list' do
       ai_agent.update!(allowed_label_ids: [label.id])
 
@@ -300,6 +317,22 @@ RSpec.describe 'AI Agents API', type: :request do
     let(:url) { "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}/playground" }
     let(:messages) { [{ role: 'user', content: 'Halo' }, { role: 'assistant', content: 'Halo Kak' }, { role: 'user', content: 'Jam buka?' }] }
 
+    it 'returns the booking a live reply would request, without recording it' do
+      booking = { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil,
+                  details: { 'Plat nomor' => 'B 1' } }
+      retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'hybrid', embedding_model: nil, queries: ['Ya'], hits: [])
+      reply = AiAgents::ReplyGenerator::Reply.new(
+        messages: ['Baik, kami teruskan ke staff.'], handoff: false, labels: [], booking: booking,
+        trace: AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, web_search: nil, validation: nil, invalid_outputs: [],
+                                                   input_tokens: nil, output_tokens: nil, cached_input_tokens: nil, latency_ms: 10)
+      )
+      allow(AiAgents::ReplyGenerator).to receive(:new).and_return(instance_double(AiAgents::ReplyGenerator, perform: reply))
+
+      expect { post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json }.not_to change(Booking, :count)
+      expect(response.parsed_body['booking']).to eq('service' => 'Cuci salon', 'customer_name' => 'Budi', 'notes' => nil,
+                                                    'scheduled_at' => '2026-11-20T03:00:00.000Z', 'details' => { 'Plat nomor' => 'B 1' })
+    end
+
     it 'returns the reply of the agent for the conversation so far, with its actions and the knowledge it used' do
       ai_agent.update!(history_limit: 2)
       source = create(:ai_agent_knowledge_source, ai_agent: ai_agent, title: 'Jam operasional')
@@ -324,8 +357,8 @@ RSpec.describe 'AI Agents API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
-        'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'model' => ai_agent.model,
-        'scope' => nil, 'validation' => nil, 'web' => nil,
+        'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'booking' => nil,
+        'model' => ai_agent.model, 'scope' => nil, 'validation' => nil, 'web' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
@@ -519,7 +552,7 @@ RSpec.describe 'AI Agents API', type: :request do
       log = AiAgent::RequestLog.sole
       expect(log).to have_attributes(source: 'playground', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: nil, message_id: nil,
                                      reply_trace_id: nil, output: { 'messages' => ['Buka 08.00, Kak.'], 'handoff' => false, 'labels' => [],
-                                                                    'sheet_row' => nil })
+                                                                    'sheet_row' => nil, 'booking' => nil })
       expect(log.input['messages']).to eq(messages.map(&:stringify_keys))
       expect(log.steps.sole).to include('step' => 'reply', 'output' => { 'messages' => ['Buka 08.00, Kak.'] })
     end

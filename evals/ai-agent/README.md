@@ -37,6 +37,9 @@ context run makes 26 agent calls plus 26 judge calls.
 | `fixtures/bengkel-mobil.json` | Synthetic strict car workshop agent with web search, whose allowed topics include general car information, for the web search routing eval |
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
 | `fixtures/bengkel-qa.json` | Synthetic car care business for the retrieval eval whose knowledge is 195 Q&A: the same questions (price, duration, warranty, booking, …) for each of 30 services, plus general questions, like a Q&A list written per service (issue #141) |
+| `promptfooconfig.booking.yaml`, `tests/b-booking.yaml`, `lib/booking-assertions.mjs` | Booking eval: 18 cases with the booking each must request, or none, and deterministic assertions over the booking the playground returns (see below) |
+| `fixtures/bengkel-booking.json` | The strict car workshop agent of `bengkel-mobil.json` without web search, with booking requests on, a `Mobil` booking field, and the `booking` label (issue #177) |
+| `booking-report.mjs` | Markdown summary of the booking eval: the gate of issue #177 per run and the failing cases with the booking they requested |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
 | `replay-provider.mjs` | Replays the responses of an earlier run (`REPLAY_OUTPUT`) instead of calling the app, so the same replies can be graded again, e.g. by another judge (issue #174) |
@@ -236,6 +239,25 @@ node report.mjs output/web-1.json
   26 of them search the web (Exa US$0.004, Tavily US$0.008 each); a search repeated within 6 hours comes from the cache
   at no cost, so a second run soon after the first mostly costs little. The web results then stay the same, which keeps
   the two runs comparable.
+
+## Booking eval
+
+```bash
+node --env-file=.env setup.mjs bengkel-booking.json
+npx promptfoo@0.124.1 eval -c promptfooconfig.booking.yaml --no-cache -o output/booking-1.json
+node booking-report.mjs output/booking-1.json
+```
+
+- The eval account needs the `bookings` feature (Super Admin → Accounts → the account → features, or Settings → Features
+  for all accounts); without it the agent requests no booking and every positive case fails.
+- Each case in `tests/b-booking.yaml` has the booking the reply must request in its metadata, or `null`: the date as
+  `days` after the day the case runs or the next `weekday`, the time, and parts of the service, the customer name, the
+  notes, and the `Mobil` field. The earlier agent replies only say "besok", "lusa", or "Sabtu", so run it on a day whose
+  target days the workshop is open (it is closed on Sundays).
+- The playground never records a booking; it returns the one a live reply would request (`booking`), and the reply check
+  runs as it does live, so `not_blocked` shows whether a summary with a date passes it.
+- Gate (issue #177, AC13): no booking on a negative case, at least 90% of the positive cases with a booking, the date
+  and time exact on every booking requested, and no reply blocked as `unsupported_number`. Nothing here calls the judge.
 
 ## Multi-chunk context eval
 

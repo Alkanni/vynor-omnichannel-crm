@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Booking eval (issue #177): whether the strict `booking` agent of fixtures/bengkel-booking.json requests a booking
+# exactly when the customer confirmed its summary, on the right date and time, with the right fields, and whether a reply
+# that turns "besok" into its date passes the reply check. Every assertion is deterministic (lib/booking-assertions.mjs);
+# booking-report.mjs prints the gate. The account needs the `bookings` feature. Run from this directory; see README.md.
+description: AI Agent booking requests
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://provider.mjs
+    label: booking
+    config:
+      agent: booking
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 2
+
+defaultTest:
+  assert:
+    - type: javascript
+      metric: booking_requested
+      value: file://lib/booking-assertions.mjs:requestedAsExpected
+    - type: javascript
+      metric: booking_datetime
+      value: file://lib/booking-assertions.mjs:onExpectedTime
+    - type: javascript
+      metric: booking_fields
+      value: file://lib/booking-assertions.mjs:withExpectedFields
+    - type: javascript
+      metric: not_blocked
+      value: context.metadata.blockedReason !== 'unsupported_number'
+
+tests:
+  - file://tests/b-booking.yaml

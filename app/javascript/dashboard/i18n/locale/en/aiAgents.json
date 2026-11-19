@@ -152,6 +152,31 @@
           "PLACEHOLDER": "e.g. Apply label booking when the customer has filled in the order format."
         }
       },
+      "BOOKING": {
+        "TITLE": "Booking",
+        "DESCRIPTION": "Record the bookings that customers confirm in a conversation, for your team to confirm.",
+        "ENABLED": {
+          "TITLE": "Record booking requests",
+          "DESCRIPTION": "The AI agent reads a short summary back to the customer and records the booking once they confirm it. The phone number comes from the contact, so the AI agent does not ask for it."
+        },
+        "CONDITIONS": {
+          "TITLE": "When to record a booking",
+          "DESCRIPTION": "Describe which requests count as a booking. A question about a service or its price never does.",
+          "PLACEHOLDER": "e.g. When the customer wants to come in for a service and has given the service, date, and time."
+        },
+        "LABEL": {
+          "TITLE": "Booking label",
+          "DESCRIPTION": "Added to the conversation when the AI agent records a booking.",
+          "PLACEHOLDER": "Select a label",
+          "SEARCH_PLACEHOLDER": "Search labels",
+          "EMPTY": "No labels found"
+        },
+        "FIELDS": {
+          "TITLE": "Extra booking fields",
+          "DESCRIPTION": "Every booking has the customer name, service, date, time, and notes. Add up to 10 more fields for your business, such as a plate number. Press Enter after each one.",
+          "PLACEHOLDER": "e.g. Plate number"
+        }
+      },
       "AI_MODEL": {
         "TITLE": "AI Model",
         "DESCRIPTION": "Select your AI model",

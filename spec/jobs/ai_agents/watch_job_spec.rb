@@ -10,8 +10,8 @@ RSpec.describe AiAgents::WatchJob do
                                   output_tokens: 60)
   end
   let(:result) do
-    AiAgents::Watcher::Result.new(actions: { handoff: true, labels: ['complaint'], sheet_row: nil }, input_tokens: 300, output_tokens: 8,
-                                  cached_input_tokens: 128)
+    AiAgents::Watcher::Result.new(actions: { handoff: true, labels: ['complaint'], sheet_row: nil, booking: nil }, input_tokens: 300,
+                                  output_tokens: 8, cached_input_tokens: 128)
   end
   let(:watcher) { instance_double(AiAgents::Watcher, perform: result) }
 
@@ -30,9 +30,26 @@ RSpec.describe AiAgents::WatchJob do
     expect(conversation).to be_open
     expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_handoff' = 'watcher'")).to exist
     expect(AiAgents::Watcher).to have_received(:new)
-      .with(ai_agent: ai_agent, messages: [hash_including(role: :user, content: 'Pelayanannya buruk sekali')], written_rows: [])
+      .with(ai_agent: ai_agent, messages: [hash_including(role: :user, content: 'Pelayanannya buruk sekali')], written_rows: [], bookings: [])
     expect(reply_trace.reload).to have_attributes(input_tokens: 1500, output_tokens: 60, watcher_input_tokens: 300, watcher_output_tokens: 8,
                                                   watcher_cached_input_tokens: 128)
+  end
+
+  context 'when the reply missed a booking' do
+    let(:result) do
+      booking = { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil, details: {} }
+      AiAgents::Watcher::Result.new(actions: { handoff: false, labels: [], sheet_row: nil, booking: booking }, input_tokens: 300, output_tokens: 8,
+                                    cached_input_tokens: nil)
+    end
+
+    it 'requests it' do
+      ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
+                       booking_label_id: create(:label, account: account, title: 'booking').id)
+
+      described_class.perform_now(conversation, reply_trace)
+
+      expect(conversation.bookings.sole).to have_attributes(status: 'requested', scheduled_at: Time.utc(2026, 11, 20, 3, 0))
+    end
   end
 
   it 'logs its run, linked to the trace of the reply, with the request log on' do
@@ -52,7 +69,7 @@ RSpec.describe AiAgents::WatchJob do
     log = AiAgent::RequestLog.sole
     expect(log).to have_attributes(source: 'watcher', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: conversation.id,
                                    message_id: reply_trace.message_id, reply_trace_id: reply_trace.id,
-                                   output: { 'handoff' => true, 'labels' => [], 'sheet_row' => nil })
+                                   output: { 'handoff' => true, 'labels' => [], 'sheet_row' => nil, 'booking' => nil })
     expect(log.input['messages']).to eq([{ 'role' => 'user', 'content' => 'Pelayanannya buruk sekali', 'attachments' => [] }])
     expect(log.steps.sole).to include('step' => 'watcher', 'model' => ai_agent.model, 'output' => { 'handoff' => true },
                                       'tokens' => { 'input' => 300, 'output' => 8, 'cached_input' => nil })

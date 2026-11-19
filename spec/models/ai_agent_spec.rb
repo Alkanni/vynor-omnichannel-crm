@@ -149,6 +149,46 @@ RSpec.describe AiAgent do
       ai_agent.allowed_label_ids = ['1']
       expect(ai_agent).not_to be_valid
     end
+
+    it 'requires a condition and a label of the same account while bookings are on' do
+      ai_agent.booking_enabled = true
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.attribute_names).to contain_exactly(:booking_conditions, :booking_label_id)
+
+      ai_agent.assign_attributes(booking_conditions: 'Saat customer ingin datang ke bengkel.', booking_label_id: create(:label).id)
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.attribute_names).to eq([:booking_label_id])
+
+      ai_agent.booking_label_id = create(:label, account: account).id
+      expect(ai_agent).to be_valid
+    end
+
+    it 'accepts up to ten trimmed booking field names that are unique and not core field names' do
+      ai_agent.booking_fields = ['Plat nomor', 'Jumlah orang']
+      expect(ai_agent).to be_valid
+
+      [Array.new(11) { |index| "Field #{index}" }, %w[Plat plat], ['Service'], [' Plat'], [''], ['a' * 51], ["Plat\nnomor"], [1]].each do |fields|
+        ai_agent.booking_fields = fields
+        expect(ai_agent).not_to be_valid, fields.inspect
+      end
+    end
+  end
+
+  describe '#booking?' do
+    let(:ai_agent) do
+      build(:ai_agent, account: account, booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
+                       booking_label_id: create(:label, account: account).id)
+    end
+
+    it 'is on for an agent that turned it on while its account has the bookings feature' do
+      expect(ai_agent.booking?).to be(false)
+
+      account.enable_features!('bookings')
+      expect(ai_agent.booking?).to be(true)
+
+      ai_agent.booking_enabled = false
+      expect(ai_agent.booking?).to be(false)
+    end
   end
 
   describe '#web_search?' do

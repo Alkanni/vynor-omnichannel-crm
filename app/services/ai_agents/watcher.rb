@@ -9,12 +9,13 @@ class AiAgents::Watcher
   # AiAgents::LlmClient::Completion).
   Result = Data.define(:actions, :input_tokens, :output_tokens, :cached_input_tokens)
 
-  pattr_initialize [:ai_agent!, :messages!, :written_rows]
+  # written_rows and bookings: as for AiAgents::ActionSchema.
+  pattr_initialize [:ai_agent!, :messages!, :written_rows, :bookings]
 
   def perform
     completion = AiAgents::LlmClient.new.chat(
       model: ai_agent.model, temperature: AiAgents::ReplyGenerator::TEMPERATURES['precise'],
-      instructions: "#{INSTRUCTIONS}\n#{actions.instructions}", messages: [{ role: :user, content: transcript }],
+      instructions: [INSTRUCTIONS, actions.calendar, actions.instructions].compact.join("\n"), messages: [{ role: :user, content: transcript }],
       schema: actions.json_schema('ai_agent_watch'), step: :watcher
     )
     Result.new(actions: actions.parse(completion.content.is_a?(Hash) ? completion.content : {}), input_tokens: completion.input_tokens,
@@ -28,6 +29,6 @@ class AiAgents::Watcher
   end
 
   def actions
-    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows)
+    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows, bookings: bookings)
   end
 end

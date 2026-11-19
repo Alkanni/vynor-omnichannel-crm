@@ -85,7 +85,7 @@ RSpec.describe AiAgents::ReplyJob do
     expect(AiAgents::ReplyGenerator).to have_received(:new).once
     expect(AiAgents::ReplyGenerator).to have_received(:new)
       .with(ai_agent: ai_agent, messages: array_including(hash_including(content: 'Halo'), hash_including(content: 'Harga detailing?')),
-            written_rows: [])
+            written_rows: [], bookings: [])
     expect(ai_replies.count).to eq(2)
     expect(traces.sole.message).to eq(messages.last)
   end
@@ -216,7 +216,22 @@ RSpec.describe AiAgents::ReplyJob do
 
     expect { described_class.perform_now(message) }
       .to have_enqueued_job(AiAgents::AppendSheetRowJob).with(conversation, ['Budi', '', '24 Oktober'])
-    expect(AiAgents::ReplyGenerator).to have_received(:new).with(ai_agent: ai_agent, messages: anything, written_rows: [])
+    expect(AiAgents::ReplyGenerator).to have_received(:new).with(ai_agent: ai_agent, messages: anything, written_rows: [], bookings: [])
+  end
+
+  it 'records the booking the reply asked for' do
+    ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
+                     booking_label_id: create(:label, account: account, title: 'booking').id)
+    message = create(:message, **message_attributes, content: 'Ya, sudah benar')
+    booking = { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil, details: {} }
+    allow(generator).to receive(:perform).and_return(
+      AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, kami teruskan ke staff.'], handoff: false, labels: [], booking: booking, trace: trace)
+    )
+
+    described_class.perform_now(message)
+
+    expect(conversation.bookings.sole).to have_attributes(status: 'requested', service: 'Cuci salon', ai_agent: ai_agent)
+    expect(conversation.reload.label_list).to eq(['booking'])
   end
 
   describe 'watcher' do
@@ -509,7 +524,7 @@ RSpec.describe AiAgents::ReplyJob do
         source: 'reply', status: 'ok', account_id: account.id, ai_agent_id: ai_agent.id, conversation_id: conversation.id, message_id: message.id,
         reply_trace_id: traces.sole.id, latency_ms: be >= 0,
         input: { 'messages' => [{ 'role' => 'user', 'content' => 'Kenapa mesin mobil overheat?', 'attachments' => [] }] },
-        output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil }
+        output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil, 'booking' => nil }
       )
       steps = AiAgent::RequestLog.sole.steps
       expect(steps.pluck('step')).to eq(%w[scope_check embedding retrieval web_search reply reply_check])
