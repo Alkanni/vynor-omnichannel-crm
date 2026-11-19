@@ -21,6 +21,7 @@ import SharedFiles from './SharedFiles.vue';
 import Draggable from 'vuedraggable';
 import MacrosList from './Macros/List.vue';
 import ShopifyOrdersList from 'dashboard/components/widgets/conversation/ShopifyOrdersList.vue';
+import ContactBookings from 'dashboard/components-next/Bookings/ContactBookings.vue';
 import SidebarActionsHeader from 'dashboard/components-next/SidebarActionsHeader.vue';
 import LinearIssuesList from 'dashboard/components/widgets/conversation/linear/IssuesList.vue';
 import LinearSetupCTA from 'dashboard/components/widgets/conversation/linear/LinearSetupCTA.vue';
@@ -57,6 +58,9 @@ const isShopifyFeatureEnabled = computed(
 );
 
 const { isCloudFeatureEnabled } = useAccount();
+const isBookingsEnabled = computed(() =>
+  isCloudFeatureEnabled(FEATURE_FLAGS.BOOKINGS)
+);
 
 const isLinearFeatureEnabled = computed(() =>
   isCloudFeatureEnabled(FEATURE_FLAGS.LINEAR)
@@ -297,6 +301,16 @@ onMounted(() => {
               "
             >
               <ShopifyOrdersList :contact-id="contactId" />
+            </AccordionItem>
+          </div>
+          <div v-else-if="element.name === 'bookings' && isBookingsEnabled">
+            <AccordionItem
+              :title="$t('CONVERSATION_SIDEBAR.ACCORDION.BOOKINGS')"
+              :is-open="isContactSidebarItemOpen('is_bookings_open')"
+              compact
+              @toggle="value => toggleSidebarUIState('is_bookings_open', value)"
+            >
+              <ContactBookings :contact-id="contactId" />
             </AccordionItem>
           </div>
           <div v-else-if="element.name === 'contact_notes'">

@@ -1,0 +1,24 @@
+// The statuses of a booking, in the order staff move it through (see Booking#status).
+export const BOOKING_STATUSES = Object.freeze([
+  'requested',
+  'confirmed',
+  'cancelled',
+  'completed',
+  'no_show',
+]);
+
+export const BOOKING_STATUS_LABELS = Object.freeze({
+  requested: 'BOOKINGS.STATUS.REQUESTED',
+  confirmed: 'BOOKINGS.STATUS.CONFIRMED',
+  cancelled: 'BOOKINGS.STATUS.CANCELLED',
+  completed: 'BOOKINGS.STATUS.COMPLETED',
+  no_show: 'BOOKINGS.STATUS.NO_SHOW',
+});
+
+export const BOOKING_STATUS_CLASSES = Object.freeze({
+  requested: 'bg-n-amber-3 text-n-amber-11',
+  confirmed: 'bg-n-teal-3 text-n-teal-11',
+  cancelled: 'bg-n-slate-3 text-n-slate-11',
+  completed: 'bg-n-blue-3 text-n-blue-11',
+  no_show: 'bg-n-ruby-3 text-n-ruby-11',
+});

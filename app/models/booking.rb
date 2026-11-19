@@ -38,4 +38,18 @@ class Booking < ApplicationRecord
   validates :service, :customer_name, presence: true, length: { maximum: 255 }
   validates :scheduled_at, presence: true
   validates :notes, length: { maximum: 5_000 }
+
+  # A staff change of the status, recorded in the booking's conversation with who made it. Setting the status it already
+  # has changes nothing.
+  def change_status!(new_status, user)
+    return if status == new_status
+
+    transaction do
+      update!(status: new_status)
+      conversation.messages.create!(
+        account_id: account_id, inbox_id: conversation.inbox_id, message_type: :activity,
+        content: I18n.t('bookings.activity.status_changed', user: user.name, id: id, status: I18n.t("bookings.statuses.#{new_status}"))
+      )
+    end
+  end
 end
