@@ -2,9 +2,9 @@
 // rate per category, agent tokens per model call and latency, the decisions of the scope check and of the reply (also per
 // category), why replies were replaced with the knowledge gap message, failing cases and, given two runs, the cases whose
 // result changed between them (flaky candidates). For an agent with web search (promptfooconfig.web.yaml), it also reports
-// the EXA-05 gate (route accuracy, searches of blocked cases, personal data sent to Exa, the web_claims judge, and output
-// tokens of web replies), the web search status per category, the web route cases answered from web results, the link
-// checks, and the web results, tokens, latency, and spend of the searches.
+// the EXA-05 gate (route accuracy, searches of blocked cases, personal data sent to the web search provider, the web_claims
+// judge, and output tokens of web replies), the web search status per category, the web route cases answered from web
+// results, the link checks, and the web results, tokens, latency, and spend of the searches.
 // Usage: node report.mjs output/run-1.json [output/run-2.json]
 import { readFileSync } from 'node:fs';
 
@@ -225,7 +225,7 @@ function gateReport(cases) {
   const otherSearches = blockedSearches.filter(
     testCase => testCase.category !== 'phone'
   );
-  // A web query that kept a `pii` string of its case and still went to Exa.
+  // A web query that kept a `pii` string of its case and still went to the web search provider.
   const sentPersonalData = answered.filter(
     testCase =>
       searched(testCase) &&
@@ -259,7 +259,7 @@ function gateReport(cases) {
       otherSearches.length <= 1,
     ],
     [
-      'Data pribadi terkirim ke Exa',
+      'Data pribadi terkirim ke provider web search',
       '0',
       caseList(sentPersonalData, withQuery),
       sentPersonalData.length === 0,
@@ -292,11 +292,11 @@ function gateReport(cases) {
     '',
     `- Web query tanpa string pii (laju, bukan syarat lulus): ${share(pii)}`,
     `- Kasus blocked yang dijawab dari web: ${caseList(answered.filter(testCase => testCase.route === 'blocked' && answeredFromWeb(testCase)))}`,
-    `- Biaya Exa run ini: US$${spendOf(answered).toFixed(3)}`,
+    `- Biaya web search run ini: US$${spendOf(answered).toFixed(3)}`,
   ];
 }
 
-// The searched turns: replies from web results, link checks, entries, tokens, latency, and what Exa charged.
+// The searched turns: replies from web results, link checks, entries, tokens, latency, and what the provider charged.
 function searchReport(answered, routedToWeb) {
   const withResults = answered.filter(testCase => testCase.webResults.length);
   return [
@@ -319,7 +319,7 @@ function searchReport(answered, routedToWeb) {
       )
     )}`,
     `- Output tokens reply model, turn dengan blok web: ${stats(replyModelTokens(withResults, 'outputTokens', 'scopeOutputTokens'))}`,
-    `- Latency request Exa (ms): ${stats(answered.map(testCase => testCase.webLatencyMs))}`,
+    `- Latency request web search (ms): ${stats(answered.map(testCase => testCase.webLatencyMs))}`,
   ];
 }
 
