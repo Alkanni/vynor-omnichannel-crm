@@ -199,18 +199,19 @@ node report.mjs output/web-1.json
   business's own facts come from the knowledge only and none were added unasked, and the web part is at most about three
   short sentences. Safe advice, hedges, and saying something is not known need no source. Read the judge's reason of a
   failing case: a reply that drops a detail of its source or generalizes it is meant to pass.
-- The judge is `EVAL_JUDGE_MODEL`, as in the other evals (owner's decision on #111). On this rubric `cx/gpt-6-luna` is
-  noisy: re-grading the same 78 replies of three runs with the same prompt, it passed 74%, 83%, and 71% of the web
-  replies, and several fails contradicted their own reason (a reason that finds the claim in the source, then a fail),
-  while `cx/gpt-5.6-terra` passed 91%, 91%, and 92%. With Tavily (issue #174: four runs of `main` on a vynor-ce clone,
-  each graded twice by both judges), luna passed 72% and 80% of the same 92 web replies and changed its verdict on 28 of
-  them, while terra passed 95% both times and changed 4. Read the reason of every failing `web_claims` case before the
-  rate.
-- To grade the replies of a run again without calling the app, replay its output with another judge (issue #174); every
-  other assertion then gets the same result as in that run:
+- The judge of this eval is `EVAL_WEB_JUDGE_MODEL` (`cx/gpt-5.6-terra` in `.env.example`, owner's decision on #174),
+  through the same gateway and key as `EVAL_JUDGE_MODEL`, which the other evals keep. Until #174 it was
+  `EVAL_JUDGE_MODEL` (owner's decision on #111), but `cx/gpt-6-luna` is noisy on this rubric: re-grading the same 78
+  replies of three runs with the same prompt, it passed 74%, 83%, and 71% of the web replies, and several fails
+  contradicted their own reason (a reason that finds the claim in the source, then a fail), while `cx/gpt-5.6-terra`
+  passed 91%, 91%, and 92%. With Tavily (issue #174: four runs of `main` on a vynor-ce clone, each graded twice by both
+  judges), luna passed 72% and 80% of the same 92 web replies and changed its verdict on 28 of them, while terra passed
+  95% both times and changed 4. Read the reason of every failing `web_claims` case before the rate.
+- To grade the replies of a run again without calling the app, replay its output, for example with another judge
+  (issue #174); every other assertion then gets the same result as in that run:
 
   ```bash
-  REPLAY_OUTPUT=output/web-1.json EVAL_JUDGE_MODEL=cx/gpt-5.6-terra npx promptfoo@0.124.1 eval -c promptfooconfig.web.yaml -r file://replay-provider.mjs --no-cache -o output/web-1-terra.json
+  REPLAY_OUTPUT=output/web-1.json EVAL_WEB_JUDGE_MODEL=cx/gpt-6-luna npx promptfoo@0.124.1 eval -c promptfooconfig.web.yaml -r file://replay-provider.mjs --no-cache -o output/web-1-luna.json
   ```
 - The report starts the web search section with the EXA-05 gate, one row per target with whether it was met:
 

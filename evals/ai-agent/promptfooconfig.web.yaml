@@ -24,11 +24,12 @@ evaluateOptions:
   maxConcurrency: 2
 
 defaultTest:
-  # The judge of the `web_claims` rubric. Its output is lib/web-assertions.mjs:judgeInput, which puts the reply, the web
-  # results it cites, and the knowledge chunks the reply model had in their own tags.
+  # The judge of the `web_claims` rubric, EVAL_WEB_JUDGE_MODEL (see README.md, issue #174). Its output is
+  # lib/web-assertions.mjs:judgeInput, which puts the reply, the web results it cites, and the knowledge chunks the reply
+  # model had in their own tags.
   options:
     provider:
-      id: 'openai:chat:{{ env.EVAL_JUDGE_MODEL }}'
+      id: 'openai:chat:{{ env.EVAL_WEB_JUDGE_MODEL }}'
       config:
         apiBaseUrl: '{{ env.EVAL_JUDGE_BASE_URL }}'
         apiKeyEnvar: EVAL_JUDGE_API_KEY
