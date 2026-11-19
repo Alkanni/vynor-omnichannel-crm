@@ -39,6 +39,7 @@ context run makes 26 agent calls plus 26 judge calls.
 | `fixtures/bengkel-qa.json` | Synthetic car care business for the retrieval eval whose knowledge is 195 Q&A: the same questions (price, duration, warranty, booking, …) for each of 30 services, plus general questions, like a Q&A list written per service (issue #141) |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
+| `replay-provider.mjs` | Replays the responses of an earlier run (`REPLAY_OUTPUT`) instead of calling the app, so the same replies can be graded again, e.g. by another judge (issue #174) |
 | `report.mjs` | Markdown summary per agent variant: Scope Compliance metrics, pass rate and decisions per category, tokens per model call, latency, failures, and results that changed between two runs |
 | `promptfooconfig.retrieval.yaml`, `tests/retrieval.yaml` | Retrieval eval: 141 cases (direct, paraphrase, typo, table/heading, multi-turn, topic change, exact word, word form, long document, topic change and follow-up on Q&A, no answer) |
 | `retrieval-provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/retrieval_test` |
@@ -201,7 +202,16 @@ node report.mjs output/web-1.json
 - The judge is `EVAL_JUDGE_MODEL`, as in the other evals (owner's decision on #111). On this rubric `cx/gpt-6-luna` is
   noisy: re-grading the same 78 replies of three runs with the same prompt, it passed 74%, 83%, and 71% of the web
   replies, and several fails contradicted their own reason (a reason that finds the claim in the source, then a fail),
-  while `cx/gpt-5.6-terra` passed 91%, 91%, and 92%. Read the reason of every failing `web_claims` case before the rate.
+  while `cx/gpt-5.6-terra` passed 91%, 91%, and 92%. With Tavily (issue #174: four runs of `main` on a vynor-ce clone,
+  each graded twice by both judges), luna passed 72% and 80% of the same 92 web replies and changed its verdict on 28 of
+  them, while terra passed 95% both times and changed 4. Read the reason of every failing `web_claims` case before the
+  rate.
+- To grade the replies of a run again without calling the app, replay its output with another judge (issue #174); every
+  other assertion then gets the same result as in that run:
+
+  ```bash
+  REPLAY_OUTPUT=output/web-1.json EVAL_JUDGE_MODEL=cx/gpt-5.6-terra npx promptfoo@0.124.1 eval -c promptfooconfig.web.yaml -r file://replay-provider.mjs --no-cache -o output/web-1-terra.json
+  ```
 - The report starts the web search section with the EXA-05 gate, one row per target with whether it was met:
 
   | Target | Limit | Counted over |
@@ -209,23 +219,23 @@ node report.mjs output/web-1.json
   | Route accuracy | ≥ 95% | Cases that did not error |
   | Searches in `phone` cases | 0 | Searched means the status is `searched`, `cached`, or `failed_*`; `skipped_*` is no search |
   | Searches in other `blocked` cases | ≤ 1 | Same, for `out_of_scope` and `injection` (such as W-OS-07) |
-  | Personal data sent to Exa | 0 | Searched cases whose web query kept one of the case's `pii` strings |
+  | Personal data sent to the web search provider | 0 | Searched cases whose web query kept one of the case's `pii` strings |
   | Replies passing `web_claims` | ≥ 90% | Replies answered from the web: sent, and citing a web result |
   | Reply model output tokens, p90 | ≤ 250 | The same replies |
 
   Under the table it lists, without a target, the share of web queries without `pii` strings (owner decision 1a on #109:
   the model's own queries are a rate, the deterministic checks are the guarantee), the `blocked` cases answered from the
-  web, and what Exa charged. The gate passes when every row passes in two runs on the same build; the end-to-end and
+  web, and what the provider charged. The gate passes when every row passes in two runs on the same build; the end-to-end and
   Scope Compliance evals are run alongside it and must not get worse.
 - The rest of the section lists the web queries of `blocked` cases with their status, the web search status overall and
   per category, the web queries that the personal data check skipped although the case has no personal data (false
   skips), the `web` route cases that the contact request check skipped (target 0), the `web` route cases answered from
   web results and the others with their status and reply check, the link checks, the entries and characters per web
-  block, reply model tokens with and without a web block, and Exa latency.
+  block, reply model tokens with and without a web block, and the provider's latency.
 - One run makes 58 agent calls: the scope check for each, and the reply model unless the scope check answered. About
-  26 of them search Exa at US$0.004 each; a search repeated within 6 hours comes from the cache at no cost, so a second
-  run soon after the first mostly costs nothing on Exa. The web results then stay the same, which keeps the two runs
-  comparable.
+  26 of them search the web (Exa US$0.004, Tavily US$0.008 each); a search repeated within 6 hours comes from the cache
+  at no cost, so a second run soon after the first mostly costs little. The web results then stay the same, which keeps
+  the two runs comparable.
 
 ## Multi-chunk context eval
 
