@@ -60,6 +60,17 @@ class AiAgents::ActionSchema
     "Calendar: #{days.map { |day| day.compact.join(' ') }.join(', ')}"
   end
 
+  # What the reply check reads as known besides the conversation and the sources, for an agent that records bookings: the
+  # calendar, and the time the reply fills in "booking", since its messages may restate that time in 24-hour form ("13.00"
+  # for "jam 1 siang") whether or not the customer confirmed it yet.
+  def known_text(content)
+    return unless ai_agent.booking?
+
+    values = content['booking']
+    time = scheduled_at(values['date'].to_s.strip, values['time'].to_s.strip)&.strftime('%H:%M') if values.is_a?(Hash)
+    [calendar, time].compact.join("\n")
+  end
+
   # Labels outside the allowed list are dropped here, whatever the model returned. The sheet row follows the
   # sheet's header order, with blanks for empty header cells. The booking is the attributes of a Booking.
   def parse(content)

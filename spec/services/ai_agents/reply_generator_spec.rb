@@ -724,14 +724,21 @@ RSpec.describe AiAgents::ReplyGenerator do
       end
 
       context 'when the customer confirms the summary' do
+        let(:messages) do
+          [{ role: :user, content: 'Mau cuci salon besok jam 1 siang, atas nama Budi' },
+           { role: :assistant, content: 'Cuci salon untuk Budi besok jam 1 siang. Sudah benar, Kak?' }, { role: :user, content: 'Ya, benar' }]
+        end
+        let(:confirmation) { 'Baik, permintaan booking cuci salon besok pukul 13.00 kami teruskan ke staff untuk dikonfirmasi.' }
         let(:reply_content) do
-          { decision: 'conversational', sources: [], messages: ['Baik, permintaan booking Anda kami teruskan ke staff untuk dikonfirmasi.'],
-            create_booking: true, booking: { customer_name: 'Budi', service: 'Cuci salon', date: '2026-11-20', time: '10:00', notes: '' } }.to_json
+          { decision: 'conversational', sources: [], messages: [confirmation],
+            create_booking: true, booking: { customer_name: 'Budi', service: 'Cuci salon', date: '2026-11-20', time: '13:00', notes: '' } }.to_json
         end
 
-        it 'returns the booking the reply asks for' do
-          expect(reply.booking).to eq(service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil,
+        it 'returns the booking the reply asks for, and passes a reply that restates its time in 24-hour form' do
+          expect(reply.booking).to eq(service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 6, 0), notes: nil,
                                       details: {})
+          expect(reply.messages).to eq([confirmation])
+          expect(reply.trace.validation.blocked_reason).to be_nil
         end
       end
     end

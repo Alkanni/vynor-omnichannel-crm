@@ -144,7 +144,7 @@ class AiAgents::ReplyGenerator
   def validate(completion)
     AiAgents::ReplyValidator.new(content: completion.arguments, replies: reply_messages(completion.arguments), hits: retrieval.hits,
                                  web_results: (Array(web_search&.results) if ai_agent.web_search?), messages: messages,
-                                 current_time: [current_time, actions.calendar].compact.join("\n")).perform
+                                 current_time: [current_time, actions.known_text(completion.arguments)].compact.join("\n")).perform
   end
 
   def scope_reply

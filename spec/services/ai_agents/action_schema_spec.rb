@@ -66,6 +66,13 @@ RSpec.describe AiAgents::ActionSchema do
         end
       end
 
+      it 'gives the reply check the calendar and the time the reply fills in the booking' do
+        travel_to(Time.utc(2026, 11, 19, 3, 0)) do
+          expect(schema.known_text('booking' => booking)).to eq("#{schema.calendar}\n09:30")
+          expect(schema.known_text('booking' => booking.merge('time' => 'pagi'))).to eq(schema.calendar)
+        end
+      end
+
       it 'returns the booking at its time in the agent time zone, with the agent fields as details' do
         expect(schema.parse('create_booking' => true, 'booking' => booking)[:booking]).to eq(
           service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 21, 2, 30), notes: nil,
@@ -86,6 +93,7 @@ RSpec.describe AiAgents::ActionSchema do
       expect(schema).not_to be_any
       expect(schema.instructions).to be_nil
       expect(schema.calendar).to be_nil
+      expect(schema.known_text('booking' => booking)).to be_nil
       expect(schema.parse('create_booking' => true, 'booking' => booking)[:booking]).to be_nil
     end
   end
