@@ -4,9 +4,9 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     pending_unassigned_message label_conditions model history_limit read_file_limit context_limit context_expansion_radius temperature
     message_await message_limit watcher_enabled timezone session_only_memory ignore_team_handoff
     scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message knowledge_gap_message
-    web_search_enabled web_search_domains
+    web_search_enabled web_search_domains booking_enabled booking_conditions booking_label_id
   ].freeze
-  LIST_SETTINGS = %w[allowed_label_ids inbox_ids].freeze
+  LIST_SETTINGS = %w[allowed_label_ids inbox_ids booking_fields].freeze
   MAX_PLAYGROUND_MESSAGES = 100
   MAX_PLAYGROUND_MESSAGE_LENGTH = 10_000
   PLAYGROUND_ROLES = %w[user assistant].freeze
@@ -60,7 +60,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     messages = messages.last(@ai_agent.history_limit)
     @reply = AiAgents::RequestRecorder.record(ai_agent: @ai_agent, source: :playground, input: { messages: messages }) do |log|
       reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages, deadline_ms: PLAYGROUND_REPLY_DEADLINE_MS).perform
-      log.output = { messages: reply.messages, handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row }
+      log.output = { messages: reply.messages, handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row, booking: reply.booking }
       reply
     end
   rescue AiAgents::LlmError => e

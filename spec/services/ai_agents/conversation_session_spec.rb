@@ -57,6 +57,47 @@ RSpec.describe AiAgents::ConversationSession do
     end
   end
 
+  describe '#apply! with a booking' do
+    let(:label) { create(:label, account: account, title: 'booking') }
+    let(:booking) do
+      { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil,
+        details: { 'Plat nomor' => 'B 1234 CD' } }
+    end
+    let(:arguments) { { handoff: false, labels: [], booking: booking, reason: :transfer_conditions } }
+
+    before { ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin booking.', booking_label_id: label.id) }
+
+    it 'records the booking as requested, labels the conversation, and tells the staff' do
+      session.apply!(**arguments)
+
+      requested = conversation.bookings.sole
+      expect(requested).to have_attributes(account: account, contact: conversation.contact, ai_agent: ai_agent, status: 'requested',
+                                           service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0),
+                                           details: { 'Plat nomor' => 'B 1234 CD' })
+      expect(conversation.reload.label_list).to eq(['booking'])
+      expect(conversation.messages.activity.pluck(:content))
+        .to include("#{ai_agent.name} recorded booking request ##{requested.id}: Cuci salon, 2026-11-20 10:00 WIB")
+      expect(session.bookings).to eq([requested])
+    end
+
+    it 'does not request a booking the customer still has, and requests one that was cancelled again' do
+      held = create(:booking, account: account, conversation: conversation, service: 'cuci SALON', scheduled_at: booking[:scheduled_at])
+      expect { session.apply!(**arguments) }.not_to change(Booking, :count)
+
+      held.cancelled!
+      expect { session.apply!(**arguments) }.to change(Booking, :count).by(1)
+    end
+
+    it 'records the booking without a label once the label was deleted' do
+      label.destroy!
+
+      session.apply!(**arguments)
+
+      expect(conversation.bookings.count).to eq(1)
+      expect(conversation.reload.label_list).to be_empty
+    end
+  end
+
   describe '#reply_count' do
     it 'counts AI replies in the current session, not their bubbles' do
       first = create(:message, **message_attributes, content: 'Halo')

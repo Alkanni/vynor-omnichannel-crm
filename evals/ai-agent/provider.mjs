@@ -1,8 +1,9 @@
 // Promptfoo provider that sends a dataset conversation to the AI Agent playground of the app under test.
 // Each line of `conversation` is one message; lines starting with "AI:" are earlier agent replies.
-// The reply text is the output; handoff, labels, the scope check (with the web query of an agent with web search), what
-// became of web search with each web result as the reply model got it, the reply check, retrieval with the content and
-// links of its chunks, model, latency and the tokens per model call go to metadata for assertions and report.mjs.
+// The reply text is the output; handoff, labels, the booking a live reply would request, the scope check (with the web
+// query of an agent with web search), what became of web search with each web result as the reply model got it, the reply
+// check, retrieval with the content and links of its chunks, model, latency and the tokens per model call go to metadata
+// for assertions and report.mjs.
 // Retrieval is empty when the scope check answered the turn, so the reply model ran only when it is there, and the reply
 // check runs only for a strict agent's reply model. The token usage adds up the scope check and the reply model; cached input tokens are not part of it.
 import { readFileSync } from 'node:fs';
@@ -39,6 +40,7 @@ export default class AiAgentPlaygroundProvider {
         metadata: {
           handoff: reply.handoff,
           labels: reply.labels,
+          booking: reply.booking,
           model: reply.model,
           agentLatencyMs: reply.latency_ms,
           scopeDecision: reply.scope?.decision,

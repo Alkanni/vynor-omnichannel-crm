@@ -38,10 +38,17 @@ class AiAgents::ConversationSession
     send_message(content, REPLY_MARKER => to.id)
   end
 
-  def apply!(handoff:, labels:, reason:, sheet_row: nil)
+  # booking: the attributes of a Booking the reply asked for (see AiAgents::ActionSchema#parse).
+  def apply!(handoff:, labels:, reason:, sheet_row: nil, booking: nil)
     add_labels(labels)
     AiAgents::AppendSheetRowJob.perform_later(conversation, sheet_row) if sheet_row
+    request_booking!(booking) if booking
     handoff!(reason) if handoff
+  end
+
+  # The bookings the customer still has in this conversation.
+  def bookings
+    conversation.bookings.where(status: %i[requested confirmed]).order(:scheduled_at)
   end
 
   # Rows the AI wrote to Google Sheets for this conversation, from the activity messages that record them.
@@ -117,6 +124,29 @@ class AiAgents::ConversationSession
     conversation.messages.create!(
       account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :outgoing,
       sender: ai_agent, content: content, additional_attributes: marker, preserve_waiting_since: conversation.open?
+    )
+  end
+
+  # A booking with the same service and time as one the customer still has is not requested again. The reply and the
+  # Watcher may both ask for it, so the check and the insert run under the conversation's row lock, taken on a copy of
+  # the row so the record in hand is left as it is.
+  def request_booking!(attributes)
+    booking = Conversation.transaction do
+      Conversation.lock.find(conversation.id)
+      next if bookings.any? { |held| held.scheduled_at == attributes[:scheduled_at] && held.service.casecmp?(attributes[:service]) }
+
+      conversation.bookings.create!(account: conversation.account, contact: conversation.contact, ai_agent: ai_agent, **attributes)
+    end
+    announce_booking!(booking) if booking
+  end
+
+  # The agent's booking label and an activity message tell the staff, who confirm the booking.
+  def announce_booking!(booking)
+    add_labels(conversation.account.labels.where(id: ai_agent.booking_label_id).pluck(:title))
+    scheduled_at = booking.scheduled_at.in_time_zone(ai_agent.timezone).strftime('%Y-%m-%d %H:%M %Z')
+    conversation.messages.create!(
+      account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :activity,
+      content: I18n.t('ai_agents.bookings.requested', agent: ai_agent.name, id: booking.id, service: booking.service, scheduled_at: scheduled_at)
     )
   end
 

@@ -694,6 +694,56 @@ RSpec.describe AiAgents::ReplyGenerator do
     end
   end
 
+  describe 'bookings' do
+    let(:messages) { [{ role: :user, content: 'Mau cuci salon besok jam 10, atas nama Budi' }] }
+    let(:summary) { 'Cuci salon untuk Budi pada Jumat, 20 November 2026 pukul 10.00. Sudah benar, Kak?' }
+    let(:reply_content) { { decision: 'clarify', sources: [], messages: [summary] }.to_json }
+    let(:reply) { travel_to(Time.utc(2026, 11, 19, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages).perform } }
+
+    before do
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Cuci dan servis mobil',
+                       off_topic_message: 'Maaf.', clarification_message: 'Yang mana, Kak?', knowledge_gap_message: 'Maaf, info itu belum tersedia.',
+                       booking_enabled: true, booking_conditions: 'Saat customer ingin datang ke bengkel.',
+                       booking_label_id: create(:label, account: ai_agent.account).id)
+    end
+
+    it 'blocks a summary with a date that only the calendar has while the account lacks the bookings feature' do
+      expect(reply.messages).to eq(['Maaf, info itu belum tersedia.'])
+      expect(reply.trace.validation.blocked_reason).to eq('unsupported_number')
+      expect(chat_requests.sole['messages'].first['content']).not_to include('Calendar:')
+    end
+
+    context 'with the bookings feature' do
+      before { ai_agent.account.enable_features!('bookings') }
+
+      it 'gives the model the calendar after the current time, so a summary that turns besok into its date passes the check' do
+        expect(reply.messages).to eq([summary])
+        expect(reply.trace.validation.blocked_reason).to be_nil
+        expect(chat_requests.sole['messages'].first['content'])
+          .to include("Current date and time: Thursday, 19 November 2026 10:00 (Asia/Jakarta)\n\nCalendar: Thursday 2026-11-19 (today), ")
+      end
+
+      context 'when the customer confirms the summary' do
+        let(:messages) do
+          [{ role: :user, content: 'Mau cuci salon besok jam 1 siang, atas nama Budi' },
+           { role: :assistant, content: 'Cuci salon untuk Budi besok jam 1 siang. Sudah benar, Kak?' }, { role: :user, content: 'Ya, benar' }]
+        end
+        let(:confirmation) { 'Baik, permintaan booking cuci salon besok pukul 13.00 kami teruskan ke staff untuk dikonfirmasi.' }
+        let(:reply_content) do
+          { decision: 'conversational', sources: [], messages: [confirmation],
+            create_booking: true, booking: { customer_name: 'Budi', service: 'Cuci salon', date: '2026-11-20', time: '13:00', notes: '' } }.to_json
+        end
+
+        it 'returns the booking the reply asks for, and passes a reply that restates its time in 24-hour form' do
+          expect(reply.booking).to eq(service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 6, 0), notes: nil,
+                                      details: {})
+          expect(reply.messages).to eq([confirmation])
+          expect(reply.trace.validation.blocked_reason).to be_nil
+        end
+      end
+    end
+  end
+
   it 'searches the knowledge by keywords when no embedding model is set' do
     InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MODEL').update!(value: '')
 

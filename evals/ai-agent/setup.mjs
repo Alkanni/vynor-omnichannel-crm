@@ -26,14 +26,19 @@ async function labelIds(titles) {
   );
 }
 
-// An agent of a fixture has its name, extra knowledge, and optionally settings on top of the fixture's.
+// An agent of a fixture has its name, extra knowledge, and optionally settings on top of the fixture's. A fixture with
+// `bookingLabel` gives its agents that label as their booking label.
 async function createAgent(fixture, { name, knowledge, settings }) {
+  const bookingLabel = fixture.bookingLabel
+    ? { booking_label_id: (await labelIds([fixture.bookingLabel]))[0] }
+    : {};
   const agent = await appApi('/ai_agents', {
     method: 'POST',
     body: {
       ai_agent: {
         ...fixture.settings,
         ...settings,
+        ...bookingLabel,
         name,
         allowed_label_ids: await labelIds(fixture.labels),
       },

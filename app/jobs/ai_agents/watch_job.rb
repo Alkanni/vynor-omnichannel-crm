@@ -14,7 +14,7 @@ class AiAgents::WatchJob < ApplicationJob
     history = session.history
     AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :watcher, input: { messages: history }, conversation_id: conversation.id,
                                      message_id: reply_trace.message_id, reply_trace_id: reply_trace.id) do |log|
-      result = AiAgents::Watcher.new(ai_agent: ai_agent, messages: history, written_rows: session.sheet_rows).perform
+      result = AiAgents::Watcher.new(ai_agent: ai_agent, messages: history, written_rows: session.sheet_rows, bookings: session.bookings).perform
       log.output = result.actions
       session.apply!(**result.actions, reason: :watcher)
       reply_trace.update!(watcher_input_tokens: result.input_tokens, watcher_output_tokens: result.output_tokens,

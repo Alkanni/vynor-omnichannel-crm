@@ -16,8 +16,8 @@ class AiAgents::ReplyGenerator
   MAX_REPLY_MESSAGES = 5
   MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
   ESCAPED_MARKUP = { '<' => '&lt;', '>' => '&gt;' }.freeze
-  Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :trace) do
-    def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil)
+  Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :booking, :trace) do
+    def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil, booking: nil) # rubocop:disable Metrics/ParameterLists
       super
     end
 
@@ -94,11 +94,12 @@ class AiAgents::ReplyGenerator
     so use more than one item only when separate bubbles help, and never more than #{MAX_REPLY_MESSAGES}.
   TEXT
 
-  # written_rows: the Google Sheets rows already written for the conversation (see AiAgents::ActionSchema). deadline_ms:
+  # written_rows: the Google Sheets rows already written for the conversation, and bookings: the bookings the customer still
+  # has in it (see AiAgents::ActionSchema). deadline_ms:
   # how long a reply made inside a request may take (see Api::V1::Accounts::AiAgentsController#playground); the reply model
   # is not asked again when the first call took long enough that a second one of the same length would end past it. nil,
   # as for live replies, always asks again.
-  pattr_initialize [:ai_agent!, :messages!, :written_rows, :deadline_ms]
+  pattr_initialize [:ai_agent!, :messages!, :written_rows, :bookings, :deadline_ms]
 
   def perform
     @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
@@ -143,7 +144,7 @@ class AiAgents::ReplyGenerator
   def validate(completion)
     AiAgents::ReplyValidator.new(content: completion.arguments, replies: reply_messages(completion.arguments), hits: retrieval.hits,
                                  web_results: (Array(web_search&.results) if ai_agent.web_search?), messages: messages,
-                                 current_time: current_time).perform
+                                 current_time: [current_time, actions.known_text(completion.arguments)].compact.join("\n")).perform
   end
 
   def scope_reply
@@ -195,7 +196,7 @@ class AiAgents::ReplyGenerator
   end
 
   def instructions
-    [ai_agent.behavior.presence, scope_policy, current_time, knowledge, web_results, actions.instructions, reply_rules,
+    [ai_agent.behavior.presence, scope_policy, current_time, actions.calendar, knowledge, web_results, actions.instructions, reply_rules,
      RESPONSE_INSTRUCTIONS].compact.join("\n\n")
   end
 
@@ -259,7 +260,7 @@ class AiAgents::ReplyGenerator
   end
 
   def actions
-    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows)
+    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows, bookings: bookings)
   end
 
   def client

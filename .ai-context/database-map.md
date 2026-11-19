@@ -63,6 +63,7 @@ erDiagram
 | SSO (EE) | `account_saml_settings` | |
 | CRM (EE) | `companies` (+ `contacts.company_id`) | |
 | Voice (EE) | `calls` | |
+| Bookings (fork, #177) | `bookings` (AI agent booking requests; `ai_agents.booking_*` settings) | `Booking` |
 | Captain AI (EE) | `captain_assistants`, `captain_inboxes`, `captain_documents`, `captain_assistant_responses`, `captain_scenarios`, `captain_custom_tools`, `captain_faq_suggestions`, `captain_faq_observations`, `captain_message_reports`, `agent_sessions`, `conversation_outcomes`, `copilot_threads`, `copilot_messages` | |
 
 ## Important uniqueness constraints (VERIFIED `db/schema.rb`)
