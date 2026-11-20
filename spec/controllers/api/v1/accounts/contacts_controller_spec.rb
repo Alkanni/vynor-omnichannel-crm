@@ -123,7 +123,7 @@ RSpec.describe 'Contacts API', type: :request do
         expect(response_body['payload'].last(2).pluck('id')).to contain_exactly(contact_3.id, contact_4.id)
       end
 
-      it 'returns all contacts with country name desc order with null values at last' do
+      it 'returns all contacts with country name asc order with null values at last' do
         contact_from_albania = create(:contact, :with_email, account: account, additional_attributes: { country_code: 'AL', country: 'Albania' })
         get "/api/v1/accounts/#{account.id}/contacts?include_contact_inboxes=false&sort=country",
             headers: admin.create_new_auth_token,
@@ -133,7 +133,7 @@ RSpec.describe 'Contacts API', type: :request do
         response_body = response.parsed_body
         expect(response_body['payload'].first['email']).to eq(contact_from_albania.email)
         expect(response_body['payload'].first['id']).to eq(contact_from_albania.id)
-        expect(response_body['payload'].last['email']).to eq(contact_4.email)
+        expect(response_body['payload'].last(3).pluck('id')).to contain_exactly(contact.id, contact_1.id, contact_4.id)
       end
 
       it 'returns last seen at' do
