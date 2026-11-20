@@ -35,6 +35,29 @@ RSpec.describe 'Bookings API', type: :request do
       expect(response.parsed_body['meta']).to eq('count' => 2, 'current_page' => 1)
     end
 
+    it 'returns the AI agent that requested a booking and its notes' do
+      ai_agent = create(:ai_agent, account: account, name: 'CS Bengkel')
+      tomorrow.update!(ai_agent: ai_agent, notes: 'Bawa STNK')
+
+      get url, headers: administrator.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['payload'].first).to include('ai_agent' => { 'id' => ai_agent.id, 'name' => 'CS Bengkel' }, 'notes' => 'Bawa STNK')
+    end
+
+    it 'returns 25 bookings per page with the total count' do
+      create_list(:booking, 24, account: account, conversation: conversation, scheduled_at: Time.utc(2026, 11, 25, 3, 0))
+      last = Booking.order(:id).last
+      headers = administrator.create_new_auth_token
+
+      get url, headers: headers, as: :json
+      expect(response.parsed_body['payload'].size).to eq(25)
+      expect(response.parsed_body['meta']).to eq('count' => 26, 'current_page' => 1)
+
+      get url, params: { page: 2 }, headers: headers
+      expect(response.parsed_body['payload'].pluck('id')).to eq([last.id])
+      expect(response.parsed_body['meta']).to eq('count' => 26, 'current_page' => 2)
+    end
+
     it 'lists only the bookings of the inboxes an agent is a member of' do
       get url, headers: agent.create_new_auth_token, as: :json
 
@@ -50,6 +73,10 @@ RSpec.describe 'Bookings API', type: :request do
       expect(response.parsed_body['payload'].pluck('id')).to eq([later.id])
       get url, params: { to: '2026-11-20T03:00:00Z' }, headers: headers
       expect(response.parsed_body['payload'].pluck('id')).to be_empty
+      get url, params: { from: '2026-11-22T03:00:00Z' }, headers: headers
+      expect(response.parsed_body['payload'].pluck('id')).to eq([later.id])
+      get url, params: { status: ['', 'confirmed'] }, headers: headers
+      expect(response.parsed_body['payload'].pluck('id')).to eq([later.id])
       get url, params: { contact_id: tomorrow.contact_id }, headers: headers
       expect(response.parsed_body['payload'].pluck('id')).to eq([tomorrow.id])
     end
@@ -60,6 +87,8 @@ RSpec.describe 'Bookings API', type: :request do
       get url, params: { status: 'done' }, headers: headers
       expect(response).to have_http_status(:unprocessable_entity)
       get url, params: { from: 'besok' }, headers: headers
+      expect(response).to have_http_status(:unprocessable_entity)
+      get url, params: { to: 'kemarin' }, headers: headers
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
@@ -83,11 +112,22 @@ RSpec.describe 'Bookings API', type: :request do
       expect(conversation.messages.activity.pluck(:content)).to include("#{agent.name} marked booking ##{tomorrow.id} as Confirmed")
     end
 
-    it 'returns unprocessable entity for a status outside the list' do
-      patch "#{url}/#{tomorrow.id}", params: { status: 'done' }, headers: agent.create_new_auth_token, as: :json
+    it 'records nothing when the status stays the same' do
+      headers = agent.create_new_auth_token
 
+      expect { patch "#{url}/#{tomorrow.id}", params: { status: 'requested' }, headers: headers, as: :json }.not_to change(Message, :count)
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include('id' => tomorrow.id, 'status' => 'requested')
+    end
+
+    it 'returns unprocessable entity for a status outside the list, or without a status' do
+      headers = agent.create_new_auth_token
+
+      patch "#{url}/#{tomorrow.id}", params: { status: 'done' }, headers: headers, as: :json
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(tomorrow.reload).to be_requested
+      patch "#{url}/#{tomorrow.id}", params: { service: 'Lain' }, headers: headers, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(tomorrow.reload).to have_attributes(status: 'requested', service: 'Cuci salon')
     end
 
     it 'does not find a booking outside the agent\'s inboxes or of another account' do

@@ -258,6 +258,15 @@ RSpec.describe AiAgents::ReplyJob do
       expect { described_class.perform_now(create(:message, **message_attributes)) }.not_to have_enqueued_job(AiAgents::WatchJob)
     end
 
+    it 'is queued for an agent whose only action is recording bookings, once its account has the bookings feature' do
+      ai_agent.update!(transfer_conditions: '', booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
+                       booking_label_id: create(:label, account: account).id)
+      expect { described_class.perform_now(message) }.not_to have_enqueued_job(AiAgents::WatchJob)
+
+      account.enable_features!('bookings')
+      expect { described_class.perform_now(create(:message, **message_attributes)) }.to have_enqueued_job(AiAgents::WatchJob)
+    end
+
     it 'is not queued after a reply of the scope check' do
       scope = AiAgents::ScopeGuard::Result.new(decision: 'OUT_OF_SCOPE', web_query: nil, web_search_status: nil, input_tokens: 900,
                                                output_tokens: 5, cached_input_tokens: nil, latency_ms: 700)

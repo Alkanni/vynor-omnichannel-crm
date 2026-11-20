@@ -36,4 +36,30 @@ RSpec.describe AiAgents::Watcher do
     expect(request['messages'].first['content']).to include('Transfer when the customer complains.', 'Apply complaint when the customer complains.')
     expect(request['messages'].last).to include('role' => 'user', 'content' => "Customer: Pelayanannya buruk\nAI agent: Mohon maaf, Kak.")
   end
+
+  context 'when the agent records bookings' do
+    let(:reply_content) do
+      { handoff: false, labels: [], create_booking: true,
+        booking: { customer_name: 'Budi', service: 'Cuci salon', date: '2026-11-20', time: '10:00', notes: '' } }.to_json
+    end
+
+    before do
+      ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin datang ke bengkel.',
+                       booking_label_id: create(:label, account: ai_agent.account, title: 'booking').id)
+      ai_agent.account.enable_features!('bookings')
+    end
+
+    it 'gives the model the calendar and the booking rules, and returns the booking it found' do
+      result = travel_to(Time.utc(2026, 11, 19, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages, bookings: []).perform }
+
+      expect(result.actions[:booking]).to eq(service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil,
+                                             details: {})
+      request = chat_requests.sole
+      expect(request['tools'].sole['function']['parameters']['properties'])
+        .to include('create_booking' => { 'type' => 'boolean' }, 'booking' => hash_including('type' => 'object'))
+      expect(request['messages'].first['content'])
+        .to include('Calendar: Thursday 2026-11-19 (today)', AiAgents::ActionSchema::BOOKING_INSTRUCTIONS, 'Saat customer ingin datang ke bengkel.',
+                    "Bookings already in this conversation:\nnone")
+    end
+  end
 end

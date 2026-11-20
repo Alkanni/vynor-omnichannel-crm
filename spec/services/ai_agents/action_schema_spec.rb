@@ -86,6 +86,38 @@ RSpec.describe AiAgents::ActionSchema do
          { 'customer_name' => '' }].each do |change|
           expect(schema.parse('create_booking' => true, 'booking' => booking.merge(change))[:booking]).to be_nil, change.inspect
         end
+        expect(schema.parse('create_booking' => 'true', 'booking' => booking)[:booking]).to be_nil
+        expect(schema.parse('create_booking' => true, 'booking' => 'Cuci salon besok jam 9.30')[:booking]).to be_nil
+      end
+
+      it 'counts as an action on its own' do
+        expect(schema).to be_any
+      end
+
+      it 'starts the calendar on the date in the agent time zone' do
+        travel_to(Time.utc(2026, 11, 19, 18, 0)) do
+          expect(schema.calendar).to start_with('Calendar: Friday 2026-11-20 (today), Saturday 2026-11-21 (tomorrow),')
+        end
+      end
+
+      it 'reads the time in the time zone of the agent, with or without a leading zero' do
+        ai_agent.update!(timezone: 'Asia/Makassar')
+
+        ['9:30', '09:30'].each do |time|
+          expect(schema.parse('create_booking' => true, 'booking' => booking.merge('time' => time))[:booking])
+            .to include(scheduled_at: Time.utc(2026, 11, 21, 1, 30))
+        end
+      end
+
+      it 'keeps an agent field the model left out as blank, and the notes it filled in' do
+        values = booking.except('Plat nomor').merge('notes' => ' Bawa STNK ')
+
+        expect(schema.parse('create_booking' => true, 'booking' => values)[:booking])
+          .to include(notes: 'Bawa STNK', details: { 'Plat nomor' => '' })
+      end
+
+      it 'says none when the conversation has no bookings yet' do
+        expect(described_class.new(ai_agent: ai_agent).instructions).to include("Bookings already in this conversation:\nnone")
       end
     end
 
