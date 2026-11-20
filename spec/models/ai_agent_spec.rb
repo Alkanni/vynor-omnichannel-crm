@@ -163,6 +163,15 @@ RSpec.describe AiAgent do
       expect(ai_agent).to be_valid
     end
 
+    it 'takes booking conditions of up to 3,000 characters' do
+      ai_agent.booking_conditions = 'a' * 3_000
+      expect(ai_agent).to be_valid
+
+      ai_agent.booking_conditions = 'a' * 3_001
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.attribute_names).to eq([:booking_conditions])
+    end
+
     it 'accepts up to ten trimmed booking field names that are unique and not core field names' do
       ai_agent.booking_fields = ['Plat nomor', 'Jumlah orang']
       expect(ai_agent).to be_valid

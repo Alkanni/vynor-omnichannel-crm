@@ -1,4 +1,9 @@
-import { localDate, sortUpcomingFirst, startOfLocalDay } from '../helpers';
+import {
+  formatBookingTime,
+  localDate,
+  sortUpcomingFirst,
+  startOfLocalDay,
+} from '../helpers';
 
 describe('booking helpers', () => {
   it('sorts upcoming bookings soonest first, then past ones latest first', () => {
@@ -22,5 +27,30 @@ describe('booking helpers', () => {
     expect(localDate(start)).toBe('2026-11-30');
     expect([start.getHours(), start.getMinutes()]).toEqual([0, 0]);
     expect(localDate(nextDay)).toBe('2026-12-01');
+    expect(localDate(new Date(startOfLocalDay('2026-12-31', 1)))).toBe(
+      '2027-01-01'
+    );
+  });
+
+  it('counts a booking at the current time as upcoming and leaves the list as it was', () => {
+    const now = Date.parse('2026-11-19T03:00:00Z');
+    const bookings = [
+      { id: 1, scheduled_at: '2026-11-19T02:59:00Z' },
+      { id: 2, scheduled_at: '2026-11-19T03:00:00Z' },
+    ];
+
+    expect(sortUpcomingFirst(bookings, now).map(({ id }) => id)).toEqual([
+      2, 1,
+    ]);
+    expect(bookings.map(({ id }) => id)).toEqual([1, 2]);
+    expect(sortUpcomingFirst([], now)).toEqual([]);
+  });
+
+  it('formats a booking time in the time zone of the viewer', () => {
+    const formatted = formatBookingTime('2026-11-20T03:00:00Z', 'en-GB');
+
+    expect(formatted).toContain('Fri');
+    expect(formatted).toContain('20 Nov 2026');
+    expect(formatted).toContain('03:00');
   });
 });

@@ -88,6 +88,22 @@ RSpec.describe AiAgents::ConversationSession do
       expect { session.apply!(**arguments) }.to change(Booking, :count).by(1)
     end
 
+    it 'does not request a confirmed booking again, and requests the same service at another time' do
+      create(:booking, account: account, conversation: conversation, status: :confirmed, scheduled_at: booking[:scheduled_at])
+      expect { session.apply!(**arguments) }.not_to change(Booking, :count)
+
+      later = booking.merge(scheduled_at: booking[:scheduled_at] + 1.hour)
+      expect { session.apply!(handoff: false, labels: [], booking: later, reason: :transfer_conditions) }.to change(Booking, :count).by(1)
+    end
+
+    it 'records the booking with its notes and hands the conversation off when both are asked for' do
+      session.apply!(handoff: true, labels: [], booking: booking.merge(notes: 'Bawa STNK'), reason: :transfer_conditions)
+
+      expect(conversation.bookings.sole.notes).to eq('Bawa STNK')
+      expect(conversation.reload).to be_open
+      expect(conversation.ai_assignee).to be_nil
+    end
+
     it 'records the booking without a label once the label was deleted' do
       label.destroy!
 
@@ -95,6 +111,17 @@ RSpec.describe AiAgents::ConversationSession do
 
       expect(conversation.bookings.count).to eq(1)
       expect(conversation.reload.label_list).to be_empty
+    end
+  end
+
+  describe '#bookings' do
+    it 'lists the requested and confirmed bookings of the conversation, soonest first' do
+      later = create(:booking, account: account, conversation: conversation, scheduled_at: 2.days.from_now)
+      sooner = create(:booking, account: account, conversation: conversation, status: :confirmed, scheduled_at: 1.day.from_now)
+      %i[cancelled completed no_show].each { |status| create(:booking, account: account, conversation: conversation, status: status) }
+      create(:booking, account: account)
+
+      expect(session.bookings).to eq([sooner, later])
     end
   end
 
