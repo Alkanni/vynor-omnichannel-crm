@@ -71,6 +71,19 @@ RSpec.describe 'Bookings API', type: :request do
       get url, as: :json
       expect(response).to have_http_status(:unauthorized)
     end
+
+    it 'lists a booking under the contact its contact was merged into' do
+      base_contact = create(:contact, account: account)
+      ContactMergeAction.new(account: account, base_contact: base_contact, mergee_contact: tomorrow.contact).perform
+      headers = administrator.create_new_auth_token
+
+      get url, headers: headers, as: :json
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['payload'].pluck('id')).to eq([tomorrow.id, later.id])
+
+      get url, params: { contact_id: base_contact.id }, headers: headers
+      expect(response.parsed_body['payload'].sole).to include('id' => tomorrow.id, 'contact' => a_hash_including('id' => base_contact.id))
+    end
   end
 
   describe 'PATCH /api/v1/accounts/{account.id}/bookings/:id' do
