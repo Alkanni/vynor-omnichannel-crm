@@ -455,6 +455,7 @@ en:
   bookings:
     activity:
       status_changed: '%{user} marked booking #%{id} as %{status}'
+      message_not_sent: "The %{status} message for booking #%{id} was not sent to the customer because the channel's reply window has closed"
     statuses:
       requested: Requested
       confirmed: Confirmed
@@ -465,6 +466,7 @@ en:
     duplicate_name: '%{name} (Copy)'
     bookings:
       requested: '%{agent} recorded booking request #%{id}: %{service}, %{scheduled_at}'
+      invalid_message: 'has a variable or tag that is not closed, such as {{booking.service'
     google_sheets:
       row_added: '%{agent} added a row to Google Sheets'
       errors:

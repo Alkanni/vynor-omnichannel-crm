@@ -39,9 +39,18 @@ const TEXT_LIMITS = {
   pendingMessage: 200,
   labelConditions: 3000,
   bookingConditions: 3000,
+  bookingMessage: 5000,
   scopePolicy: 3000,
   scopeReply: 1000,
   webSearchDomains: 1000,
+};
+// The booking variables a booking status message can use (see BookingDrop).
+const BOOKING_MESSAGE_VARIABLES = {
+  name: '{{booking.customer_name}}',
+  service: '{{booking.service}}',
+  date: '{{booking.date}}',
+  time: '{{booking.time}}',
+  id: '{{booking.id}}',
 };
 
 const { t } = useI18n();
@@ -88,6 +97,8 @@ const toForm = agent => ({
   booking_conditions: agent.booking_conditions || '',
   booking_label_id: agent.booking_label_id,
   booking_fields: [...agent.booking_fields],
+  booking_confirmed_message: agent.booking_confirmed_message || '',
+  booking_cancelled_message: agent.booking_cancelled_message || '',
 });
 
 const form = reactive(toForm(props.agent));
@@ -119,6 +130,9 @@ const isBookingFeatureEnabled = computed(() =>
 );
 // A deleted booking label is sent as none, so saving asks for a new one.
 const existingLabelOrNull = id => (existingLabelIds.value.has(id) ? id : null);
+const bookingMessageVariables = Object.values(BOOKING_MESSAGE_VARIABLES).join(
+  ', '
+);
 
 const modelOptions = computed(() => {
   const options = availableModels.value.map(model => ({
@@ -824,6 +838,57 @@ onMounted(async () => {
                   "
                 />
               </SettingsField>
+              <SettingsField
+                :title="t('AI_AGENTS.GENERAL.BOOKING.CONFIRMED_MESSAGE.TITLE')"
+                :description="
+                  t('AI_AGENTS.GENERAL.BOOKING.CONFIRMED_MESSAGE.DESCRIPTION', {
+                    variables: bookingMessageVariables,
+                  })
+                "
+              >
+                <TextArea
+                  id="ai-agent-booking-confirmed-message"
+                  v-model="form.booking_confirmed_message"
+                  :placeholder="
+                    t(
+                      'AI_AGENTS.GENERAL.BOOKING.CONFIRMED_MESSAGE.PLACEHOLDER',
+                      BOOKING_MESSAGE_VARIABLES
+                    )
+                  "
+                  :max-length="TEXT_LIMITS.bookingMessage"
+                  show-character-count
+                  auto-height
+                  resize
+                  min-height="5rem"
+                />
+              </SettingsField>
+              <SettingsField
+                :title="t('AI_AGENTS.GENERAL.BOOKING.CANCELLED_MESSAGE.TITLE')"
+                :description="
+                  t('AI_AGENTS.GENERAL.BOOKING.CANCELLED_MESSAGE.DESCRIPTION', {
+                    variables: bookingMessageVariables,
+                  })
+                "
+              >
+                <TextArea
+                  id="ai-agent-booking-cancelled-message"
+                  v-model="form.booking_cancelled_message"
+                  :placeholder="
+                    t(
+                      'AI_AGENTS.GENERAL.BOOKING.CANCELLED_MESSAGE.PLACEHOLDER',
+                      BOOKING_MESSAGE_VARIABLES
+                    )
+                  "
+                  :max-length="TEXT_LIMITS.bookingMessage"
+                  show-character-count
+                  auto-height
+                  resize
+                  min-height="5rem"
+                />
+              </SettingsField>
+              <p class="text-label-small text-n-slate-11">
+                {{ t('AI_AGENTS.GENERAL.BOOKING.MESSAGE_WINDOW') }}
+              </p>
             </template>
           </CollapsiblePanel>
 

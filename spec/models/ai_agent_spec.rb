@@ -172,6 +172,18 @@ RSpec.describe AiAgent do
       expect(ai_agent.errors.attribute_names).to eq([:booking_conditions])
     end
 
+    it 'takes booking messages of up to 5,000 characters that are Liquid templates' do
+      ai_agent.assign_attributes(booking_confirmed_message: "Halo {{booking.customer_name}}, #{'a' * 4_950}", booking_cancelled_message: '')
+      expect(ai_agent).to be_valid
+
+      ai_agent.assign_attributes(booking_confirmed_message: 'a' * 5_001, booking_cancelled_message: 'Booking {{booking.service dibatalkan')
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.attribute_names).to contain_exactly(:booking_confirmed_message, :booking_cancelled_message)
+      expect(ai_agent.errors.full_messages).to include(
+        'Booking cancelled message has a variable or tag that is not closed, such as {{booking.service'
+      )
+    end
+
     it 'accepts up to ten trimmed booking field names that are unique and not core field names' do
       ai_agent.booking_fields = ['Plat nomor', 'Jumlah orang']
       expect(ai_agent).to be_valid

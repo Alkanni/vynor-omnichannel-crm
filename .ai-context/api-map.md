@@ -41,7 +41,7 @@ Extracted with `sed -n 54,466p config/routes.rb | grep -oE "^ {10}(resources?|na
 | `POST …/conversations/:id/assignments` | `Conversations::AssignmentsController` | `Conversations::AssignmentService` (EE-prepended) |
 | `POST /api/v1/widget/messages` | `Api::V1::Widget::MessagesController#create` | `Message.save!` |
 | `POST /webhooks/whatsapp/:phone` | `Webhooks::WhatsappController#process_payload` | `Webhooks::WhatsappEventsJob` |
-| `GET/PATCH …/bookings` (fork, #178) | `Api::V1::Accounts::BookingsController#index/#update` | `BookingPolicy` (feature `bookings`, conversation access), `Booking#change_status!` |
+| `GET/PATCH …/bookings` (fork, #178) | `Api::V1::Accounts::BookingsController#index/#update` | `BookingPolicy` (feature `bookings`, conversation access), `Booking#change_status!` (status message to the customer, #185) |
 
 ## Response rendering
 

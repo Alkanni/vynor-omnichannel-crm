@@ -181,6 +181,27 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(ai_agent.reload).to have_attributes(booking_settings)
     end
 
+    it 'saves and clears the booking messages, and refuses a message that is not a Liquid template' do
+      messages = { booking_confirmed_message: 'Booking {{booking.service}} dikonfirmasi.', booking_cancelled_message: 'Booking dibatalkan.' }
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}", params: messages, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include(messages.stringify_keys)
+
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { booking_confirmed_message: 'Booking {{booking.service dikonfirmasi.' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['attributes']).to eq(['booking_confirmed_message'])
+      expect(ai_agent.reload).to have_attributes(messages)
+
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { booking_cancelled_message: '' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(ai_agent.reload.booking_cancelled_message).to eq('')
+    end
+
     it 'clears the allowed labels with an empty list' do
       ai_agent.update!(allowed_label_ids: [label.id])
 
