@@ -175,7 +175,18 @@
           "TITLE": "Extra booking fields",
           "DESCRIPTION": "Every booking has the customer name, service, date, time, and notes. Add up to 10 more fields for your business, such as a plate number. Press Enter after each one.",
           "PLACEHOLDER": "e.g. Plate number"
-        }
+        },
+        "CONFIRMED_MESSAGE": {
+          "TITLE": "Message when a booking is confirmed",
+          "DESCRIPTION": "The AI agent sends this to the customer when your team marks a booking as Confirmed. Leave it empty to send nothing. You can use {variables}.",
+          "PLACEHOLDER": "e.g. Hi {name}, your booking for {service} on {date} at {time} is confirmed."
+        },
+        "CANCELLED_MESSAGE": {
+          "TITLE": "Message when a booking is cancelled",
+          "DESCRIPTION": "The AI agent sends this to the customer when your team marks a booking as Cancelled. Leave it empty to send nothing. You can use {variables}.",
+          "PLACEHOLDER": "e.g. Hi {name}, your booking for {service} on {date} at {time} has been cancelled."
+        },
+        "MESSAGE_WINDOW": "These messages are not sent once the channel's reply window has closed, such as 24 hours after the customer's last WhatsApp message. The conversation shows a note instead."
       },
       "AI_MODEL": {
         "TITLE": "AI Model",

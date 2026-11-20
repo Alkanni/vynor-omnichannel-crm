@@ -6,7 +6,9 @@
 #  allowed_label_ids          :jsonb            not null
 #  allowed_topics             :text
 #  behavior                   :text
+#  booking_cancelled_message  :text
 #  booking_conditions         :text
+#  booking_confirmed_message  :text
 #  booking_enabled            :boolean          default(FALSE), not null
 #  booking_fields             :jsonb            not null
 #  business_description       :text
@@ -66,6 +68,8 @@ class AiAgent < ApplicationRecord
   MAX_BOOKING_FIELDS = 10
   # A trimmed name of 1 to 50 characters on one line.
   BOOKING_FIELD_NAME = /\A\S(?:.{0,48}\S)?\z/
+  # The message the customer gets when the staff set a booking to one of these statuses (see Booking#change_status!).
+  BOOKING_MESSAGES = { 'confirmed' => :booking_confirmed_message, 'cancelled' => :booking_cancelled_message }.freeze
 
   belongs_to :account
   has_many :knowledge_sources, class_name: 'AiAgent::KnowledgeSource', dependent: :destroy
@@ -93,7 +97,7 @@ class AiAgent < ApplicationRecord
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :behavior, length: { maximum: 15_000 }
-  validates :welcome_message, length: { maximum: 5_000 }
+  validates :welcome_message, :booking_confirmed_message, :booking_cancelled_message, length: { maximum: 5_000 }
   validates :transfer_conditions, :label_conditions, :booking_conditions, length: { maximum: 3_000 }
   validates :booking_conditions, :booking_label_id, presence: true, if: :booking_enabled
   validates :booking_fields, length: { maximum: MAX_BOOKING_FIELDS }
@@ -119,6 +123,7 @@ class AiAgent < ApplicationRecord
   validate :allowed_labels_belong_to_account
   validate -> { errors.add(:booking_label_id, :invalid) }, if: -> { booking_label_id && !account.labels.exists?(booking_label_id) }
   validate :booking_fields_valid
+  validate :booking_messages_valid
 
   before_update -> { self.scope_policy_version += 1 }, if: -> { changed.intersect?(SCOPE_POLICY_ATTRIBUTES) }
 
@@ -229,6 +234,15 @@ class AiAgent < ApplicationRecord
 
     names = names.map(&:downcase)
     errors.add(:booking_fields, :invalid) if names.uniq.size < names.size || names.intersect?(BOOKING_CORE_FIELDS)
+  end
+
+  # Booking messages are Liquid templates, and a message whose template does not parse would reach the customer unrendered.
+  def booking_messages_valid
+    BOOKING_MESSAGES.each_value do |attribute|
+      Liquid::Template.parse(public_send(attribute).to_s)
+    rescue Liquid::SyntaxError
+      errors.add(attribute, I18n.t('ai_agents.bookings.invalid_message'))
+    end
   end
 
   def allowed_labels_belong_to_account

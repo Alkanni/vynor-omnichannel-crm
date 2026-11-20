@@ -35,6 +35,8 @@ json.booking_enabled ai_agent.booking_enabled
 json.booking_conditions ai_agent.booking_conditions
 json.booking_label_id ai_agent.booking_label_id
 json.booking_fields ai_agent.booking_fields
+json.booking_confirmed_message ai_agent.booking_confirmed_message
+json.booking_cancelled_message ai_agent.booking_cancelled_message
 json.scope_policy_version ai_agent.scope_policy_version
 json.inbox_ids ai_agent.inbox_ids
 json.trained_at ai_agent.trained_at&.to_i

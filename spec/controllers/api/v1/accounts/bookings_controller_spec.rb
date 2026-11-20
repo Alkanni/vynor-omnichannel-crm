@@ -125,6 +125,15 @@ RSpec.describe 'Bookings API', type: :request do
       expect(conversation.messages.activity.pluck(:content)).to include("#{agent.name} marked booking ##{tomorrow.id} as Confirmed")
     end
 
+    it 'sends the customer the confirmed message of the booking\'s AI agent' do
+      tomorrow.update!(ai_agent: create(:ai_agent, account: account, booking_confirmed_message: 'Booking {{booking.service}} dikonfirmasi.'))
+
+      patch "#{url}/#{tomorrow.id}", params: { status: 'confirmed' }, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(conversation.messages.outgoing.pluck(:content)).to eq(['Booking Cuci salon dikonfirmasi.'])
+    end
+
     it 'records nothing when the status stays the same' do
       headers = agent.create_new_auth_token
 
