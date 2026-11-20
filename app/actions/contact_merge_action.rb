@@ -13,6 +13,7 @@ class ContactMergeAction
       merge_messages
       merge_contact_inboxes
       merge_contact_notes
+      merge_bookings
       merge_calls
       merge_and_remove_mergee_contact
     end
@@ -45,6 +46,11 @@ class ContactMergeAction
 
   def merge_contact_inboxes
     ContactInbox.where(contact_id: @mergee_contact.id).update(contact_id: @base_contact.id)
+  end
+
+  # Bookings follow their conversations to the base contact, so none points at the mergee once it is deleted.
+  def merge_bookings
+    Booking.where(contact_id: @mergee_contact.id).update_all(contact_id: @base_contact.id) # rubocop:disable Rails/SkipsModelValidations
   end
 
   def merge_calls

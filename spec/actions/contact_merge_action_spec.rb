@@ -80,6 +80,17 @@ describe ContactMergeAction do
       end
     end
 
+    context 'when mergee contact has bookings' do
+      it 'moves the bookings to base contact' do
+        booking = create(:booking, account: account, conversation: mergee_contact.conversations.first)
+
+        contact_merge
+
+        expect(booking.reload.contact).to eq(base_contact)
+        expect(Booking.where.not(contact_id: Contact.select(:id))).to be_empty
+      end
+    end
+
     context 'when contacts belong to a different account' do
       it 'throws an exception' do
         new_account = create(:account)
