@@ -64,7 +64,7 @@ class AiAgent < ApplicationRecord
   WEB_SEARCH_DOMAIN = /\A(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\z/i
   TRAINING_DELAY = 10.seconds
   # The booking fields every booking has (see AiAgents::ActionSchema); booking_fields adds the agent's own.
-  BOOKING_CORE_FIELDS = %w[customer_name service date time notes].freeze
+  BOOKING_CORE_FIELDS = %w[customer_name service date time notes replaces_booking].freeze
   MAX_BOOKING_FIELDS = 10
   # A trimmed name of 1 to 50 characters on one line.
   BOOKING_FIELD_NAME = /\A\S(?:.{0,48}\S)?\z/

@@ -2,19 +2,20 @@
 #
 # Table name: bookings
 #
-#  id              :bigint           not null, primary key
-#  customer_name   :string           not null
-#  details         :jsonb            not null
-#  notes           :text
-#  scheduled_at    :datetime         not null
-#  service         :string           not null
-#  status          :integer          default("requested"), not null
-#  created_at      :datetime         not null
-#  updated_at      :datetime         not null
-#  account_id      :bigint           not null
-#  ai_agent_id     :bigint
-#  contact_id      :bigint           not null
-#  conversation_id :bigint           not null
+#  id                  :bigint           not null, primary key
+#  customer_name       :string           not null
+#  details             :jsonb            not null
+#  notes               :text
+#  scheduled_at        :datetime         not null
+#  service             :string           not null
+#  status              :integer          default("requested"), not null
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  account_id          :bigint           not null
+#  ai_agent_id         :bigint
+#  contact_id          :bigint           not null
+#  conversation_id     :bigint           not null
+#  rescheduled_from_id :bigint
 #
 # Indexes
 #
@@ -23,22 +24,25 @@
 #  index_bookings_on_ai_agent_id                  (ai_agent_id)
 #  index_bookings_on_contact_id                   (contact_id)
 #  index_bookings_on_conversation_id              (conversation_id)
+#  index_bookings_on_rescheduled_from_id          (rescheduled_from_id)
 #
 # A booking a customer asked for in a conversation. The AI agent records it as requested once the customer confirmed its
 # summary (see AiAgents::ActionSchema and AiAgents::ConversationSession#apply!); staff confirm it. details holds the
-# agent's own booking fields (AiAgent#booking_fields) as name => value.
+# agent's own booking fields (AiAgent#booking_fields) as name => value. A booking the customer moved to another date,
+# time, or service is rescheduled, and the booking that replaces it points to it (rescheduled_from).
 class Booking < ApplicationRecord
   belongs_to :account
   belongs_to :conversation
   belongs_to :contact
   belongs_to :ai_agent, optional: true
+  belongs_to :rescheduled_from, class_name: 'Booking', optional: true
 
-  enum :status, { requested: 0, confirmed: 1, cancelled: 2, completed: 3, no_show: 4 }
-  # The statuses staff may move a booking to from each status: a cancelled booking stays cancelled, completed and no-show
-  # only correct each other, and none goes back to requested, which only a new booking has.
+  enum :status, { requested: 0, confirmed: 1, cancelled: 2, completed: 3, no_show: 4, rescheduled: 5 }
+  # The statuses staff may move a booking to from each status: a cancelled or rescheduled booking stays as it is, completed
+  # and no-show only correct each other, and none goes back to requested, which only a new booking has.
   NEXT_STATUSES = {
     'requested' => %w[confirmed cancelled completed no_show], 'confirmed' => %w[cancelled completed no_show],
-    'completed' => %w[no_show], 'no_show' => %w[completed], 'cancelled' => []
+    'completed' => %w[no_show], 'no_show' => %w[completed], 'cancelled' => [], 'rescheduled' => []
   }.freeze
 
   validates :service, :customer_name, presence: true, length: { maximum: 255 }

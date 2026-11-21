@@ -462,10 +462,13 @@ en:
       cancelled: Cancelled
       completed: Completed
       no_show: No-show
+      rescheduled: Rescheduled
   ai_agents:
     duplicate_name: '%{name} (Copy)'
     bookings:
       requested: '%{agent} recorded booking request #%{id}: %{service}, %{scheduled_at}'
+      rescheduled: '%{agent} recorded booking request #%{id}: %{service}, %{scheduled_at}, which replaces booking #%{previous}'
+      cancellation_requested: 'The customer asked %{agent} to cancel booking #%{id} (%{service}, %{scheduled_at}). Cancel it from its status if the request stands.'
       rejected: '%{agent} could not record the booking the customer asked for because %{reason}. Follow it up with the customer.'
       rejection_reasons:
         invalid_schedule: the date or time is missing or not valid

@@ -56,13 +56,15 @@ RSpec.describe AiAgents::ActionSchema do
 
       it 'asks for the core and the agent fields, with the condition, the bookings held, and the calendar' do
         properties = schema.json_schema('ai_agent_reply')[:schema][:properties]
-        fields = %w[customer_name service date time notes] + ['Plat nomor']
+        fields = %w[customer_name service date time notes replaces_booking] + ['Plat nomor']
 
         expect(properties[:create_booking]).to eq(type: 'boolean')
         expect(properties[:booking]).to eq(type: 'object', properties: fields.index_with { { type: 'string' } }, required: fields,
                                            additionalProperties: false)
-        expect(schema.instructions).to include(described_class::BOOKING_INSTRUCTIONS, 'Saat customer ingin datang ke bengkel.',
-                                               "Bookings already in this conversation:\nCuci salon, 2026-11-20 10:00, requested")
+        expect(properties[:cancel_booking]).to eq(type: 'string')
+        expect(schema.instructions).to include(described_class::BOOKING_INSTRUCTIONS, described_class::HELD_BOOKING_INSTRUCTIONS,
+                                               'Saat customer ingin datang ke bengkel.',
+                                               "Bookings already in this conversation:\n##{held.id} Cuci salon, 2026-11-20 10:00, requested")
         travel_to(Time.utc(2026, 11, 19, 3, 0)) do
           expect(schema.calendar).to start_with('Calendar: Thursday 2026-11-19 (today), Friday 2026-11-20 (tomorrow), ' \
                                                 'Saturday 2026-11-21 (the day after tomorrow), Sunday 2026-11-22,')
@@ -80,9 +82,37 @@ RSpec.describe AiAgents::ActionSchema do
       it 'returns the booking at its time in the agent time zone, with the agent fields as details' do
         expect(schema.parse('create_booking' => true, 'booking' => booking)).to include(
           booking: { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 21, 2, 30), notes: nil,
-                     details: { 'Plat nomor' => 'B 1234 CD' } },
-          booking_rejection: nil
+                     details: { 'Plat nomor' => 'B 1234 CD' }, rescheduled_from_id: nil },
+          booking_rejection: nil, booking_cancellation: nil
         )
+      end
+
+      it 'links a booking to the one it replaces, only when the customer still has that one' do
+        [held.id.to_s, "##{held.id}"].each do |number|
+          expect(schema.parse('create_booking' => true, 'booking' => booking.merge('replaces_booking' => number))[:booking])
+            .to include(rescheduled_from_id: held.id), number
+        end
+        other = create(:booking, account: ai_agent.account)
+        [other.id.to_s, '999999', 'besok'].each do |number|
+          expect(schema.parse('create_booking' => true, 'booking' => booking.merge('replaces_booking' => number))[:booking])
+            .to include(rescheduled_from_id: nil), number
+        end
+      end
+
+      it 'returns the booking the customer asked to cancel, among the ones they still have' do
+        expect(schema.parse('create_booking' => false, 'cancel_booking' => held.id.to_s)).to include(booking: nil, booking_cancellation: held.id)
+        expect(schema.parse('create_booking' => false, 'cancel_booking' => '')).to include(booking_cancellation: nil)
+        expect(schema.parse('create_booking' => false, 'cancel_booking' => create(:booking).id.to_s)).to include(booking_cancellation: nil)
+      end
+
+      it 'asks for the booking to replace or cancel only when the conversation still has one' do
+        schema = described_class.new(ai_agent: ai_agent, bookings: [])
+        properties = schema.json_schema('ai_agent_reply')[:schema][:properties]
+
+        expect(properties[:booking][:required]).to eq(%w[customer_name service date time notes] + ['Plat nomor'])
+        expect(properties).not_to have_key(:cancel_booking)
+        expect(schema.instructions).not_to include(described_class::HELD_BOOKING_INSTRUCTIONS)
+        expect(described_class::HELD_BOOKING_INSTRUCTIONS.squish).to include('which you never mention to the customer')
       end
 
       it 'returns neither a booking nor a rejection unless a booking is asked for' do
@@ -169,7 +199,8 @@ RSpec.describe AiAgents::ActionSchema do
       expect(schema.instructions).to be_nil
       expect(schema.calendar).to be_nil
       expect(schema.known_text('booking' => booking)).to be_nil
-      expect(schema.parse('create_booking' => true, 'booking' => booking)).to include(booking: nil, booking_rejection: nil)
+      expect(schema.parse('create_booking' => true, 'booking' => booking, 'cancel_booking' => held.id.to_s))
+        .to include(booking: nil, booking_rejection: nil, booking_cancellation: nil)
     end
   end
 end

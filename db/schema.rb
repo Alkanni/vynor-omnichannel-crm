@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -507,11 +507,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_000000) do
     t.jsonb "details", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "rescheduled_from_id"
     t.index ["account_id", "scheduled_at"], name: "index_bookings_on_account_id_and_scheduled_at"
     t.index ["account_id", "status"], name: "index_bookings_on_account_id_and_status"
     t.index ["ai_agent_id"], name: "index_bookings_on_ai_agent_id"
     t.index ["contact_id"], name: "index_bookings_on_contact_id"
     t.index ["conversation_id"], name: "index_bookings_on_conversation_id"
+    t.index ["rescheduled_from_id"], name: "index_bookings_on_rescheduled_from_id"
   end
 
   create_table "calls", force: :cascade do |t|

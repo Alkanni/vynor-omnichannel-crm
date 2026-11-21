@@ -53,6 +53,26 @@ RSpec.describe AiAgents::WatchJob do
     end
   end
 
+  context 'when the Watcher finds the cancellation request the reply already noted' do
+    let(:held) { create(:booking, account: account, conversation: conversation, status: :confirmed) }
+    let(:result) do
+      AiAgents::Watcher::Result.new(actions: { handoff: false, labels: [], sheet_row: nil, booking: nil, booking_cancellation: held.id },
+                                    input_tokens: 300, output_tokens: 8, cached_input_tokens: nil)
+    end
+
+    it 'does not tell the staff again' do
+      ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
+                       booking_label_id: create(:label, account: account, title: 'booking').id)
+      AiAgents::ConversationSession.new(conversation: conversation, ai_agent: ai_agent)
+                                   .apply!(handoff: false, labels: [], booking_cancellation: held.id, reason: :transfer_conditions)
+
+      described_class.perform_now(conversation, reply_trace)
+
+      expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_booking_cancellation' IS NOT NULL").count).to eq(1)
+      expect(held.reload).to be_confirmed
+    end
+  end
+
   context 'when the Watcher rejects the booking the reply already rejected' do
     let(:result) do
       AiAgents::Watcher::Result.new(actions: { handoff: false, labels: [], sheet_row: nil, booking: nil, booking_rejection: :missing_service },
@@ -89,7 +109,7 @@ RSpec.describe AiAgents::WatchJob do
     expect(log).to have_attributes(source: 'watcher', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: conversation.id,
                                    message_id: reply_trace.message_id, reply_trace_id: reply_trace.id,
                                    output: { 'handoff' => true, 'labels' => [], 'sheet_row' => nil, 'booking' => nil,
-                                             'booking_rejection' => nil })
+                                             'booking_rejection' => nil, 'booking_cancellation' => nil })
     expect(log.input['messages']).to eq([{ 'role' => 'user', 'content' => 'Pelayanannya buruk sekali', 'attachments' => [] }])
     expect(log.steps.sole).to include('step' => 'watcher', 'model' => ai_agent.model, 'output' => { 'handoff' => true },
                                       'tokens' => { 'input' => 300, 'output' => 8, 'cached_input' => nil })

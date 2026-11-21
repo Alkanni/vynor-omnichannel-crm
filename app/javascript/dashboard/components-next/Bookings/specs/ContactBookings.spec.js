@@ -43,6 +43,16 @@ describe('ContactBookings', () => {
     expect(services(wrapper)).toEqual(['Cuci salon', 'Servis lama']);
   });
 
+  it('names the booking a rescheduled one replaces', async () => {
+    BookingsAPI.list.mockResolvedValue({
+      data: { payload: [{ ...upcoming, rescheduled_from_id: 1 }] },
+    });
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('BOOKINGS.RESCHEDULED_FROM {"id":1}');
+  });
+
   it('shows the fields of a booking, with a dash for a blank one, and its notes', async () => {
     BookingsAPI.list.mockResolvedValue({
       data: {

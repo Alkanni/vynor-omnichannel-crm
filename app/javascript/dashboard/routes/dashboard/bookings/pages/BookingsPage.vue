@@ -234,6 +234,16 @@ watch(
                         >
                           {{ booking.notes }}
                         </span>
+                        <span
+                          v-if="booking.rescheduled_from_id"
+                          class="text-label-small text-n-slate-11"
+                        >
+                          {{
+                            t('BOOKINGS.RESCHEDULED_FROM', {
+                              id: booking.rescheduled_from_id,
+                            })
+                          }}
+                        </span>
                       </div>
                     </BaseTableCell>
                     <BaseTableCell>

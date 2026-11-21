@@ -29,6 +29,14 @@ class AiAgents::ActionSchema
     request that the staff will confirm. Before the summary, ask for the customer's name when the conversation does not
     give it.
   TEXT
+  # Only for a conversation that still has bookings, which are what a booking can replace or a customer can cancel.
+  HELD_BOOKING_INSTRUCTIONS = <<~TEXT.freeze
+    The bookings listed below have a number such as #12, which you never mention to the customer. When a new booking
+    replaces one of them, put that number without # in "replaces_booking" of "booking", so the staff need not match them,
+    and leave it empty otherwise. When the customer confirms they want to cancel one of them, put its number in
+    "cancel_booking" and tell them the staff will process the cancellation; leave "cancel_booking" empty otherwise.
+  TEXT
+  REPLACES_FIELD = 'replaces_booking'.freeze
   CALENDAR_DAYS = 14
   CALENDAR_NAMES = ['today', 'tomorrow', 'the day after tomorrow'].freeze
   BOOKING_TIME = /\A([01]?\d|2[0-3]):([0-5]\d)\z/
@@ -74,10 +82,11 @@ class AiAgents::ActionSchema
 
   # Labels outside the allowed list are dropped here, whatever the model returned. The sheet row follows the
   # sheet's header order, with blanks for empty header cells. A booking the model asked for is either the attributes of a
-  # Booking or the reason it cannot be one (see #booking_request).
+  # Booking or the reason it cannot be one (see #booking_request), and booking_cancellation is the id of a booking the
+  # customer asked to cancel, among the bookings they still have.
   def parse(content)
     { handoff: handoff? && content['handoff'] == true, labels: Array(content['labels']) & allowed_labels, sheet_row: sheet_row(content),
-      **booking_request(content) }
+      **booking_request(content), booking_cancellation: (held_booking_id(content['cancel_booking']) if ai_agent.booking?) }
   end
 
   private
@@ -128,20 +137,27 @@ class AiAgents::ActionSchema
     sheet_columns.map { |column| column.present? ? row[column].to_s.strip : '' } if row.is_a?(Hash)
   end
 
+  # A booking replaces or cancels only one the conversation still has, so the fields for that come with held bookings.
   def booking_keys
-    AiAgent::BOOKING_CORE_FIELDS + ai_agent.booking_fields
+    (held_bookings? ? AiAgent::BOOKING_CORE_FIELDS : AiAgent::BOOKING_CORE_FIELDS - [REPLACES_FIELD]) + ai_agent.booking_fields
   end
 
   def booking_properties
-    {
+    properties = {
       create_booking: { type: 'boolean' },
       booking: { type: 'object', properties: booking_keys.index_with { { type: 'string' } }, required: booking_keys, additionalProperties: false }
     }
+    held_bookings? ? properties.merge(cancel_booking: { type: 'string' }) : properties
+  end
+
+  def held_bookings?
+    bookings.to_a.any?
   end
 
   # The booking the model asked for, with a blank name when it gave none, since the conversation's contact fills that in
   # (see AiAgents::ConversationSession#request_booking!), or the reason it cannot be a booking: no date and time that
-  # parse, a time that has passed, or no service. Both are nil when the model asked for none.
+  # parse, a time that has passed, or no service. Both are nil when the model asked for none. rescheduled_from_id is the
+  # booking it replaces, kept only when that is one the customer still has.
   def booking_request(content)
     return { booking: nil, booking_rejection: nil } unless ai_agent.booking? && content['create_booking'] == true
 
@@ -152,9 +168,18 @@ class AiAgents::ActionSchema
     return { booking: nil, booking_rejection: :past_schedule } if scheduled_at <= Time.current
     return { booking: nil, booking_rejection: :missing_service } if values['service'].empty?
 
-    booking = { service: values['service'], customer_name: values['customer_name'], scheduled_at: scheduled_at,
-                notes: values['notes'].presence, details: values.slice(*ai_agent.booking_fields) }
-    { booking: booking, booking_rejection: nil }
+    { booking: booking_attributes(values, scheduled_at), booking_rejection: nil }
+  end
+
+  def booking_attributes(values, scheduled_at)
+    { service: values['service'], customer_name: values['customer_name'], scheduled_at: scheduled_at, notes: values['notes'].presence,
+      details: values.slice(*ai_agent.booking_fields), rescheduled_from_id: held_booking_id(values[REPLACES_FIELD]) }
+  end
+
+  # The id of a booking the customer still has, from the number the model wrote ("12" or "#12"), else nil.
+  def held_booking_id(number)
+    number = number.to_s.strip.delete_prefix('#')
+    bookings.to_a.find { |booking| booking.id.to_s == number }&.id
   end
 
   def scheduled_at(date, time)
@@ -189,9 +214,9 @@ class AiAgents::ActionSchema
     return unless ai_agent.booking?
 
     listed = bookings.to_a.map do |booking|
-      "#{booking.service}, #{booking.scheduled_at.in_time_zone(ai_agent.timezone).strftime('%Y-%m-%d %H:%M')}, #{booking.status}"
+      "##{booking.id} #{booking.service}, #{booking.scheduled_at.in_time_zone(ai_agent.timezone).strftime('%Y-%m-%d %H:%M')}, #{booking.status}"
     end
-    "#{BOOKING_INSTRUCTIONS}Condition:\n#{ai_agent.booking_conditions}\n" \
+    "#{BOOKING_INSTRUCTIONS}#{HELD_BOOKING_INSTRUCTIONS if held_bookings?}Condition:\n#{ai_agent.booking_conditions}\n" \
       "Bookings already in this conversation:\n#{listed.join("\n").presence || 'none'}"
   end
 end

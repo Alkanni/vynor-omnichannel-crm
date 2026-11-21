@@ -550,7 +550,8 @@ RSpec.describe AiAgents::ReplyJob do
         source: 'reply', status: 'ok', account_id: account.id, ai_agent_id: ai_agent.id, conversation_id: conversation.id, message_id: message.id,
         reply_trace_id: traces.sole.id, latency_ms: be >= 0,
         input: { 'messages' => [{ 'role' => 'user', 'content' => 'Kenapa mesin mobil overheat?', 'attachments' => [] }] },
-        output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil }
+        output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil,
+                  'booking_cancellation' => nil }
       )
       steps = AiAgent::RequestLog.sole.steps
       expect(steps.pluck('step')).to eq(%w[scope_check embedding retrieval web_search reply reply_check])
