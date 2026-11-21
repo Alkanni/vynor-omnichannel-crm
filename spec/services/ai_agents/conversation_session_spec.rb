@@ -142,6 +142,12 @@ RSpec.describe AiAgents::ConversationSession do
         expect(rejections.count).to eq(2)
       end
 
+      it 'tells the staff when the booking time has passed' do
+        session.apply!(**rejection, booking_rejection: :past_schedule)
+
+        expect(rejections.sole.content).to include('because the date and time have already passed')
+      end
+
       it 'rejects a booking without a name when the contact has none either' do
         conversation.contact.update!(name: '')
 
