@@ -16,9 +16,8 @@ class AiAgents::ActionSchema
     using an empty string when a value is unknown.
   TEXT
   BOOKING_INSTRUCTIONS = <<~TEXT.freeze
-    Bookings: collect the values of the "booking" fields that the customer can give, asking for their name when the
-    conversation does not give it, then read them a short summary with the service, date, and time and ask them to
-    confirm it. Do not ask for a phone number. In "messages", write a time the
+    Bookings: collect the values of the "booking" fields that the customer can give, then read them a short summary with
+    the service, date, and time and ask them to confirm it. Do not ask for a phone number. In "messages", write a time the
     way the customer wrote it, such as "jam 2 siang", and a date as the calendar has it, and keep the summary and the
     confirmation to the booking, without prices or totals the customer did not ask for. Set "create_booking" to true only
     when the conversation meets the condition below and the customer has confirmed that summary, and false otherwise: a
@@ -27,7 +26,8 @@ class AiAgents::ActionSchema
     and confirmation; once confirmed, it is a new booking, which the staff match with the earlier one. When it is true,
     fill "booking" from the conversation, with "date" as YYYY-MM-DD from the calendar, "time" as HH:MM (24-hour), "notes"
     for any special request, and an empty string for a value that is unknown, and tell the customer that the booking is a
-    request that the staff will confirm.
+    request that the staff will confirm. Before the summary, ask for the customer's name when the conversation does not
+    give it.
   TEXT
   CALENDAR_DAYS = 14
   CALENDAR_NAMES = ['today', 'tomorrow', 'the day after tomorrow'].freeze

@@ -104,7 +104,7 @@ RSpec.describe AiAgents::ActionSchema do
 
       it 'asks the model for the customer name when the conversation does not give it' do
         expect(described_class::BOOKING_INSTRUCTIONS.squish)
-          .to include('asking for their name when the conversation does not give it, then read them a short summary')
+          .to end_with("Before the summary, ask for the customer's name when the conversation does not give it.")
       end
 
       it 'counts as an action on its own' do
