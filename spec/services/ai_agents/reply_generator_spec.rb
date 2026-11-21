@@ -736,7 +736,7 @@ RSpec.describe AiAgents::ReplyGenerator do
 
         it 'returns the booking the reply asks for, and passes a reply that restates its time in 24-hour form' do
           expect(reply.booking).to eq(service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 6, 0), notes: nil,
-                                      details: {})
+                                      details: {}, rescheduled_from_id: nil)
           expect(reply.messages).to eq([confirmation])
           expect(reply.trace.validation.blocked_reason).to be_nil
         end

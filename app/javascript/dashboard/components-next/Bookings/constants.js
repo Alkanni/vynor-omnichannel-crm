@@ -5,6 +5,7 @@ export const BOOKING_STATUSES = Object.freeze([
   'cancelled',
   'completed',
   'no_show',
+  'rescheduled',
 ]);
 
 // The status a booking never leaves (see Booking::NEXT_STATUSES), which staff confirm before choosing it.
@@ -16,6 +17,7 @@ export const BOOKING_STATUS_LABELS = Object.freeze({
   cancelled: 'BOOKINGS.STATUS.CANCELLED',
   completed: 'BOOKINGS.STATUS.COMPLETED',
   no_show: 'BOOKINGS.STATUS.NO_SHOW',
+  rescheduled: 'BOOKINGS.STATUS.RESCHEDULED',
 });
 
 export const BOOKING_STATUS_CLASSES = Object.freeze({
@@ -24,4 +26,5 @@ export const BOOKING_STATUS_CLASSES = Object.freeze({
   cancelled: 'bg-n-slate-3 text-n-slate-11',
   completed: 'bg-n-blue-3 text-n-blue-11',
   no_show: 'bg-n-ruby-3 text-n-ruby-11',
+  rescheduled: 'bg-n-iris-3 text-n-iris-11',
 });

@@ -16,13 +16,13 @@ class AiAgents::ReplyGenerator
   MAX_REPLY_MESSAGES = 5
   MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
   ESCAPED_MARKUP = { '<' => '&lt;', '>' => '&gt;' }.freeze
-  Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :booking, :booking_rejection, :trace) do
+  Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :booking, :booking_rejection, :booking_cancellation, :trace) do
     # rubocop:disable Metrics/ParameterLists
-    def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil, booking: nil, booking_rejection: nil) = super
+    def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil, booking: nil, booking_rejection: nil, booking_cancellation: nil) = super
     # rubocop:enable Metrics/ParameterLists
 
     # What AiAgents::ConversationSession#apply! takes besides the reason.
-    def actions = to_h.slice(:handoff, :labels, :sheet_row, :booking, :booking_rejection)
+    def actions = to_h.slice(:handoff, :labels, :sheet_row, :booking, :booking_rejection, :booking_cancellation)
 
     # Sent for a decision of the scope check, so it involved neither the knowledge nor the reply model.
     def scope_reply? = trace.scope&.reply_attribute.present?

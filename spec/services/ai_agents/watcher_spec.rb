@@ -26,7 +26,8 @@ RSpec.describe AiAgents::Watcher do
 
   it 'asks the model which actions apply to the transcript, keeps only allowed labels, and returns the tokens of the call' do
     expect(described_class.new(ai_agent: ai_agent, messages: messages).perform)
-      .to have_attributes(actions: { handoff: true, labels: ['complaint'], sheet_row: nil, booking: nil, booking_rejection: nil }, input_tokens: 10,
+      .to have_attributes(actions: { handoff: true, labels: ['complaint'], sheet_row: nil, booking: nil, booking_rejection: nil,
+                                     booking_cancellation: nil }, input_tokens: 10,
                           output_tokens: 5, cached_input_tokens: nil)
 
     request = chat_requests.sole
@@ -53,7 +54,7 @@ RSpec.describe AiAgents::Watcher do
       result = travel_to(Time.utc(2026, 11, 19, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages, bookings: []).perform }
 
       expect(result.actions[:booking]).to eq(service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil,
-                                             details: {})
+                                             details: {}, rescheduled_from_id: nil)
       request = chat_requests.sole
       expect(request['tools'].sole['function']['parameters']['properties'])
         .to include('create_booking' => { 'type' => 'boolean' }, 'booking' => hash_including('type' => 'object'))

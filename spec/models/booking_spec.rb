@@ -8,7 +8,8 @@ RSpec.describe Booking do
   end
 
   it 'keeps the stored value of each status' do
-    expect(described_class.statuses).to eq('requested' => 0, 'confirmed' => 1, 'cancelled' => 2, 'completed' => 3, 'no_show' => 4)
+    expect(described_class.statuses).to eq('requested' => 0, 'confirmed' => 1, 'cancelled' => 2, 'completed' => 3, 'no_show' => 4,
+                                           'rescheduled' => 5)
   end
 
   it 'needs a service, a customer name, and a time' do
@@ -31,6 +32,7 @@ RSpec.describe Booking do
     expect(described_class.new(status: :completed).next_statuses).to eq(%w[no_show])
     expect(described_class.new(status: :no_show).next_statuses).to eq(%w[completed])
     expect(described_class.new(status: :cancelled).next_statuses).to be_empty
+    expect(described_class.new(status: :rescheduled).next_statuses).to be_empty
   end
 
   it 'records a status change in its conversation with who made it, and nothing when the status stays' do

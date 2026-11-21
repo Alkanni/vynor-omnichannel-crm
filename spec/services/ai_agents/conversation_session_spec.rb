@@ -157,6 +157,64 @@ RSpec.describe AiAgents::ConversationSession do
         expect(rejections.sole.content).to include('because the customer name is missing')
       end
     end
+
+    context 'when the customer reschedules a booking they have' do
+      let!(:held) do
+        create(:booking, account: account, conversation: conversation, status: :confirmed, scheduled_at: Time.utc(2026, 11, 19, 3, 0))
+      end
+
+      before do
+        ai_agent.update!(booking_confirmed_message: 'Booking dikonfirmasi.', booking_cancelled_message: 'Booking dibatalkan.')
+        held.update!(ai_agent: ai_agent)
+      end
+
+      it 'records the new booking in its place and marks it rescheduled, without a message to the customer' do
+        session.apply!(**arguments, booking: booking.merge(rescheduled_from_id: held.id))
+
+        replacement = conversation.bookings.requested.sole
+        expect(replacement.rescheduled_from).to eq(held)
+        expect(held.reload).to be_rescheduled
+        expect(session.bookings).to eq([replacement])
+        expect(conversation.messages.outgoing).to be_empty
+        expect(conversation.messages.activity.pluck(:content))
+          .to include("#{ai_agent.name} recorded booking request ##{replacement.id}: Cuci salon, 2026-11-20 10:00 WIB, " \
+                      "which replaces booking ##{held.id}")
+        expect(conversation.reload.label_list).to eq(['booking'])
+      end
+
+      it 'records the new booking without a link when the staff changed the earlier one meanwhile' do
+        held.cancelled!
+
+        session.apply!(**arguments, booking: booking.merge(rescheduled_from_id: held.id))
+
+        expect(conversation.bookings.requested.sole.rescheduled_from).to be_nil
+        expect(held.reload).to be_cancelled
+      end
+    end
+
+    context 'when the customer asks to cancel a booking they have' do
+      let!(:held) { create(:booking, account: account, conversation: conversation, status: :confirmed) }
+      let(:cancellations) { conversation.messages.activity.where("additional_attributes ->> 'ai_agent_booking_cancellation' IS NOT NULL") }
+      let(:cancellation) { { handoff: false, labels: [], reason: :transfer_conditions, booking_cancellation: held.id } }
+
+      it 'tells the staff once per customer message, with the booking label, and keeps the booking' do
+        create(:message, **message_attributes, content: 'Batalkan booking saya ya')
+
+        2.times { session.apply!(**cancellation) }
+
+        expect(cancellations.sole.content).to start_with("The customer asked #{ai_agent.name} to cancel booking ##{held.id} (Cuci salon,")
+        expect(held.reload).to be_confirmed
+        expect(conversation.reload.label_list).to eq(['booking'])
+      end
+
+      it 'notes nothing for a booking the customer no longer has' do
+        held.cancelled!
+
+        session.apply!(**cancellation)
+
+        expect(cancellations).to be_empty
+      end
+    end
   end
 
   describe '#bookings' do

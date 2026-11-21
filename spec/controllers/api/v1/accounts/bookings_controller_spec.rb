@@ -26,7 +26,7 @@ RSpec.describe 'Bookings API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['payload'].pluck('id')).to eq([tomorrow.id, later.id])
       expect(response.parsed_body['payload'].last).to eq(
-        'id' => later.id, 'status' => 'confirmed', 'next_statuses' => %w[cancelled completed no_show],
+        'id' => later.id, 'status' => 'confirmed', 'next_statuses' => %w[cancelled completed no_show], 'rescheduled_from_id' => nil,
         'scheduled_at' => '2026-11-22T03:00:00Z', 'service' => 'Cuci salon',
         'customer_name' => 'Budi', 'notes' => nil, 'details' => { 'Plat nomor' => 'B 1' }, 'ai_agent' => nil,
         'contact' => { 'id' => later.contact.id, 'name' => later.contact.name, 'phone_number' => later.contact.phone_number },
@@ -176,6 +176,22 @@ RSpec.describe 'Bookings API', type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body['error']).to eq('A completed booking cannot become requested')
       expect(tomorrow.reload).to be_completed
+    end
+
+    it 'keeps a rescheduled booking rescheduled, and lists it with the booking that replaces it' do
+      tomorrow.rescheduled!
+      replacement = create(:booking, account: account, conversation: conversation, rescheduled_from: tomorrow,
+                                     scheduled_at: Time.utc(2026, 11, 21, 3, 0))
+      headers = administrator.create_new_auth_token
+
+      patch "#{url}/#{tomorrow.id}", params: { status: 'confirmed' }, headers: headers, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(tomorrow.reload).to be_rescheduled
+
+      get url, params: { status: 'rescheduled' }, headers: headers
+      expect(response.parsed_body['payload'].sole).to include('id' => tomorrow.id, 'next_statuses' => [], 'rescheduled_from_id' => nil)
+      get url, params: { status: 'requested' }, headers: headers
+      expect(response.parsed_body['payload'].sole).to include('id' => replacement.id, 'rescheduled_from_id' => tomorrow.id)
     end
 
     it 'keeps a cancelled booking cancelled, without messaging the customer' do

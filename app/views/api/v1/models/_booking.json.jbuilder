@@ -2,6 +2,8 @@ json.id booking.id
 json.status booking.status
 # The statuses staff may change it to (see Booking::NEXT_STATUSES).
 json.next_statuses booking.next_statuses
+# The booking this one replaces after the customer rescheduled it.
+json.rescheduled_from_id booking.rescheduled_from_id
 json.scheduled_at booking.scheduled_at.iso8601
 json.service booking.service
 json.customer_name booking.customer_name
