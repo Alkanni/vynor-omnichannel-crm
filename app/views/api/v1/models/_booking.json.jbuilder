@@ -1,5 +1,7 @@
 json.id booking.id
 json.status booking.status
+# The statuses staff may change it to (see Booking::NEXT_STATUSES).
+json.next_statuses booking.next_statuses
 json.scheduled_at booking.scheduled_at.iso8601
 json.service booking.service
 json.customer_name booking.customer_name

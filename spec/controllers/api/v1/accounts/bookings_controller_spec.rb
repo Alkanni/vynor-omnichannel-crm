@@ -26,7 +26,8 @@ RSpec.describe 'Bookings API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['payload'].pluck('id')).to eq([tomorrow.id, later.id])
       expect(response.parsed_body['payload'].last).to eq(
-        'id' => later.id, 'status' => 'confirmed', 'scheduled_at' => '2026-11-22T03:00:00Z', 'service' => 'Cuci salon',
+        'id' => later.id, 'status' => 'confirmed', 'next_statuses' => %w[cancelled completed no_show],
+        'scheduled_at' => '2026-11-22T03:00:00Z', 'service' => 'Cuci salon',
         'customer_name' => 'Budi', 'notes' => nil, 'details' => { 'Plat nomor' => 'B 1' }, 'ai_agent' => nil,
         'contact' => { 'id' => later.contact.id, 'name' => later.contact.name, 'phone_number' => later.contact.phone_number },
         'conversation' => { 'id' => later.conversation.id, 'display_id' => later.conversation.display_id, 'inbox_id' => other_inbox.id },
@@ -120,7 +121,8 @@ RSpec.describe 'Bookings API', type: :request do
       patch "#{url}/#{tomorrow.id}", params: { status: 'confirmed', service: 'Lain' }, headers: agent.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body).to include('id' => tomorrow.id, 'status' => 'confirmed', 'service' => 'Cuci salon')
+      expect(response.parsed_body).to include('id' => tomorrow.id, 'status' => 'confirmed', 'next_statuses' => %w[cancelled completed no_show],
+                                              'service' => 'Cuci salon')
       expect(tomorrow.reload).to have_attributes(status: 'confirmed', service: 'Cuci salon')
       expect(conversation.messages.activity.pluck(:content)).to include("#{agent.name} marked booking ##{tomorrow.id} as Confirmed")
     end
@@ -150,6 +152,42 @@ RSpec.describe 'Bookings API', type: :request do
       patch "#{url}/#{tomorrow.id}", params: { service: 'Lain' }, headers: headers, as: :json
       expect(response).to have_http_status(:unprocessable_entity)
       expect(tomorrow.reload).to have_attributes(status: 'requested', service: 'Cuci salon')
+    end
+
+    it 'makes every status change a booking may make' do
+      headers = administrator.create_new_auth_token
+
+      Booking::NEXT_STATUSES.each do |from, statuses|
+        statuses.each do |status|
+          tomorrow.update!(status: from)
+          patch "#{url}/#{tomorrow.id}", params: { status: status }, headers: headers, as: :json
+
+          expect(response).to have_http_status(:success), "#{from} to #{status}"
+          expect(tomorrow.reload.status).to eq(status)
+        end
+      end
+    end
+
+    it 'refuses a status change the booking cannot make, and records nothing' do
+      tomorrow.update!(status: :completed)
+      headers = administrator.create_new_auth_token
+
+      expect { patch "#{url}/#{tomorrow.id}", params: { status: 'requested' }, headers: headers, as: :json }.not_to change(Message, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('A completed booking cannot become requested')
+      expect(tomorrow.reload).to be_completed
+    end
+
+    it 'keeps a cancelled booking cancelled, without messaging the customer' do
+      tomorrow.update!(status: :cancelled, ai_agent: create(:ai_agent, account: account, booking_confirmed_message: 'Booking dikonfirmasi.'))
+      headers = administrator.create_new_auth_token
+
+      (Booking.statuses.keys - ['cancelled']).each do |status|
+        patch "#{url}/#{tomorrow.id}", params: { status: status }, headers: headers, as: :json
+        expect(response).to have_http_status(:unprocessable_entity), status
+      end
+      expect(tomorrow.reload).to be_cancelled
+      expect(conversation.messages.where(message_type: %i[outgoing activity])).to be_empty
     end
 
     it 'does not find a booking outside the agent\'s inboxes or of another account' do

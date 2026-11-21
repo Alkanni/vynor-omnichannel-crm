@@ -28,6 +28,12 @@
     "LOAD_ERROR": "Could not load the bookings. Please try again.",
     "UPDATE_SUCCESS": "Booking status updated",
     "UPDATE_ERROR": "Could not update the booking status. Please try again.",
+    "CANCEL_DIALOG": {
+      "TITLE": "Cancel this booking?",
+      "DESCRIPTION": "A cancelled booking cannot be changed again. If the booking's AI agent has a cancellation message, the customer gets it right away.",
+      "KEEP": "Keep booking",
+      "CONFIRM": "Cancel booking"
+    },
     "FIELD_VALUE": "{field}: {value}"
   }
 }

@@ -34,14 +34,24 @@ class Booking < ApplicationRecord
   belongs_to :ai_agent, optional: true
 
   enum :status, { requested: 0, confirmed: 1, cancelled: 2, completed: 3, no_show: 4 }
+  # The statuses staff may move a booking to from each status: a cancelled booking stays cancelled, completed and no-show
+  # only correct each other, and none goes back to requested, which only a new booking has.
+  NEXT_STATUSES = {
+    'requested' => %w[confirmed cancelled completed no_show], 'confirmed' => %w[cancelled completed no_show],
+    'completed' => %w[no_show], 'no_show' => %w[completed], 'cancelled' => []
+  }.freeze
 
   validates :service, :customer_name, presence: true, length: { maximum: 255 }
   validates :scheduled_at, presence: true
   validates :notes, length: { maximum: 5_000 }
 
+  def next_statuses
+    NEXT_STATUSES.fetch(status)
+  end
+
   # A staff change of the status, recorded in the booking's conversation with who made it. Setting the status it already
-  # has changes nothing. A status with a message from the booking's agent (see AiAgent::BOOKING_MESSAGES) also tells the
-  # customer.
+  # has changes nothing; the controller only lets through the status itself or one of #next_statuses. A status with a
+  # message from the booking's agent (see AiAgent::BOOKING_MESSAGES) also tells the customer.
   def change_status!(new_status, user)
     return if status == new_status
 
