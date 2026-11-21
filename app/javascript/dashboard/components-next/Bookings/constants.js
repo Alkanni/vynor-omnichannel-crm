@@ -7,6 +7,9 @@ export const BOOKING_STATUSES = Object.freeze([
   'no_show',
 ]);
 
+// The status a booking never leaves (see Booking::NEXT_STATUSES), which staff confirm before choosing it.
+export const BOOKING_FINAL_STATUS = 'cancelled';
+
 export const BOOKING_STATUS_LABELS = Object.freeze({
   requested: 'BOOKINGS.STATUS.REQUESTED',
   confirmed: 'BOOKINGS.STATUS.CONFIRMED',

@@ -24,6 +24,15 @@ RSpec.describe Booking do
     expect(booking.errors.attribute_names).to contain_exactly(:service, :customer_name, :notes)
   end
 
+  it 'moves on to the next statuses, but never back to requested nor away from cancelled' do
+    expect(described_class::NEXT_STATUSES.keys).to match_array(described_class.statuses.keys)
+    expect(described_class::NEXT_STATUSES.values.flatten).not_to include('requested')
+    expect(described_class.new(status: :requested).next_statuses).to eq(%w[confirmed cancelled completed no_show])
+    expect(described_class.new(status: :completed).next_statuses).to eq(%w[no_show])
+    expect(described_class.new(status: :no_show).next_statuses).to eq(%w[completed])
+    expect(described_class.new(status: :cancelled).next_statuses).to be_empty
+  end
+
   it 'records a status change in its conversation with who made it, and nothing when the status stays' do
     user = create(:user, account: booking.account, name: 'Sari')
 

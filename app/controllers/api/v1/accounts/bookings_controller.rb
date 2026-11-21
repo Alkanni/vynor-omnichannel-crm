@@ -1,6 +1,7 @@
 # The bookings staff see and confirm (#178). A user reaches the bookings of the conversations they can open (see
 # BookingPolicy); a booking outside them is not found. index takes `status` (one or several), `from` and `to` (ISO 8601
-# times; `to` excluded), `contact_id`, and `page`; update takes only `status`.
+# times; `to` excluded), `contact_id`, and `page`; update takes only `status`, the booking's own (which changes nothing) or
+# one of its next statuses (see Booking::NEXT_STATUSES).
 class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
   RESULTS_PER_PAGE = 25
 
@@ -19,6 +20,9 @@ class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
 
   def update
     return render_could_not_create_error('Invalid status') unless Booking.statuses.key?(params[:status])
+    unless params[:status] == @booking.status || @booking.next_statuses.include?(params[:status])
+      return render_could_not_create_error("A #{@booking.status} booking cannot become #{params[:status]}")
+    end
 
     @booking.change_status!(params[:status], Current.user)
   end
