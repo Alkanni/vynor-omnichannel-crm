@@ -379,7 +379,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
         'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'booking' => nil,
-        'model' => ai_agent.model, 'scope' => nil, 'validation' => nil, 'web' => nil,
+        'booking_rejection' => nil, 'model' => ai_agent.model, 'scope' => nil, 'validation' => nil, 'web' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
@@ -573,7 +573,7 @@ RSpec.describe 'AI Agents API', type: :request do
       log = AiAgent::RequestLog.sole
       expect(log).to have_attributes(source: 'playground', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: nil, message_id: nil,
                                      reply_trace_id: nil, output: { 'messages' => ['Buka 08.00, Kak.'], 'handoff' => false, 'labels' => [],
-                                                                    'sheet_row' => nil, 'booking' => nil })
+                                                                    'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil })
       expect(log.input['messages']).to eq(messages.map(&:stringify_keys))
       expect(log.steps.sole).to include('step' => 'reply', 'output' => { 'messages' => ['Buka 08.00, Kak.'] })
     end

@@ -41,6 +41,7 @@ export default class AiAgentPlaygroundProvider {
           handoff: reply.handoff,
           labels: reply.labels,
           booking: reply.booking,
+          bookingRejection: reply.booking_rejection,
           model: reply.model,
           agentLatencyMs: reply.latency_ms,
           scopeDecision: reply.scope?.decision,

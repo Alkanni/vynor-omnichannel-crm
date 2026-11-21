@@ -16,8 +16,9 @@ class AiAgents::ActionSchema
     using an empty string when a value is unknown.
   TEXT
   BOOKING_INSTRUCTIONS = <<~TEXT.freeze
-    Bookings: collect the values of the "booking" fields that the customer can give, then read them a short summary with
-    the service, date, and time and ask them to confirm it. Do not ask for a phone number. In "messages", write a time the
+    Bookings: collect the values of the "booking" fields that the customer can give, asking for their name when the
+    conversation does not give it, then read them a short summary with the service, date, and time and ask them to
+    confirm it. Do not ask for a phone number. In "messages", write a time the
     way the customer wrote it, such as "jam 2 siang", and a date as the calendar has it, and keep the summary and the
     confirmation to the booking, without prices or totals the customer did not ask for. Set "create_booking" to true only
     when the conversation meets the condition below and the customer has confirmed that summary, and false otherwise: a
@@ -72,10 +73,11 @@ class AiAgents::ActionSchema
   end
 
   # Labels outside the allowed list are dropped here, whatever the model returned. The sheet row follows the
-  # sheet's header order, with blanks for empty header cells. The booking is the attributes of a Booking.
+  # sheet's header order, with blanks for empty header cells. A booking the model asked for is either the attributes of a
+  # Booking or the reason it cannot be one (see #booking_request).
   def parse(content)
     { handoff: handoff? && content['handoff'] == true, labels: Array(content['labels']) & allowed_labels, sheet_row: sheet_row(content),
-      booking: booking(content) }
+      **booking_request(content) }
   end
 
   private
@@ -137,16 +139,21 @@ class AiAgents::ActionSchema
     }
   end
 
-  # nil unless the model asked for a booking with a service, a name, and a date and time that parse.
-  def booking(content)
-    return unless ai_agent.booking? && content['create_booking'] == true && content['booking'].is_a?(Hash)
+  # The booking the model asked for, with a blank name when it gave none, since the conversation's contact fills that in
+  # (see AiAgents::ConversationSession#request_booking!), or the reason it cannot be a booking: no date and time that
+  # parse, or no service. Both are nil when the model asked for none.
+  def booking_request(content)
+    return { booking: nil, booking_rejection: nil } unless ai_agent.booking? && content['create_booking'] == true
 
-    values = booking_keys.index_with { |key| content['booking'][key].to_s.strip }
+    fields = content['booking'].is_a?(Hash) ? content['booking'] : {}
+    values = booking_keys.index_with { |key| fields[key].to_s.strip }
     scheduled_at = scheduled_at(values['date'], values['time'])
-    return if scheduled_at.nil? || values.values_at('service', 'customer_name').any?(&:empty?)
+    return { booking: nil, booking_rejection: :invalid_schedule } unless scheduled_at
+    return { booking: nil, booking_rejection: :missing_service } if values['service'].empty?
 
-    { service: values['service'], customer_name: values['customer_name'], scheduled_at: scheduled_at, notes: values['notes'].presence,
-      details: values.slice(*ai_agent.booking_fields) }
+    booking = { service: values['service'], customer_name: values['customer_name'], scheduled_at: scheduled_at,
+                notes: values['notes'].presence, details: values.slice(*ai_agent.booking_fields) }
+    { booking: booking, booking_rejection: nil }
   end
 
   def scheduled_at(date, time)

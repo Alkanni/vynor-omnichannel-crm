@@ -41,9 +41,9 @@ class AiAgents::ReplyJob < ApplicationJob
   def deliver(session, ai_agent, message, reply, log)
     sent = reply.handoff && ai_agent.silent_handoff ? [] : reply.messages
     sent.each { |content| session.reply!(content, to: message) }
-    session.apply!(handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row, booking: reply.booking, reason: :transfer_conditions)
+    session.apply!(**reply.actions, reason: :transfer_conditions)
     trace = record_trace(ai_agent, message, reply.handoff ? :handoff : :replied, labels: reply.labels, **reply.trace.attributes)
-    log.output = { messages: sent, handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row, booking: reply.booking }
+    log.output = { messages: sent, **reply.actions }
     log.reply_trace_id = trace.id
     AiAgents::WatchJob.perform_later(message.conversation, trace) if watch?(ai_agent, reply)
   end

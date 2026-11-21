@@ -234,6 +234,23 @@ RSpec.describe AiAgents::ReplyJob do
     expect(conversation.reload.label_list).to eq(['booking'])
   end
 
+  it 'sends the reply and tells the staff when it asked for a booking that cannot be recorded' do
+    ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
+                     booking_label_id: create(:label, account: account, title: 'booking').id)
+    message = create(:message, **message_attributes, content: 'Ya, sudah benar')
+    allow(generator).to receive(:perform).and_return(
+      AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, kami teruskan ke staff.'], handoff: false, labels: [],
+                                          booking_rejection: :missing_service, trace: trace)
+    )
+
+    described_class.perform_now(message)
+
+    expect(ai_replies.pluck(:content)).to eq(['Baik, kami teruskan ke staff.'])
+    expect(conversation.bookings).to be_empty
+    expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_booking_rejected' = 'missing_service'")).to exist
+    expect(conversation.reload.label_list).to eq(['booking'])
+  end
+
   describe 'watcher' do
     let(:message) { create(:message, **message_attributes, content: 'Halo') }
 
@@ -533,7 +550,7 @@ RSpec.describe AiAgents::ReplyJob do
         source: 'reply', status: 'ok', account_id: account.id, ai_agent_id: ai_agent.id, conversation_id: conversation.id, message_id: message.id,
         reply_trace_id: traces.sole.id, latency_ms: be >= 0,
         input: { 'messages' => [{ 'role' => 'user', 'content' => 'Kenapa mesin mobil overheat?', 'attachments' => [] }] },
-        output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil, 'booking' => nil }
+        output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil }
       )
       steps = AiAgent::RequestLog.sole.steps
       expect(steps.pluck('step')).to eq(%w[scope_check embedding retrieval web_search reply reply_check])

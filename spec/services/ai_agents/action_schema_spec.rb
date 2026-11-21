@@ -74,20 +74,37 @@ RSpec.describe AiAgents::ActionSchema do
       end
 
       it 'returns the booking at its time in the agent time zone, with the agent fields as details' do
-        expect(schema.parse('create_booking' => true, 'booking' => booking)[:booking]).to eq(
-          service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 21, 2, 30), notes: nil,
-          details: { 'Plat nomor' => 'B 1234 CD' }
+        expect(schema.parse('create_booking' => true, 'booking' => booking)).to include(
+          booking: { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 21, 2, 30), notes: nil,
+                     details: { 'Plat nomor' => 'B 1234 CD' } },
+          booking_rejection: nil
         )
       end
 
-      it 'returns no booking unless one is asked for with a service, a name, and a date and time that parse' do
-        expect(schema.parse('create_booking' => false, 'booking' => booking)[:booking]).to be_nil
-        [{ 'date' => '2026-02-30' }, { 'date' => 'besok' }, { 'time' => '24:00' }, { 'time' => 'pagi' }, { 'service' => ' ' },
-         { 'customer_name' => '' }].each do |change|
-          expect(schema.parse('create_booking' => true, 'booking' => booking.merge(change))[:booking]).to be_nil, change.inspect
+      it 'returns neither a booking nor a rejection unless a booking is asked for' do
+        expect(schema.parse('create_booking' => false, 'booking' => booking)).to include(booking: nil, booking_rejection: nil)
+        expect(schema.parse('create_booking' => 'true', 'booking' => booking)).to include(booking: nil, booking_rejection: nil)
+      end
+
+      it 'returns why a booking asked for without a date and time that parse, or without a service, cannot be one' do
+        [{ 'date' => '2026-02-30' }, { 'date' => 'besok' }, { 'time' => '24:00' }, { 'time' => 'pagi' }].each do |change|
+          expect(schema.parse('create_booking' => true, 'booking' => booking.merge(change)))
+            .to include(booking: nil, booking_rejection: :invalid_schedule), change.inspect
         end
-        expect(schema.parse('create_booking' => 'true', 'booking' => booking)[:booking]).to be_nil
-        expect(schema.parse('create_booking' => true, 'booking' => 'Cuci salon besok jam 9.30')[:booking]).to be_nil
+        expect(schema.parse('create_booking' => true, 'booking' => 'Cuci salon besok jam 9.30'))
+          .to include(booking: nil, booking_rejection: :invalid_schedule)
+        expect(schema.parse('create_booking' => true, 'booking' => booking.merge('service' => ' ')))
+          .to include(booking: nil, booking_rejection: :missing_service)
+      end
+
+      it 'returns a booking without a name, which the conversation contact fills in' do
+        expect(schema.parse('create_booking' => true, 'booking' => booking.merge('customer_name' => ' ')))
+          .to include(booking: hash_including(service: 'Cuci salon', customer_name: ''), booking_rejection: nil)
+      end
+
+      it 'asks the model for the customer name when the conversation does not give it' do
+        expect(described_class::BOOKING_INSTRUCTIONS.squish)
+          .to include('asking for their name when the conversation does not give it, then read them a short summary')
       end
 
       it 'counts as an action on its own' do
@@ -126,7 +143,7 @@ RSpec.describe AiAgents::ActionSchema do
       expect(schema.instructions).to be_nil
       expect(schema.calendar).to be_nil
       expect(schema.known_text('booking' => booking)).to be_nil
-      expect(schema.parse('create_booking' => true, 'booking' => booking)[:booking]).to be_nil
+      expect(schema.parse('create_booking' => true, 'booking' => booking)).to include(booking: nil, booking_rejection: nil)
     end
   end
 end
