@@ -12,6 +12,7 @@ function loadRun(file) {
     id: result.testCase.metadata.id,
     expected: result.testCase.metadata.booking,
     requested: result.response?.metadata?.booking ?? null,
+    rejection: result.response?.metadata?.bookingRejection ?? null,
     blockedReason: result.response?.metadata?.blockedReason,
     output: result.response?.output,
     error: result.failureReason === FAILURE_REASON_ERROR ? result.error : null,
@@ -32,6 +33,10 @@ function gate(cases) {
   const positives = valid.filter(testCase => testCase.expected != null);
   const created = positives.filter(testCase => testCase.requested);
   const falseBookings = negatives.filter(testCase => testCase.requested);
+  // A live reply turns a rejection into an activity message for the staff (issue #189).
+  const rejections = valid
+    .filter(testCase => testCase.rejection)
+    .map(testCase => `${testCase.id} (${testCase.rejection})`);
   const onTime = created.filter(
     testCase => testCase.checks.booking_datetime?.pass
   );
@@ -65,6 +70,12 @@ function gate(cases) {
       String(blocked.length),
       '0',
       blocked.length === 0,
+    ],
+    [
+      'Booking rejections (report only)',
+      [rejections.length, ...rejections].join(' '),
+      '—',
+      null,
     ],
     [
       'Fields as expected (report only)',

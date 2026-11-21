@@ -466,6 +466,11 @@ en:
     duplicate_name: '%{name} (Copy)'
     bookings:
       requested: '%{agent} recorded booking request #%{id}: %{service}, %{scheduled_at}'
+      rejected: '%{agent} could not record the booking the customer asked for because %{reason}. Follow it up with the customer.'
+      rejection_reasons:
+        invalid_schedule: the date or time is missing or not valid
+        missing_service: the service is missing
+        missing_customer_name: the customer name is missing
       invalid_message: 'has a variable or tag that is not closed, such as {{booking.service'
     google_sheets:
       row_added: '%{agent} added a row to Google Sheets'

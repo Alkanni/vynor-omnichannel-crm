@@ -112,6 +112,45 @@ RSpec.describe AiAgents::ConversationSession do
       expect(conversation.bookings.count).to eq(1)
       expect(conversation.reload.label_list).to be_empty
     end
+
+    it 'records a booking the model gave no name for under the contact name' do
+      conversation.contact.update!(name: ' Budi Santoso ')
+
+      session.apply!(**arguments, booking: booking.merge(customer_name: ''))
+
+      expect(conversation.bookings.sole.customer_name).to eq('Budi Santoso')
+    end
+
+    context 'when the booking cannot be recorded' do
+      let(:rejections) { conversation.messages.activity.where("additional_attributes ->> 'ai_agent_booking_rejected' IS NOT NULL") }
+      let(:rejection) { { handoff: false, labels: [], reason: :transfer_conditions } }
+
+      it 'tells the staff why with the booking label, once per customer message, without a handoff' do
+        create(:message, **message_attributes, content: 'Ya, sudah benar')
+
+        2.times { session.apply!(**rejection, booking_rejection: :invalid_schedule) }
+
+        expect(rejections.pluck(:content)).to eq(["#{ai_agent.name} could not record the booking the customer asked for because the date or " \
+                                                  'time is missing or not valid. Follow it up with the customer.'])
+        expect(conversation.reload.label_list).to eq(['booking'])
+        expect(conversation.bookings).to be_empty
+        expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_handoff' IS NOT NULL")).not_to exist
+
+        create(:message, **message_attributes, content: 'Cuci salon ya')
+        session.apply!(**rejection, booking_rejection: :missing_service)
+
+        expect(rejections.count).to eq(2)
+      end
+
+      it 'rejects a booking without a name when the contact has none either' do
+        conversation.contact.update!(name: '')
+
+        session.apply!(**arguments, booking: booking.merge(customer_name: ''))
+
+        expect(conversation.bookings).to be_empty
+        expect(rejections.sole.content).to include('because the customer name is missing')
+      end
+    end
   end
 
   describe '#bookings' do

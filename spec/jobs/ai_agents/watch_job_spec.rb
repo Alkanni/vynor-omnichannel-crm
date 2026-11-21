@@ -37,18 +37,37 @@ RSpec.describe AiAgents::WatchJob do
 
   context 'when the reply missed a booking' do
     let(:result) do
-      booking = { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil, details: {} }
+      booking = { service: 'Cuci salon', customer_name: '', scheduled_at: Time.utc(2026, 11, 20, 3, 0), notes: nil, details: {} }
       AiAgents::Watcher::Result.new(actions: { handoff: false, labels: [], sheet_row: nil, booking: booking }, input_tokens: 300, output_tokens: 8,
                                     cached_input_tokens: nil)
     end
 
-    it 'requests it' do
+    it 'requests it, under the contact name when the Watcher gave none' do
       ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
                        booking_label_id: create(:label, account: account, title: 'booking').id)
 
       described_class.perform_now(conversation, reply_trace)
 
-      expect(conversation.bookings.sole).to have_attributes(status: 'requested', scheduled_at: Time.utc(2026, 11, 20, 3, 0))
+      expect(conversation.bookings.sole).to have_attributes(status: 'requested', scheduled_at: Time.utc(2026, 11, 20, 3, 0),
+                                                            customer_name: conversation.contact.name)
+    end
+  end
+
+  context 'when the Watcher rejects the booking the reply already rejected' do
+    let(:result) do
+      AiAgents::Watcher::Result.new(actions: { handoff: false, labels: [], sheet_row: nil, booking: nil, booking_rejection: :missing_service },
+                                    input_tokens: 300, output_tokens: 8, cached_input_tokens: nil)
+    end
+
+    it 'does not tell the staff again' do
+      ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin booking.',
+                       booking_label_id: create(:label, account: account, title: 'booking').id)
+      AiAgents::ConversationSession.new(conversation: conversation, ai_agent: ai_agent)
+                                   .apply!(handoff: false, labels: [], booking_rejection: :missing_service, reason: :transfer_conditions)
+
+      described_class.perform_now(conversation, reply_trace)
+
+      expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_booking_rejected' IS NOT NULL").count).to eq(1)
     end
   end
 
@@ -69,7 +88,8 @@ RSpec.describe AiAgents::WatchJob do
     log = AiAgent::RequestLog.sole
     expect(log).to have_attributes(source: 'watcher', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: conversation.id,
                                    message_id: reply_trace.message_id, reply_trace_id: reply_trace.id,
-                                   output: { 'handoff' => true, 'labels' => [], 'sheet_row' => nil, 'booking' => nil })
+                                   output: { 'handoff' => true, 'labels' => [], 'sheet_row' => nil, 'booking' => nil,
+                                             'booking_rejection' => nil })
     expect(log.input['messages']).to eq([{ 'role' => 'user', 'content' => 'Pelayanannya buruk sekali', 'attachments' => [] }])
     expect(log.steps.sole).to include('step' => 'watcher', 'model' => ai_agent.model, 'output' => { 'handoff' => true },
                                       'tokens' => { 'input' => 300, 'output' => 8, 'cached_input' => nil })

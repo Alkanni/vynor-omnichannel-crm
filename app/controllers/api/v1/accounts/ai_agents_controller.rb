@@ -61,7 +61,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     messages = messages.last(@ai_agent.history_limit)
     @reply = AiAgents::RequestRecorder.record(ai_agent: @ai_agent, source: :playground, input: { messages: messages }) do |log|
       reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages, deadline_ms: PLAYGROUND_REPLY_DEADLINE_MS).perform
-      log.output = { messages: reply.messages, handoff: reply.handoff, labels: reply.labels, sheet_row: reply.sheet_row, booking: reply.booking }
+      log.output = { messages: reply.messages, **reply.actions }
       reply
     end
   rescue AiAgents::LlmError => e

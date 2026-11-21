@@ -6,6 +6,7 @@ class AiAgents::ConversationSession
   PENDING_MARKER = 'ai_agent_pending'.freeze
   SHEET_ROW_MARKER = 'ai_agent_sheet_row'.freeze
   WELCOME_MARKER = 'ai_agent_welcome'.freeze
+  BOOKING_REJECTED_MARKER = 'ai_agent_booking_rejected'.freeze
 
   pattr_initialize [:conversation!, :ai_agent!]
 
@@ -38,11 +39,13 @@ class AiAgents::ConversationSession
     send_message(content, REPLY_MARKER => to.id)
   end
 
-  # booking: the attributes of a Booking the reply asked for (see AiAgents::ActionSchema#parse).
-  def apply!(handoff:, labels:, reason:, sheet_row: nil, booking: nil)
+  # booking: the attributes of a Booking the reply asked for, and booking_rejection: why one it asked for cannot be a
+  # booking (see AiAgents::ActionSchema#parse).
+  def apply!(handoff:, labels:, reason:, sheet_row: nil, booking: nil, booking_rejection: nil) # rubocop:disable Metrics/ParameterLists
     add_labels(labels)
     AiAgents::AppendSheetRowJob.perform_later(conversation, sheet_row) if sheet_row
     request_booking!(booking) if booking
+    reject_booking!(booking_rejection) if booking_rejection
     handoff!(reason) if handoff
   end
 
@@ -131,23 +134,51 @@ class AiAgents::ConversationSession
   # Watcher may both ask for it, so the check and the insert run under the conversation's row lock, taken on a copy of
   # the row so the record in hand is left as it is.
   def request_booking!(attributes)
+    customer_name = booking_customer_name(attributes)
+    return reject_booking!(:missing_customer_name) unless customer_name
+
     booking = Conversation.transaction do
       Conversation.lock.find(conversation.id)
       next if bookings.any? { |held| held.scheduled_at == attributes[:scheduled_at] && held.service.casecmp?(attributes[:service]) }
 
-      conversation.bookings.create!(account: conversation.account, contact: conversation.contact, ai_agent: ai_agent, **attributes)
+      conversation.bookings.create!(account: conversation.account, contact: conversation.contact, ai_agent: ai_agent,
+                                    **attributes, customer_name: customer_name)
     end
     announce_booking!(booking) if booking
   end
 
+  # The name the model gave, else the contact's (the model often leaves it blank when the customer never said it).
+  def booking_customer_name(attributes)
+    attributes[:customer_name].presence || conversation.contact.name.to_s.strip.presence
+  end
+
   # The agent's booking label and an activity message tell the staff, who confirm the booking.
   def announce_booking!(booking)
-    add_labels(conversation.account.labels.where(id: ai_agent.booking_label_id).pluck(:title))
+    add_booking_label
     scheduled_at = booking.scheduled_at.in_time_zone(ai_agent.timezone).strftime('%Y-%m-%d %H:%M %Z')
     conversation.messages.create!(
       account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :activity,
       content: I18n.t('ai_agents.bookings.requested', agent: ai_agent.name, id: booking.id, service: booking.service, scheduled_at: scheduled_at)
     )
+  end
+
+  # A booking the model asked for that cannot be recorded tells the staff why, with the agent's booking label, so they
+  # follow it up with the customer, who was told the staff will confirm it. The reply and the Watcher may both ask for
+  # it after the same customer message, which tells the staff once.
+  def reject_booking!(reason)
+    return if conversation.messages.activity.where("messages.additional_attributes ->> '#{BOOKING_REJECTED_MARKER}' IS NOT NULL")
+                          .exists?(['messages.id > ?', conversation.messages.incoming.maximum(:id)])
+
+    add_booking_label
+    conversation.messages.create!(
+      account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :activity,
+      content: I18n.t('ai_agents.bookings.rejected', agent: ai_agent.name, reason: I18n.t("ai_agents.bookings.rejection_reasons.#{reason}")),
+      additional_attributes: { BOOKING_REJECTED_MARKER => reason }
+    )
+  end
+
+  def add_booking_label
+    add_labels(conversation.account.labels.where(id: ai_agent.booking_label_id).pluck(:title))
   end
 
   # Label activity messages name the AI agent rather than nobody.
