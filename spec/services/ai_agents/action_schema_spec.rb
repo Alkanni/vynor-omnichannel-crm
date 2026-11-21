@@ -48,7 +48,11 @@ RSpec.describe AiAgents::ActionSchema do
     end
 
     context 'with the bookings feature' do
-      before { ai_agent.account.enable_features!('bookings') }
+      # The bookings above are on 2026-11-21, after this time.
+      before do
+        ai_agent.account.enable_features!('bookings')
+        travel_to(Time.utc(2026, 11, 19, 3, 0))
+      end
 
       it 'asks for the core and the agent fields, with the condition, the bookings held, and the calendar' do
         properties = schema.json_schema('ai_agent_reply')[:schema][:properties]
@@ -95,6 +99,28 @@ RSpec.describe AiAgents::ActionSchema do
           .to include(booking: nil, booking_rejection: :invalid_schedule)
         expect(schema.parse('create_booking' => true, 'booking' => booking.merge('service' => ' ')))
           .to include(booking: nil, booking_rejection: :missing_service)
+      end
+
+      it 'returns why a booking at a time that has passed cannot be one' do
+        travel_to(Time.utc(2026, 11, 20, 3, 0)) do # 10:00 in Asia/Jakarta
+          [%w[2026-11-20 09:00], %w[2026-11-20 10:00], %w[2026-11-19 23:00]].each do |date, time|
+            expect(schema.parse('create_booking' => true, 'booking' => booking.merge('date' => date, 'time' => time)))
+              .to include(booking: nil, booking_rejection: :past_schedule), "#{date} #{time}"
+          end
+          expect(schema.parse('create_booking' => true, 'booking' => booking.merge('date' => '2026-11-20', 'time' => '10:30'))[:booking])
+            .to include(scheduled_at: Time.utc(2026, 11, 20, 3, 30))
+        end
+      end
+
+      it 'compares a booking with the current time in the time zone of the agent' do
+        values = booking.merge('date' => '2026-11-20', 'time' => '23:00')
+
+        travel_to(Time.utc(2026, 11, 20, 14, 30)) do
+          expect(schema.parse('create_booking' => true, 'booking' => values)[:booking]).to include(scheduled_at: Time.utc(2026, 11, 20, 16, 0))
+
+          ai_agent.update!(timezone: 'Asia/Jayapura')
+          expect(schema.parse('create_booking' => true, 'booking' => values)).to include(booking: nil, booking_rejection: :past_schedule)
+        end
       end
 
       it 'returns a booking without a name, which the conversation contact fills in' do

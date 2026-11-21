@@ -141,7 +141,7 @@ class AiAgents::ActionSchema
 
   # The booking the model asked for, with a blank name when it gave none, since the conversation's contact fills that in
   # (see AiAgents::ConversationSession#request_booking!), or the reason it cannot be a booking: no date and time that
-  # parse, or no service. Both are nil when the model asked for none.
+  # parse, a time that has passed, or no service. Both are nil when the model asked for none.
   def booking_request(content)
     return { booking: nil, booking_rejection: nil } unless ai_agent.booking? && content['create_booking'] == true
 
@@ -149,6 +149,7 @@ class AiAgents::ActionSchema
     values = booking_keys.index_with { |key| fields[key].to_s.strip }
     scheduled_at = scheduled_at(values['date'], values['time'])
     return { booking: nil, booking_rejection: :invalid_schedule } unless scheduled_at
+    return { booking: nil, booking_rejection: :past_schedule } if scheduled_at <= Time.current
     return { booking: nil, booking_rejection: :missing_service } if values['service'].empty?
 
     booking = { service: values['service'], customer_name: values['customer_name'], scheduled_at: scheduled_at,

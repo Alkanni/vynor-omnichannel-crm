@@ -61,5 +61,11 @@ RSpec.describe AiAgents::Watcher do
         .to include('Calendar: Thursday 2026-11-19 (today)', AiAgents::ActionSchema::BOOKING_INSTRUCTIONS, 'Saat customer ingin datang ke bengkel.',
                     "Bookings already in this conversation:\nnone")
     end
+
+    it 'returns why a booking at a time that has passed cannot be one' do
+      result = travel_to(Time.utc(2026, 11, 21, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages, bookings: []).perform }
+
+      expect(result.actions).to include(booking: nil, booking_rejection: :past_schedule)
+    end
   end
 end
