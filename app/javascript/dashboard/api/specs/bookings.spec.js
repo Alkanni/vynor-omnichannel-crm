@@ -52,5 +52,14 @@ describe('#BookingsAPI', () => {
         { status: 'confirmed' }
       );
     });
+
+    it('#fields asks for the booking fields of a conversation', () => {
+      bookings.fields(12);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/bookings/fields',
+        { params: { conversation_id: 12 } }
+      );
+    });
   });
 });

@@ -11,6 +11,13 @@ class BookingsAPI extends ApiClient {
   list(params) {
     return axios.get(this.url, { params });
   }
+
+  // The fields the AI agent of a conversation's inbox asks for; conversationId is the conversation's display id.
+  fields(conversationId) {
+    return axios.get(`${this.url}/fields`, {
+      params: { conversation_id: conversationId },
+    });
+  }
 }
 
 export default new BookingsAPI();

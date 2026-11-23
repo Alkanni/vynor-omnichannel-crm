@@ -44,6 +44,8 @@ class Booking < ApplicationRecord
     'requested' => %w[confirmed cancelled completed no_show], 'confirmed' => %w[cancelled completed no_show],
     'completed' => %w[no_show], 'no_show' => %w[completed], 'cancelled' => [], 'rescheduled' => []
   }.freeze
+  # What the staff may change on a booking besides its status, in the order an edit's activity names them (see #edit!).
+  EDITABLE_FIELDS = %w[service customer_name scheduled_at notes details].freeze
 
   validates :service, :customer_name, presence: true, length: { maximum: 255 }
   validates :scheduled_at, presence: true
@@ -51,6 +53,25 @@ class Booking < ApplicationRecord
 
   def next_statuses
     NEXT_STATUSES.fetch(status)
+  end
+
+  # A booking the staff recorded themselves (see Api::V1::Accounts::BookingsController#create), announced in its
+  # conversation with who recorded it.
+  def record_creation!(user)
+    create_activity!(I18n.t('bookings.activity.created', user: user.name, id: id, service: service, scheduled_at: local_time(scheduled_at)))
+  end
+
+  # A staff change of the booking's fields, recorded in its conversation with who made it and each value before and after.
+  # It changes neither the status nor tells the customer. Values it already has change nothing.
+  def edit!(attributes, user)
+    assign_attributes(attributes)
+    changed = changes_to_save.slice(*EDITABLE_FIELDS)
+    return if changed.empty?
+
+    transaction do
+      save!
+      create_activity!(I18n.t('bookings.activity.edited', user: user.name, id: id, changes: describe_changes(changed)))
+    end
   end
 
   # A staff change of the status, recorded in the booking's conversation with who made it. Setting the status it already
@@ -92,6 +113,23 @@ class Booking < ApplicationRecord
       'booking' => BookingDrop.new(self), 'contact' => ContactDrop.new(conversation.contact), 'agent' => UserDrop.new(ai_agent),
       'conversation' => ConversationDrop.new(conversation), 'inbox' => InboxDrop.new(conversation.inbox), 'account' => AccountDrop.new(account)
     )
+  end
+
+  def describe_changes(changed)
+    changed.map { |field, (from, to)| "#{self.class.human_attribute_name(field)}: #{describe_value(from)} → #{describe_value(to)}" }.join('; ')
+  end
+
+  def describe_value(value)
+    case value
+    when Time then local_time(value)
+    when Hash then value.map { |name, text| "#{name} #{text.presence || '-'}" }.join(', ').presence || '-'
+    else value.presence || '-'
+    end
+  end
+
+  # In the time zone of the booking's agent, which the AI used to read the customer's time.
+  def local_time(time)
+    time.in_time_zone(ai_agent&.timezone || 'UTC').strftime('%Y-%m-%d %H:%M %Z')
   end
 
   def create_activity!(content)

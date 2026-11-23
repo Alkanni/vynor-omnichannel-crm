@@ -1,7 +1,7 @@
 {
   "BOOKINGS": {
     "HEADER": "Bookings",
-    "DESCRIPTION": "Booking requests that AI agents recorded from conversations. Confirm them here or from the conversation.",
+    "DESCRIPTION": "Bookings from conversations, recorded by AI agents or your team. Confirm or correct them here or from the conversation.",
     "DISABLED": "Bookings are not turned on for this account. An administrator can turn them on in the account features.",
     "FILTERS": {
       "ALL": "All",
@@ -29,6 +29,22 @@
     "LOAD_ERROR": "Could not load the bookings. Please try again.",
     "UPDATE_SUCCESS": "Booking status updated",
     "UPDATE_ERROR": "Could not update the booking status. Please try again.",
+    "FORM": {
+      "ADD": "Add booking",
+      "EDIT": "Edit booking",
+      "NEW_TITLE": "New booking",
+      "EDIT_TITLE": "Edit booking",
+      "DESCRIPTION": "A booking you record here is confirmed right away. Changes are noted in the conversation and are not sent to the customer.",
+      "SERVICE": "Service",
+      "CUSTOMER_NAME": "Customer name",
+      "DATE": "Date",
+      "TIME": "Time",
+      "NOTES": "Notes",
+      "SAVE": "Save booking",
+      "SAVE_SUCCESS": "Booking saved",
+      "SAVE_ERROR": "Could not save the booking. Please check the fields and try again.",
+      "FIELDS_ERROR": "Could not load the booking fields. Please try again."
+    },
     "CANCEL_DIALOG": {
       "TITLE": "Cancel this booking?",
       "DESCRIPTION": "A cancelled booking cannot be changed again. If the booking's AI agent has a cancellation message, the customer gets it right away.",

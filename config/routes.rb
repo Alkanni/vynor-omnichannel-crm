@@ -72,7 +72,9 @@ Rails.application.routes.draw do
               post :follow_up
             end
           end
-          resources :bookings, only: [:index, :update]
+          resources :bookings, only: [:index, :create, :update] do
+            get :fields, on: :collection
+          end
           resources :ai_agents, only: [:index, :create, :show, :update, :destroy] do
             get :models, on: :collection
             member do
