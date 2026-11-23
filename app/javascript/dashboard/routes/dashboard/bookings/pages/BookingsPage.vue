@@ -14,6 +14,8 @@ import {
   BaseTableRow,
   BaseTableCell,
 } from 'dashboard/components-next/table';
+import Button from 'dashboard/components-next/button/Button.vue';
+import BookingFormDialog from 'dashboard/components-next/Bookings/BookingFormDialog.vue';
 import BookingStatusMenu from 'dashboard/components-next/Bookings/BookingStatusMenu.vue';
 import {
   BOOKING_STATUSES,
@@ -85,6 +87,8 @@ const fetchBookings = async () => {
     isLoading.value = false;
   }
 };
+
+const formRef = ref(null);
 
 const replaceBooking = updated => {
   bookings.value = bookings.value.map(booking =>
@@ -247,10 +251,22 @@ watch(
                       </div>
                     </BaseTableCell>
                     <BaseTableCell>
-                      <BookingStatusMenu
-                        :booking="booking"
-                        @updated="replaceBooking"
-                      />
+                      <div class="flex items-center gap-2">
+                        <BookingStatusMenu
+                          :booking="booking"
+                          @updated="replaceBooking"
+                        />
+                        <Button
+                          v-if="booking.next_statuses.length"
+                          v-tooltip="t('BOOKINGS.FORM.EDIT')"
+                          :aria-label="t('BOOKINGS.FORM.EDIT')"
+                          icon="i-lucide-pencil"
+                          variant="ghost"
+                          color="slate"
+                          size="xs"
+                          @click="formRef.open({ current: booking })"
+                        />
+                      </div>
                     </BaseTableCell>
                     <BaseTableCell>
                       <RouterLink
@@ -277,6 +293,7 @@ watch(
           :total-items="totalCount"
           :items-per-page="BOOKINGS_PER_PAGE"
         />
+        <BookingFormDialog ref="formRef" @saved="replaceBooking" />
       </template>
     </div>
   </section>

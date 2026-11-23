@@ -62,6 +62,22 @@ RSpec.describe Booking do
     expect(booking.reload).to be_requested
   end
 
+  it 'records a staff edit with each value before and after, nothing for values it has, and keeps the old values when that fails' do
+    user = create(:user, account: booking.account, name: 'Sari')
+    booking.update!(customer_name: 'Budi', notes: nil)
+
+    booking.edit!({ customer_name: 'Budi' }, user)
+    booking.edit!({ customer_name: 'Rina', notes: 'Bawa STNK' }, user)
+
+    expect(booking.reload).to be_requested
+    expect(booking.conversation.messages.activity.pluck(:content))
+      .to eq(["Sari changed booking ##{booking.id}: Customer name: Budi → Rina; Notes: - → Bawa STNK"])
+
+    allow(booking.conversation.messages).to receive(:create!).and_raise(ActiveRecord::RecordInvalid)
+    expect { booking.edit!({ customer_name: 'Andi' }, user) }.to raise_error(ActiveRecord::RecordInvalid)
+    expect(booking.reload.customer_name).to eq('Rina')
+  end
+
   describe 'the message to the customer' do
     let(:account) { booking.account }
     let(:conversation) { booking.conversation }

@@ -1,9 +1,14 @@
 import { flushPromises, shallowMount } from '@vue/test-utils';
+import { useAlert } from 'dashboard/composables';
 import BookingsAPI from 'dashboard/api/bookings';
+import Button from 'dashboard/components-next/button/Button.vue';
 import BookingStatusMenu from '../BookingStatusMenu.vue';
 import ContactBookings from '../ContactBookings.vue';
 
-vi.mock('dashboard/api/bookings', () => ({ default: { list: vi.fn() } }));
+vi.mock('dashboard/api/bookings', () => ({
+  default: { list: vi.fn(), fields: vi.fn() },
+}));
+vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 vi.mock('vue-i18n', async () => {
   const { ref } = await import('vue');
   return {
@@ -19,19 +24,42 @@ const booking = (id, service, scheduledAt) => ({
   service,
   scheduled_at: scheduledAt,
   status: 'requested',
+  next_statuses: ['confirmed', 'cancelled', 'completed', 'no_show'],
   notes: null,
   details: {},
 });
 const past = booking(1, 'Servis lama', '2020-01-10T03:00:00Z');
 const upcoming = booking(2, 'Cuci salon', '2100-01-10T03:00:00Z');
 
-const mountPanel = (contactId = 5) =>
-  shallowMount(ContactBookings, { props: { contactId } });
+const openForm = vi.fn();
+const FormStub = {
+  name: 'BookingFormDialog',
+  emits: ['saved'],
+  setup(_, { expose }) {
+    expose({ open: openForm });
+    return () => null;
+  },
+};
+
+const mountPanel = (contactId = 5, props = {}) =>
+  shallowMount(ContactBookings, {
+    props: { contactId, ...props },
+    global: { stubs: { BookingFormDialog: FormStub } },
+  });
+
+const editButtons = wrapper =>
+  wrapper
+    .findAllComponents(Button)
+    .filter(button => button.attributes('aria-label') === 'BOOKINGS.FORM.EDIT');
 
 const services = wrapper =>
   wrapper.findAll('li .text-heading-3').map(service => service.text());
 
 describe('ContactBookings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('lists the bookings of the contact, upcoming ones first', async () => {
     BookingsAPI.list.mockResolvedValue({
       data: { payload: [past, upcoming] },
@@ -115,5 +143,70 @@ describe('ContactBookings', () => {
     await wrapper.vm.$nextTick();
 
     expect(menu.props('booking')).toMatchObject({ id: 2, status: 'confirmed' });
+  });
+
+  it('adds a booking to the open conversation with the contact name and the agent fields', async () => {
+    BookingsAPI.list.mockResolvedValue({ data: { payload: [upcoming] } });
+    BookingsAPI.fields.mockResolvedValue({ data: { fields: ['Plat nomor'] } });
+    const wrapper = mountPanel(5, { conversationId: 12, contactName: 'Rina' });
+    await flushPromises();
+
+    const add = wrapper
+      .findAllComponents(Button)
+      .find(button => button.props('label') === 'BOOKINGS.FORM.ADD');
+    add.vm.$emit('click');
+    await flushPromises();
+
+    expect(BookingsAPI.fields).toHaveBeenCalledWith(12);
+    expect(openForm).toHaveBeenCalledWith({
+      customerName: 'Rina',
+      fields: ['Plat nomor'],
+    });
+
+    const added = { ...booking(9, 'Poles body', '2101-01-10T03:00:00Z') };
+    wrapper.findComponent(FormStub).vm.$emit('saved', added);
+    await wrapper.vm.$nextTick();
+    expect(services(wrapper)).toEqual(['Cuci salon', 'Poles body']);
+  });
+
+  it('offers no add button without a conversation, and tells the user when the fields cannot load', async () => {
+    BookingsAPI.list.mockResolvedValue({ data: { payload: [] } });
+    expect(
+      mountPanel()
+        .findAllComponents(Button)
+        .some(button => button.props('label') === 'BOOKINGS.FORM.ADD')
+    ).toBe(false);
+
+    BookingsAPI.fields.mockRejectedValue(new Error('Network Error'));
+    const wrapper = mountPanel(5, { conversationId: 12 });
+    await flushPromises();
+    wrapper.findAllComponents(Button)[0].vm.$emit('click');
+    await flushPromises();
+
+    expect(openForm).not.toHaveBeenCalled();
+    expect(useAlert).toHaveBeenCalledWith('BOOKINGS.FORM.FIELDS_ERROR');
+  });
+
+  it('edits a booking that can still change, and shows it as saved', async () => {
+    const cancelled = {
+      ...booking(3, 'Spooring', '2100-02-10T03:00:00Z'),
+      status: 'cancelled',
+      next_statuses: [],
+    };
+    BookingsAPI.list.mockResolvedValue({
+      data: { payload: [upcoming, cancelled] },
+    });
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    expect(editButtons(wrapper)).toHaveLength(1);
+    editButtons(wrapper)[0].vm.$emit('click');
+    expect(openForm).toHaveBeenCalledWith({ current: upcoming });
+
+    wrapper
+      .findComponent(FormStub)
+      .vm.$emit('saved', { ...upcoming, service: 'Poles body' });
+    await wrapper.vm.$nextTick();
+    expect(services(wrapper)).toEqual(['Poles body', 'Spooring']);
   });
 });
