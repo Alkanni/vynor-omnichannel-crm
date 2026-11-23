@@ -1,8 +1,11 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAlert } from 'dashboard/composables';
 import BookingsAPI from 'dashboard/api/bookings';
+import Button from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import BookingFormDialog from './BookingFormDialog.vue';
 import BookingStatusMenu from './BookingStatusMenu.vue';
 import { formatBookingTime, sortUpcomingFirst } from './helpers';
 
@@ -10,6 +13,15 @@ const props = defineProps({
   contactId: {
     type: [Number, String],
     required: true,
+  },
+  // The display id of the open conversation, which a booking added here belongs to.
+  conversationId: {
+    type: [Number, String],
+    default: null,
+  },
+  contactName: {
+    type: String,
+    default: '',
   },
 });
 
@@ -37,11 +49,43 @@ const replaceBooking = updated => {
   );
 };
 
+const formRef = ref(null);
+
+const addBooking = async () => {
+  try {
+    const { data } = await BookingsAPI.fields(props.conversationId);
+    formRef.value.open({
+      customerName: props.contactName,
+      fields: data.fields,
+    });
+  } catch {
+    useAlert(t('BOOKINGS.FORM.FIELDS_ERROR'));
+  }
+};
+
+// A new or edited booking, in its place by time.
+const saveBooking = saved => {
+  bookings.value = sortUpcomingFirst([
+    ...bookings.value.filter(booking => booking.id !== saved.id),
+    saved,
+  ]);
+};
+
 watch(() => props.contactId, fetchBookings, { immediate: true });
 </script>
 
 <template>
-  <div class="px-4 py-2 text-n-slate-12">
+  <div class="flex flex-col gap-3 px-4 py-2 text-n-slate-12">
+    <Button
+      v-if="conversationId"
+      :label="t('BOOKINGS.FORM.ADD')"
+      icon="i-lucide-plus"
+      variant="faded"
+      color="slate"
+      size="sm"
+      class="self-start"
+      @click="addBooking"
+    />
     <div v-if="isLoading" class="flex items-center justify-center p-4">
       <Spinner />
     </div>
@@ -84,8 +128,25 @@ watch(() => props.contactId, fetchBookings, { immediate: true });
             t('BOOKINGS.RESCHEDULED_FROM', { id: booking.rescheduled_from_id })
           }}
         </span>
-        <BookingStatusMenu :booking="booking" @updated="replaceBooking" />
+        <div class="flex items-center gap-2">
+          <BookingStatusMenu :booking="booking" @updated="replaceBooking" />
+          <Button
+            v-if="booking.next_statuses.length"
+            v-tooltip="t('BOOKINGS.FORM.EDIT')"
+            :aria-label="t('BOOKINGS.FORM.EDIT')"
+            icon="i-lucide-pencil"
+            variant="ghost"
+            color="slate"
+            size="xs"
+            @click="formRef.open({ current: booking })"
+          />
+        </div>
       </li>
     </ul>
+    <BookingFormDialog
+      ref="formRef"
+      :conversation-id="conversationId"
+      @saved="saveBooking"
+    />
   </div>
 </template>

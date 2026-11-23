@@ -116,6 +116,74 @@ RSpec.describe 'Bookings API', type: :request do
     end
   end
 
+  describe 'POST /api/v1/accounts/{account.id}/bookings' do
+    let(:ai_agent) { create(:ai_agent, account: account, booking_fields: ['Plat nomor'], booking_confirmed_message: 'Booking dikonfirmasi.') }
+    let(:fields) do
+      { conversation_id: conversation.display_id, service: ' Poles body ', customer_name: 'Rina', scheduled_at: '2026-11-25T03:00:00Z',
+        notes: ' ', details: { 'Plat nomor' => ' B 9 XY ' } }
+    end
+
+    before { create(:ai_agent_inbox, ai_agent: ai_agent, inbox: inbox) }
+
+    it 'records a confirmed booking for the conversation, notes who recorded it, and does not message the customer' do
+      post url, params: fields, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:created)
+      booking = conversation.bookings.order(:id).last
+      expect(booking).to have_attributes(status: 'confirmed', service: 'Poles body', customer_name: 'Rina', notes: nil,
+                                         scheduled_at: Time.utc(2026, 11, 25, 3, 0), details: { 'Plat nomor' => 'B 9 XY' },
+                                         contact: conversation.contact, ai_agent: ai_agent)
+      expect(response.parsed_body).to include('id' => booking.id, 'status' => 'confirmed', 'next_statuses' => %w[cancelled completed no_show])
+      expect(conversation.messages.activity.pluck(:content))
+        .to include("#{agent.name} recorded booking ##{booking.id}: Poles body, 2026-11-25 10:00 WIB")
+      expect(conversation.messages.outgoing).to be_empty
+    end
+
+    it 'accepts a time that has passed, for a visit recorded afterwards' do
+      post url, params: fields.merge(scheduled_at: '2020-01-10T03:00:00Z'), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it 'refuses a booking without a service or a time, or with fields that are not text' do
+      headers = agent.create_new_auth_token
+
+      [{ service: ' ' }, { scheduled_at: '' }, { scheduled_at: 'besok' }, { service: 12 }, { details: 'B 9 XY' },
+       { details: { 'Plat nomor' => 9 } }].each do |change|
+        expect { post url, params: fields.merge(change), headers: headers, as: :json }.not_to change(Booking, :count)
+        expect(response).to have_http_status(:unprocessable_entity), change.inspect
+      end
+    end
+
+    it 'does not find a conversation outside the agent\'s inboxes, and needs the bookings feature' do
+      other = create(:conversation, account: account, inbox: other_inbox)
+      post url, params: fields.merge(conversation_id: other.display_id), headers: agent.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+
+      account.disable_features!('bookings')
+      post url, params: fields, headers: administrator.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unauthorized)
+      post url, params: fields, as: :json
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe 'GET /api/v1/accounts/{account.id}/bookings/fields' do
+    it 'returns the booking fields of the AI agent of the conversation\'s inbox, none without one' do
+      headers = agent.create_new_auth_token
+      get "#{url}/fields", params: { conversation_id: conversation.display_id }, headers: headers
+      expect(response.parsed_body).to eq('fields' => [])
+
+      create(:ai_agent_inbox, ai_agent: create(:ai_agent, account: account, booking_fields: ['Plat nomor', 'Mobil']), inbox: inbox)
+      get "#{url}/fields", params: { conversation_id: conversation.display_id }, headers: headers
+      expect(response.parsed_body).to eq('fields' => ['Plat nomor', 'Mobil'])
+
+      outside = create(:conversation, account: account, inbox: other_inbox)
+      get "#{url}/fields", params: { conversation_id: outside.display_id }, headers: headers
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe 'PATCH /api/v1/accounts/{account.id}/bookings/:id' do
     it 'changes only the status and records who changed it in the conversation' do
       patch "#{url}/#{tomorrow.id}", params: { status: 'confirmed', service: 'Lain' }, headers: agent.create_new_auth_token, as: :json
@@ -144,14 +212,47 @@ RSpec.describe 'Bookings API', type: :request do
       expect(response.parsed_body).to include('id' => tomorrow.id, 'status' => 'requested')
     end
 
-    it 'returns unprocessable entity for a status outside the list, or without a status' do
+    it 'returns unprocessable entity for a status outside the list, or without a status or a field' do
       headers = agent.create_new_auth_token
 
       patch "#{url}/#{tomorrow.id}", params: { status: 'done' }, headers: headers, as: :json
       expect(response).to have_http_status(:unprocessable_entity)
-      patch "#{url}/#{tomorrow.id}", params: { service: 'Lain' }, headers: headers, as: :json
+      patch "#{url}/#{tomorrow.id}", params: { color: 'Lain' }, headers: headers, as: :json
       expect(response).to have_http_status(:unprocessable_entity)
       expect(tomorrow.reload).to have_attributes(status: 'requested', service: 'Cuci salon')
+    end
+
+    it 'changes the fields of a booking, keeps its status, and notes each change without messaging the customer' do
+      tomorrow.update!(status: :confirmed, ai_agent: create(:ai_agent, account: account, booking_confirmed_message: 'Booking dikonfirmasi.'),
+                       details: { 'Plat nomor' => 'B 1' })
+      headers = agent.create_new_auth_token
+
+      patch "#{url}/#{tomorrow.id}", params: { service: 'Poles body', scheduled_at: '2026-11-20T07:00:00Z', notes: 'Bawa STNK',
+                                               details: { 'Plat nomor' => 'B 2' } }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(tomorrow.reload).to have_attributes(status: 'confirmed', service: 'Poles body', scheduled_at: Time.utc(2026, 11, 20, 7, 0),
+                                                 notes: 'Bawa STNK', details: { 'Plat nomor' => 'B 2' })
+      expect(conversation.messages.activity.pluck(:content).last)
+        .to eq("#{agent.name} changed booking ##{tomorrow.id}: Service: Cuci salon → Poles body; Scheduled at: 2026-11-20 10:00 WIB → " \
+               '2026-11-20 14:00 WIB; Notes: - → Bawa STNK; Details: Plat nomor B 1 → Plat nomor B 2')
+      expect(conversation.messages.outgoing).to be_empty
+
+      expect { patch "#{url}/#{tomorrow.id}", params: { service: ' Poles body ' }, headers: headers, as: :json }.not_to change(Message, :count)
+      expect(response).to have_http_status(:success)
+    end
+
+    it 'does not change a cancelled booking, nor take fields that are not text' do
+      headers = agent.create_new_auth_token
+
+      patch "#{url}/#{tomorrow.id}", params: { service: 12 }, headers: headers, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+
+      tomorrow.cancelled!
+      patch "#{url}/#{tomorrow.id}", params: { service: 'Poles body' }, headers: headers, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('A cancelled booking cannot be changed')
+      expect(tomorrow.reload.service).to eq('Cuci salon')
     end
 
     it 'makes every status change a booking may make' do

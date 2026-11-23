@@ -5,6 +5,14 @@ class BookingPolicy < ApplicationPolicy
     account.feature_enabled?('bookings')
   end
 
+  def create?
+    account.feature_enabled?('bookings')
+  end
+
+  def fields?
+    account.feature_enabled?('bookings')
+  end
+
   def update?
     account.feature_enabled?('bookings')
   end

@@ -1,11 +1,20 @@
 import {
   formatBookingTime,
   localDate,
+  localDateTime,
+  localTime,
   sortUpcomingFirst,
   startOfLocalDay,
 } from '../helpers';
 
 describe('booking helpers', () => {
+  it('reads a time as a time input value and turns a date and time input back into an ISO 8601 time', () => {
+    expect(localTime(new Date(2026, 10, 25, 9, 5))).toBe('09:05');
+    expect(localDateTime('2026-11-25', '09:05')).toBe(
+      new Date(2026, 10, 25, 9, 5).toISOString()
+    );
+  });
+
   it('sorts upcoming bookings soonest first, then past ones latest first', () => {
     const now = Date.parse('2026-11-19T03:00:00Z');
     const bookings = [

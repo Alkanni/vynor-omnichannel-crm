@@ -4,6 +4,7 @@ import {
   shallowMount,
 } from '@vue/test-utils';
 import BookingsAPI from 'dashboard/api/bookings';
+import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
@@ -30,8 +31,32 @@ vi.mock('vue-router', () => ({
 // Today in the viewer's time zone (TZ=UTC in the test run).
 const TODAY = '2026-11-20T00:00:00.000Z';
 
+const openForm = vi.fn();
+const FormStub = {
+  name: 'BookingFormDialog',
+  emits: ['saved'],
+  setup(_, { expose }) {
+    expose({ open: openForm });
+    return () => null;
+  },
+};
+
+// The table renders its rows through slots, which shallow stubs leave out.
+const tableStubs = {
+  BaseTable: {
+    props: ['items'],
+    template: '<div><slot name="row" :items="items" /></div>',
+  },
+  BaseTableRow: { template: '<div><slot /></div>' },
+  BaseTableCell: { template: '<div><slot /></div>' },
+};
+
 const mountPage = () =>
-  shallowMount(BookingsPage, { global: { stubs: { RouterLink: true } } });
+  shallowMount(BookingsPage, {
+    global: {
+      stubs: { RouterLink: true, BookingFormDialog: FormStub, ...tableStubs },
+    },
+  });
 
 const lastListParams = () => BookingsAPI.list.mock.lastCall[0];
 
@@ -127,5 +152,44 @@ describe('BookingsPage', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('BOOKINGS.LOAD_ERROR');
+  });
+
+  it('edits a booking that can still change, and shows it as saved', async () => {
+    const row = (id, status, nextStatuses) => ({
+      id,
+      status,
+      next_statuses: nextStatuses,
+      scheduled_at: '2026-11-21T03:00:00Z',
+      service: 'Cuci salon',
+      customer_name: 'Budi',
+      notes: null,
+      details: {},
+      contact: { id: 5, name: 'Budi', phone_number: null },
+      conversation: { id: 3, display_id: 7, inbox_id: 1 },
+    });
+    const editable = row(1, 'confirmed', ['cancelled', 'completed', 'no_show']);
+    BookingsAPI.list.mockResolvedValue({
+      data: {
+        payload: [editable, row(2, 'cancelled', [])],
+        meta: { count: 2, current_page: 1 },
+      },
+    });
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const edits = wrapper
+      .findAllComponents(Button)
+      .filter(
+        button => button.attributes('aria-label') === 'BOOKINGS.FORM.EDIT'
+      );
+    expect(edits).toHaveLength(1);
+    edits[0].vm.$emit('click');
+    expect(openForm).toHaveBeenCalledWith({ current: editable });
+
+    wrapper
+      .findComponent(FormStub)
+      .vm.$emit('saved', { ...editable, service: 'Poles body' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Poles body');
   });
 });

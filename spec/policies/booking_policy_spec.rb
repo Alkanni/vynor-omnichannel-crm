@@ -15,7 +15,7 @@ RSpec.describe BookingPolicy, type: :policy do
 
   before { create(:inbox_member, user: agent, inbox: inbox) }
 
-  permissions :index?, :update? do
+  permissions :index?, :create?, :fields?, :update? do
     it 'allows administrators and agents while the account has the bookings feature' do
       account.enable_features!('bookings')
 
