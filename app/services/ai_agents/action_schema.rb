@@ -70,14 +70,16 @@ class AiAgents::ActionSchema
   end
 
   # What the reply check reads as known besides the conversation and the sources, for an agent that records bookings: the
-  # calendar, and the time the reply fills in "booking", since its messages may restate that time in 24-hour form ("13.00"
-  # for "jam 1 siang") whether or not the customer confirmed it yet.
+  # calendar; the booking condition and the bookings the conversation still has, as the prompt gives them, since a reply
+  # may state the arrival hours of the condition, or the date and time of a booking whose messages are no longer in the
+  # conversation; and the time the reply fills in "booking", since its messages may restate that time in 24-hour form
+  # ("13.00" for "jam 1 siang") whether or not the customer confirmed it yet.
   def known_text(content)
     return unless ai_agent.booking?
 
     values = content['booking']
     time = scheduled_at(values['date'].to_s.strip, values['time'].to_s.strip)&.strftime('%H:%M') if values.is_a?(Hash)
-    [calendar, time].compact.join("\n")
+    [calendar, ai_agent.booking_conditions, *held_booking_lines, time].compact.join("\n")
   end
 
   # Labels outside the allowed list are dropped here, whatever the model returned. The sheet row follows the
@@ -213,10 +215,13 @@ class AiAgents::ActionSchema
   def booking_instructions
     return unless ai_agent.booking?
 
-    listed = bookings.to_a.map do |booking|
+    "#{BOOKING_INSTRUCTIONS}#{HELD_BOOKING_INSTRUCTIONS if held_bookings?}Condition:\n#{ai_agent.booking_conditions}\n" \
+      "Bookings already in this conversation:\n#{held_booking_lines.join("\n").presence || 'none'}"
+  end
+
+  def held_booking_lines
+    bookings.to_a.map do |booking|
       "##{booking.id} #{booking.service}, #{booking.scheduled_at.in_time_zone(ai_agent.timezone).strftime('%Y-%m-%d %H:%M')}, #{booking.status}"
     end
-    "#{BOOKING_INSTRUCTIONS}#{HELD_BOOKING_INSTRUCTIONS if held_bookings?}Condition:\n#{ai_agent.booking_conditions}\n" \
-      "Bookings already in this conversation:\n#{listed.join("\n").presence || 'none'}"
   end
 end
