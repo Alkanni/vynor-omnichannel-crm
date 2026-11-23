@@ -155,6 +155,17 @@ RSpec.describe 'Bookings API', type: :request do
       end
     end
 
+    it 'refuses a booking without a conversation, and does not find a conversation that does not exist' do
+      headers = agent.create_new_auth_token
+
+      expect { post url, params: fields.except(:conversation_id), headers: headers, as: :json }.not_to change(Booking, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('Missing conversation_id')
+
+      post url, params: fields.merge(conversation_id: 999_999), headers: headers, as: :json
+      expect(response).to have_http_status(:not_found)
+    end
+
     it 'does not find a conversation outside the agent\'s inboxes, and needs the bookings feature' do
       other = create(:conversation, account: account, inbox: other_inbox)
       post url, params: fields.merge(conversation_id: other.display_id), headers: agent.create_new_auth_token, as: :json
@@ -181,6 +192,9 @@ RSpec.describe 'Bookings API', type: :request do
       outside = create(:conversation, account: account, inbox: other_inbox)
       get "#{url}/fields", params: { conversation_id: outside.display_id }, headers: headers
       expect(response).to have_http_status(:not_found)
+
+      get "#{url}/fields", headers: headers
+      expect(response).to have_http_status(:unprocessable_entity)
     end
   end
 

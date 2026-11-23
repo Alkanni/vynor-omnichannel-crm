@@ -1,6 +1,6 @@
 # The bookings staff see, confirm, record, and correct (#178, #196). A user reaches the bookings of the conversations they
 # can open (see BookingPolicy); a booking or conversation outside them is not found. index takes `status` (one or
-# several), `from` and `to` (ISO 8601 times; `to` excluded), `contact_id`, and `page`. create and fields take
+# several), `from` and `to` (ISO 8601 times; `to` excluded), `contact_id`, and `page`. create and fields need
 # `conversation_id`, the conversation's display id. create and update take the booking fields (`service`,
 # `customer_name`, `scheduled_at` as an ISO 8601 time, `notes`, and `details` as names and text); update with a `status`
 # changes only the status, to the booking's own (which changes nothing) or one of its next statuses (see
@@ -59,7 +59,10 @@ class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
     @booking = policy_scope(Current.account.bookings).find(params[:id])
   end
 
+  # A request without a conversation is invalid (422); one the user cannot open, or that does not exist, is not found (404).
   def fetch_conversation
+    return render_could_not_create_error('Missing conversation_id') if params[:conversation_id].blank?
+
     @conversation = Conversations::PermissionFilterService.new(Current.account.conversations, Current.user, Current.account).perform
                                                           .find_by!(display_id: params[:conversation_id])
   end
