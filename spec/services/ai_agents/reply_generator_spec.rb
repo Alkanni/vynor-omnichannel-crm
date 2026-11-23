@@ -741,6 +741,31 @@ RSpec.describe AiAgents::ReplyGenerator do
           expect(reply.trace.validation.blocked_reason).to be_nil
         end
       end
+
+      # The arrival hours come only from the condition, and the date and time of the held booking only from its listing, as
+      # when its messages have left the conversation; a price still needs a source.
+      {
+        'the arrival hours of the condition and the schedule of a booking the customer still has' =>
+          ['Booking ganti ban Kakak tanggal 17 November pukul 14.30. Jam kedatangan antara 07.30–18.00, mau pindah ke kapan, Kak?', nil],
+        'the arrival hours of the condition and a price that nothing in the prompt has' =>
+          ['Jam kedatangan antara 07.30–18.00, biaya ganti ban Rp75.000.', 'unsupported_number']
+      }.each do |description, (answer, blocked_reason)|
+        context "when the reply states #{description}" do
+          let(:messages) { [{ role: :user, content: 'Mau ganti jadwal booking ganti ban saya' }] }
+          let(:held) { create(:booking, account: ai_agent.account, service: 'Ganti ban', scheduled_at: Time.utc(2026, 11, 17, 7, 30)) }
+          let(:reply_content) { { decision: 'clarify', sources: [], messages: [answer] }.to_json }
+          let(:reply) do
+            travel_to(Time.utc(2026, 11, 19, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages, bookings: [held]).perform }
+          end
+
+          before { ai_agent.update!(booking_conditions: 'Jam kedatangan antara 07.30 dan 18.00 (buka setiap hari).') }
+
+          it "#{blocked_reason ? 'blocks' : 'passes'} the reply" do
+            expect(reply.messages).to eq(blocked_reason ? ['Maaf, info itu belum tersedia.'] : [answer])
+            expect(reply.trace.validation.blocked_reason).to eq(blocked_reason)
+          end
+        end
+      end
     end
   end
 

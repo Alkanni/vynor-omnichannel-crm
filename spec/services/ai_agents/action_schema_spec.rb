@@ -72,10 +72,12 @@ RSpec.describe AiAgents::ActionSchema do
         end
       end
 
-      it 'gives the reply check the calendar and the time the reply fills in the booking' do
+      it 'gives the reply check the calendar, the condition, the bookings held, and the time the reply fills in the booking' do
         travel_to(Time.utc(2026, 11, 19, 3, 0)) do
-          expect(schema.known_text('booking' => booking)).to eq("#{schema.calendar}\n09:30")
-          expect(schema.known_text('booking' => booking.merge('time' => 'pagi'))).to eq(schema.calendar)
+          known = "#{schema.calendar}\nSaat customer ingin datang ke bengkel.\n##{held.id} Cuci salon, 2026-11-20 10:00, requested"
+
+          expect(schema.known_text('booking' => booking)).to eq("#{known}\n09:30")
+          expect(schema.known_text('booking' => booking.merge('time' => 'pagi'))).to eq(known)
         end
       end
 
