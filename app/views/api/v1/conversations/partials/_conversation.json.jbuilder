@@ -22,6 +22,7 @@ json.meta do
     json.assignee_type 'User'
   end
   json.partial! 'enterprise/api/v1/conversations/partials/assignee', conversation: conversation if ChatwootApp.enterprise?
+  json.ai_agent AiAgents::ConversationSession.event_data(conversation)
   if conversation.team.present?
     json.team do
       json.partial! 'api/v1/models/team', formats: [:json], resource: conversation.team

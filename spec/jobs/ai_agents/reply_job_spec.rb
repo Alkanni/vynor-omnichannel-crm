@@ -469,6 +469,8 @@ RSpec.describe AiAgents::ReplyJob do
 
     it 'stays quiet when Silent Agent Handoff is on' do
       ai_agent.update!(silent_handoff: true)
+      # The job gets this conversation object, whose inbox cached the agent before the update (a real job loads it afresh).
+      conversation.reload
 
       described_class.perform_now(create(:message, **message_attributes, content: 'Masih ada pertanyaan'))
 
@@ -477,6 +479,7 @@ RSpec.describe AiAgents::ReplyJob do
 
     it 'stays quiet once the AI message limit is reached' do
       ai_agent.update!(message_limit: 1)
+      conversation.reload
       session.reply!('Balasan', to: create(:message, **message_attributes))
 
       described_class.perform_now(create(:message, **message_attributes, content: 'Lagi'))

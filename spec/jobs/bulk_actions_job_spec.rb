@@ -46,6 +46,19 @@ RSpec.describe BulkActionsJob do
       expect(conversation_3.reload.status).to eq('snoozed')
     end
 
+    it 'hands conversations moved to pending to the AI agent of their inbox' do
+      ai_agent = create(:ai_agent, account: account)
+      create(:ai_agent_inbox, ai_agent: ai_agent, inbox: conversation_1.inbox)
+      conversation_1.update!(assignee: agent)
+      params = { type: 'Conversation', fields: { status: 'pending' }, ids: [conversation_1.display_id] }
+
+      described_class.perform_now(account: account, params: params, user: agent)
+
+      expect(conversation_1.reload).to be_pending
+      expect(conversation_1.ai_assignee).to eq(ai_agent)
+      expect(conversation_1.assignee).to be_nil
+    end
+
     it 'bulk updates the assignee_id' do
       params = {
         type: 'Conversation',

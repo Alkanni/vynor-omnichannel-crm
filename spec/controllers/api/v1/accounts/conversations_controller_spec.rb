@@ -331,6 +331,20 @@ RSpec.describe 'Conversations API', type: :request do
         expect(response).to have_http_status(:success)
         expect(response).to conform_schema(200)
         expect(JSON.parse(response.body, symbolize_names: true)[:id]).to eq(conversation.display_id)
+        expect(JSON.parse(response.body, symbolize_names: true)[:meta]).to include(ai_agent: nil)
+      end
+
+      it 'shows the AI agent of the inbox and whether it answers the conversation' do
+        ai_agent = create(:ai_agent, account: account)
+        create(:ai_agent_inbox, ai_agent: ai_agent, inbox: conversation.inbox)
+        conversation.pending!
+
+        get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}",
+            headers: administrator.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(JSON.parse(response.body, symbolize_names: true)[:meta][:ai_agent]).to eq(id: ai_agent.id, name: ai_agent.name, active: true)
       end
 
       it 'shows the conversation if you are an agent with access to inbox' do
@@ -651,6 +665,53 @@ RSpec.describe 'Conversations API', type: :request do
         expect(response).to have_http_status(:success)
         expect(conversation.reload.status).to eq('snoozed')
         expect(conversation.reload.snoozed_until.to_i).to eq(snoozed_until)
+      end
+
+      context 'when the inbox has an AI agent' do
+        let(:ai_agent) { create(:ai_agent, account: account) }
+        let(:ai_conversation) { create(:conversation, account: account, inbox: inbox) }
+
+        before { create(:ai_agent_inbox, ai_agent: ai_agent, inbox: inbox) }
+
+        it 'lets an agent take the conversation over from the AI agent' do
+          create(:inbox_member, user: agent, inbox: inbox)
+          expect(ai_conversation.ai_assignee).to eq(ai_agent)
+
+          post "/api/v1/accounts/#{account.id}/conversations/#{ai_conversation.display_id}/toggle_status",
+               headers: agent.create_new_auth_token,
+               params: { status: 'open' },
+               as: :json
+
+          expect(response).to have_http_status(:success)
+          expect(ai_conversation.reload).to be_open
+          expect(ai_conversation.ai_assignee).to be_nil
+          expect(ai_conversation.assignee).to eq(agent)
+        end
+
+        it 'lets an agent hand the conversation back to the AI agent' do
+          create(:inbox_member, user: agent, inbox: inbox)
+          ai_conversation.update!(status: :open, assignee: agent)
+
+          post "/api/v1/accounts/#{account.id}/conversations/#{ai_conversation.display_id}/toggle_status",
+               headers: agent.create_new_auth_token,
+               params: { status: 'pending' },
+               as: :json
+
+          expect(response).to have_http_status(:success)
+          expect(ai_conversation.reload).to be_pending
+          expect(ai_conversation.ai_assignee).to eq(ai_agent)
+          expect(ai_conversation.assignee).to be_nil
+        end
+
+        it 'keeps agents without access to the conversation out' do
+          post "/api/v1/accounts/#{account.id}/conversations/#{ai_conversation.display_id}/toggle_status",
+               headers: agent.create_new_auth_token,
+               params: { status: 'open' },
+               as: :json
+
+          expect(response).to have_http_status(:unauthorized)
+          expect(ai_conversation.reload).to be_pending
+        end
       end
     end
 

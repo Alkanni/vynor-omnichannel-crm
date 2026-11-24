@@ -50,11 +50,15 @@ const voiceCallData = computed(() => {
   };
 });
 
+const aiAgent = computed(() => props.chat.meta?.ai_agent);
+const isAiAgentActive = computed(() => Boolean(aiAgent.value?.active));
+
 const showMetaSection = computed(() => {
   return (
     props.showInboxName ||
     (props.showAssignee && props.assignee.name) ||
-    props.chat.priority
+    props.chat.priority ||
+    isAiAgentActive.value
   );
 });
 
@@ -173,6 +177,18 @@ watch(
               class="size-3 text-n-slate-11 flex-shrink-0"
             />
             <span class="truncate">{{ assignee.name }}</span>
+          </span>
+          <span
+            v-if="isAiAgentActive"
+            v-tooltip.top="
+              $t('CHAT_LIST.AI_AGENT_BADGE_TOOLTIP', {
+                agentName: aiAgent.name,
+              })
+            "
+            class="inline-flex items-center flex-shrink-0 gap-0.5 px-1 rounded-md bg-n-teal-3 text-n-teal-11 text-xxs font-medium leading-4"
+          >
+            <Icon icon="i-lucide-bot" class="size-3 flex-shrink-0" />
+            {{ $t('CHAT_LIST.AI_AGENT_BADGE') }}
           </span>
           <CardPriorityIcon
             :priority="chat.priority"

@@ -138,6 +138,7 @@ class Conversation < ApplicationRecord
 
   before_save :ensure_snooze_until_reset
   before_save :set_status_changed_at
+  before_save :hand_pending_conversation_to_ai_agent, unless: :new_record?
   before_create :determine_conversation_status
   before_create :ensure_waiting_since
 
@@ -305,6 +306,15 @@ class Conversation < ApplicationRecord
     return if assignee_id.blank?
 
     self.ai_assignee = nil
+  end
+
+  # A pending conversation belongs to the inbox's AI agent (see AiAgents::ConversationSession#ai_active?), so moving one
+  # there, whoever does it, hands it to the agent and releases the human assignee.
+  def hand_pending_conversation_to_ai_agent
+    return unless status_changed? && pending? && inbox.ai_agent
+
+    self.assignee = nil
+    self.ai_assignee = inbox.ai_agent
   end
 
   def determine_conversation_status
