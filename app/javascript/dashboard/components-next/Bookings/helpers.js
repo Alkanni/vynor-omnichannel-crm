@@ -9,6 +9,12 @@ export const formatBookingTime = (time, locale) =>
     minute: '2-digit',
   }).format(new Date(time));
 
+// The route of the conversation a booking was recorded in.
+export const bookingConversationRoute = (accountId, booking) => ({
+  name: 'inbox_conversation',
+  params: { accountId, conversation_id: booking.conversation.display_id },
+});
+
 // Upcoming bookings first, soonest first, then past ones, latest first.
 export const sortUpcomingFirst = (bookings, now = Date.now()) => {
   const at = booking => new Date(booking.scheduled_at).getTime();

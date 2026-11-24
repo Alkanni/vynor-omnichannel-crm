@@ -51,6 +51,14 @@
       "KEEP": "Keep booking",
       "CONFIRM": "Cancel booking"
     },
+    "DETAIL": {
+      "VIEW": "View details",
+      "TITLE": "Booking #{id}",
+      "CONTACT": "Contact",
+      "PHONE_NUMBER": "Phone number",
+      "AI_AGENT": "AI agent",
+      "RECORDED_AT": "Recorded"
+    },
     "FIELD_VALUE": "{field}: {value}",
     "RESCHEDULED_FROM": "Replaces booking #{id}"
   }

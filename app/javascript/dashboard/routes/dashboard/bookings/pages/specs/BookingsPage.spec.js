@@ -41,6 +41,15 @@ const FormStub = {
   },
 };
 
+const openDetail = vi.fn();
+const DetailStub = {
+  name: 'BookingDetailDialog',
+  setup(_, { expose }) {
+    expose({ open: openDetail });
+    return () => null;
+  },
+};
+
 // The table renders its rows through slots, which shallow stubs leave out.
 const tableStubs = {
   BaseTable: {
@@ -54,7 +63,12 @@ const tableStubs = {
 const mountPage = () =>
   shallowMount(BookingsPage, {
     global: {
-      stubs: { RouterLink: true, BookingFormDialog: FormStub, ...tableStubs },
+      stubs: {
+        RouterLink: true,
+        BookingFormDialog: FormStub,
+        BookingDetailDialog: DetailStub,
+        ...tableStubs,
+      },
     },
   });
 
@@ -154,7 +168,7 @@ describe('BookingsPage', () => {
     expect(wrapper.text()).toContain('BOOKINGS.LOAD_ERROR');
   });
 
-  it('edits a booking that can still change, and shows it as saved', async () => {
+  describe('with a booking that can still change and a cancelled one', () => {
     const row = (id, status, nextStatuses) => ({
       id,
       status,
@@ -168,28 +182,57 @@ describe('BookingsPage', () => {
       conversation: { id: 3, display_id: 7, inbox_id: 1 },
     });
     const editable = row(1, 'confirmed', ['cancelled', 'completed', 'no_show']);
-    BookingsAPI.list.mockResolvedValue({
-      data: {
-        payload: [editable, row(2, 'cancelled', [])],
-        meta: { count: 2, current_page: 1 },
-      },
+    const cancelled = row(2, 'cancelled', []);
+
+    const buttons = (wrapper, label) =>
+      wrapper
+        .findAllComponents(Button)
+        .filter(button => button.attributes('aria-label') === label);
+
+    beforeEach(() => {
+      BookingsAPI.list.mockResolvedValue({
+        data: {
+          payload: [editable, cancelled],
+          meta: { count: 2, current_page: 1 },
+        },
+      });
     });
-    const wrapper = mountPage();
-    await flushPromises();
 
-    const edits = wrapper
-      .findAllComponents(Button)
-      .filter(
-        button => button.attributes('aria-label') === 'BOOKINGS.FORM.EDIT'
-      );
-    expect(edits).toHaveLength(1);
-    edits[0].vm.$emit('click');
-    expect(openForm).toHaveBeenCalledWith({ current: editable });
+    it('edits a booking that can still change, and shows it as saved', async () => {
+      const wrapper = mountPage();
+      await flushPromises();
 
-    wrapper
-      .findComponent(FormStub)
-      .vm.$emit('saved', { ...editable, service: 'Poles body' });
-    await flushPromises();
-    expect(wrapper.text()).toContain('Poles body');
+      const edits = buttons(wrapper, 'BOOKINGS.FORM.EDIT');
+      expect(edits).toHaveLength(1);
+      edits[0].vm.$emit('click');
+      expect(openForm).toHaveBeenCalledWith({ current: editable });
+
+      wrapper
+        .findComponent(FormStub)
+        .vm.$emit('saved', { ...editable, service: 'Poles body' });
+      await flushPromises();
+      expect(wrapper.text()).toContain('Poles body');
+    });
+
+    it('shows the details of every booking, the cancelled one too', async () => {
+      const wrapper = mountPage();
+      await flushPromises();
+
+      const details = buttons(wrapper, 'BOOKINGS.DETAIL.VIEW');
+      expect(details).toHaveLength(2);
+      details[1].vm.$emit('click');
+      expect(openDetail).toHaveBeenCalledWith(cancelled);
+    });
+
+    it('shows the details of a booking as it was last saved', async () => {
+      const wrapper = mountPage();
+      await flushPromises();
+      const saved = { ...editable, service: 'Poles body' };
+      wrapper.findComponent(FormStub).vm.$emit('saved', saved);
+      await flushPromises();
+
+      buttons(wrapper, 'BOOKINGS.DETAIL.VIEW')[0].vm.$emit('click');
+      expect(openDetail).toHaveBeenCalledWith(saved);
+    });
   });
 });
