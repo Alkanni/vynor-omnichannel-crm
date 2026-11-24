@@ -269,6 +269,19 @@ RSpec.describe Message do
       expect(conversation.open?).to be false
       expect(conversation.pending?).to be true
     end
+
+    it 'hands the conversation back to the AI agent of the inbox, without the human assignee' do
+      ai_agent = create(:ai_agent, account: conversation.account)
+      create(:ai_agent_inbox, ai_agent: ai_agent, inbox: conversation.inbox)
+      conversation.reload.update!(assignee: create(:user, account: conversation.account))
+      conversation.resolved!
+
+      message.save!
+
+      expect(conversation.reload).to be_pending
+      expect(conversation.ai_assignee).to eq(ai_agent)
+      expect(conversation.assignee).to be_nil
+    end
   end
 
   describe '#mark_pending_conversation_as_open_for_human_response' do
@@ -285,7 +298,8 @@ RSpec.describe Message do
 
       before do
         create(:ai_agent_inbox, ai_agent: ai_agent, inbox: conversation.inbox)
-        conversation.update!(ai_assignee: ai_agent)
+        # The conversation payload built on create cached the inbox without an AI agent.
+        conversation.reload.update!(ai_assignee: ai_agent)
       end
 
       it 'opens the conversation and clears the AI assignee when a human agent replies' do

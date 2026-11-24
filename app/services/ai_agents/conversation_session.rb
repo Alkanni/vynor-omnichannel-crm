@@ -11,6 +11,15 @@ class AiAgents::ConversationSession
 
   pattr_initialize [:conversation!, :ai_agent!]
 
+  # The conversation's AI agent and whether it answers the conversation now, for the dashboard (meta.ai_agent of the
+  # conversation payload); nil when the inbox has no AI agent.
+  def self.event_data(conversation)
+    ai_agent = conversation.inbox.ai_agent
+    return unless ai_agent
+
+    { id: ai_agent.id, name: ai_agent.name, active: new(conversation: conversation, ai_agent: ai_agent).ai_active? }
+  end
+
   # Pending conversations belong to the AI. After a handoff it keeps answering only when Stop AI after Handoff
   # and Silent Agent Handoff are both off, and only until a human agent replies.
   def ai_active?
@@ -20,8 +29,12 @@ class AiAgents::ConversationSession
     awaiting_human?
   end
 
+  # The AI replies counted toward the Message Limit. While the conversation is pending only those since it became
+  # pending count, so a conversation a human hands back to the AI gets a fresh limit.
   def reply_count
-    session_messages.where(sender: ai_agent).distinct.count(Arel.sql("messages.additional_attributes ->> '#{REPLY_MARKER}'"))
+    replies = session_messages.where(sender: ai_agent)
+    replies = replies.where('messages.created_at > ?', conversation.status_changed_at) if conversation.pending? && conversation.status_changed_at
+    replies.distinct.count(Arel.sql("messages.additional_attributes ->> '#{REPLY_MARKER}'"))
   end
 
   def history

@@ -689,6 +689,7 @@ RSpec.describe Conversation do
           sender: conversation.contact.push_event_data,
           assignee: conversation.assigned_entity&.push_event_data,
           assignee_type: conversation.assignee_type,
+          ai_agent: nil,
           team: conversation.team&.push_event_data,
           hmac_verified: conversation.contact_inbox.hmac_verified
         },
@@ -800,6 +801,50 @@ RSpec.describe Conversation do
 
     it 'does not set agent bot ownership' do
       expect(conversation.ai_assignee).to be_nil
+    end
+  end
+
+  describe 'moving a conversation to pending' do
+    let(:account) { create(:account) }
+    let(:inbox) { create(:inbox, account: account) }
+    let(:ai_agent) { create(:ai_agent, account: account) }
+    let(:agent) { create(:user, account: account, role: :agent) }
+
+    before do
+      create(:ai_agent_inbox, ai_agent: ai_agent, inbox: inbox)
+      create(:inbox_member, inbox: inbox, user: agent)
+    end
+
+    it 'hands the conversation to the inbox AI agent and releases the human assignee' do
+      conversation = create(:conversation, account: account, inbox: inbox, assignee: agent)
+      conversation.open!
+
+      conversation.pending!
+
+      expect(conversation.reload.ai_assignee).to eq(ai_agent)
+      expect(conversation.assignee).to be_nil
+    end
+
+    it 'keeps an explicit assignee of a new conversation' do
+      conversation = create(:conversation, account: account, inbox: inbox, assignee: agent)
+
+      expect(conversation).to be_pending
+      expect(conversation.assignee).to eq(agent)
+      expect(conversation.ai_assignee).to be_nil
+    end
+
+    it 'leaves inboxes without an AI agent alone' do
+      bot_inbox = create(:agent_bot_inbox, inbox: create(:inbox, account: account)).inbox
+      [create(:inbox, account: account), bot_inbox].each do |other_inbox|
+        create(:inbox_member, inbox: other_inbox, user: agent)
+        conversation = create(:conversation, account: account, inbox: other_inbox, assignee: agent)
+        conversation.open!
+
+        conversation.pending!
+
+        expect(conversation.reload.assignee).to eq(agent)
+        expect(conversation.ai_assignee).to be_nil
+      end
     end
   end
 

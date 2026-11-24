@@ -14,6 +14,7 @@ RSpec.describe Conversations::EventDataPresenter do
           sender: conversation.contact.push_event_data,
           assignee: conversation.assigned_entity&.push_event_data,
           assignee_type: conversation.assignee_type,
+          ai_agent: nil,
           team: conversation.team&.push_event_data,
           hmac_verified: conversation.contact_inbox.hmac_verified
         },
@@ -42,6 +43,17 @@ RSpec.describe Conversations::EventDataPresenter do
     it 'returns push event payload' do
       # the exceptions are the values that would be added in enterprise edition.
       expect(presenter.push_data.except(:applied_sla, :sla_events)).to include(expected_data)
+    end
+
+    it 'includes the AI agent of the inbox and whether it answers the conversation' do
+      ai_agent = create(:ai_agent, account: conversation.account)
+      create(:ai_agent_inbox, ai_agent: ai_agent, inbox: conversation.inbox)
+      conversation.reload
+
+      expect(presenter.push_data[:meta][:ai_agent]).to eq(id: ai_agent.id, name: ai_agent.name, active: false)
+
+      conversation.pending!
+      expect(presenter.push_data[:meta][:ai_agent]).to eq(id: ai_agent.id, name: ai_agent.name, active: true)
     end
   end
 

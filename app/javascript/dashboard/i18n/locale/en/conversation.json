@@ -175,6 +175,14 @@
         "NEXT_WEEK": "Next week"
       }
     },
+    "AI_AGENT_ACTION": {
+      "ACTIVE": "AI active",
+      "INACTIVE": "AI off",
+      "ACTIVE_TOOLTIP": "{agentName} is replying to this conversation",
+      "INACTIVE_TOOLTIP": "{agentName} is not replying to this conversation",
+      "TAKE_OVER": "Take over from AI",
+      "HAND_OVER": "Hand over to {agentName}"
+    },
     "MENTION": {
       "AGENTS": "Agents",
       "TEAMS": "Teams"
