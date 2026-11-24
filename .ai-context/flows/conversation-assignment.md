@@ -6,6 +6,7 @@ Commit `9f920b54`. Status: **VERIFIED** for triggers and entry services; selecto
 
 - `before_create :determine_conversation_status` (line 138). If the inbox has an active bot (`inbox.active_bot?` → agent bot inbox active or Dialogflow; EE extends for Captain), the conversation starts **`pending`** and `ai_assignee` may be set to the agent bot (lines 312-325).
 - Status enum: `open 0, resolved 1, pending 2, snoozed 3` (line 86). Priority enum `low..urgent` (line 87).
+- Fork (#204): `before_save :hand_pending_conversation_to_ai_agent` (updates only). An existing conversation that moves to `pending` in an inbox with an AI agent gets `ai_assignee = inbox.ai_agent` and loses its human `assignee`, on every path (toggle, bulk, automation, contact reopening a resolved conversation). See [modules/ai-agent.md](../modules/ai-agent.md#conversation-control-204).
 - `display_id` is assigned by a **Postgres trigger** from per-account sequence `conv_dpid_seq_<account_id>` (line 430; `db/schema.rb` triggers). `load_attributes_created_by_db_triggers` re-reads it after create (line 143, 373).
 
 ## Update callbacks → events (VERIFIED lines 141, 268-274, 337-393)

@@ -25,6 +25,23 @@ describe ActionService do
     end
   end
 
+  describe '#change_status' do
+    let(:conversation) { create(:conversation, account: account) }
+    let(:action_service) { described_class.new(conversation) }
+
+    it 'hands a conversation moved to pending to the AI agent of its inbox' do
+      ai_agent = create(:ai_agent, account: account)
+      create(:ai_agent_inbox, ai_agent: ai_agent, inbox: conversation.inbox)
+      conversation.update!(assignee: create(:user, account: account))
+
+      action_service.change_status(['pending'])
+
+      expect(conversation.reload).to be_pending
+      expect(conversation.ai_assignee).to eq(ai_agent)
+      expect(conversation.assignee).to be_nil
+    end
+  end
+
   describe '#change_priority' do
     let(:conversation) { create(:conversation) }
     let(:action_service) { described_class.new(conversation) }

@@ -240,6 +240,30 @@ RSpec.describe AiAgents::ConversationSession do
                                event_end_time: Time.current)
       expect(session.reply_count).to eq(0)
     end
+
+    it 'counts only the replies since a human handed the conversation back to the AI' do
+      session.reply!('Balasan pertama', to: create(:message, **message_attributes, content: 'Halo'))
+      session.handoff!(:message_limit)
+
+      travel_to(1.minute.from_now) { conversation.pending! }
+      expect(session.reply_count).to eq(0)
+
+      travel_to(2.minutes.from_now) { session.reply!('Balasan baru', to: create(:message, **message_attributes, content: 'Saya kembali')) }
+      expect(session.reply_count).to eq(1)
+    end
+  end
+
+  describe '.event_data' do
+    it 'names the agent and whether it answers the conversation now' do
+      expect(described_class.event_data(conversation)).to eq(id: ai_agent.id, name: ai_agent.name, active: true)
+
+      session.handoff!(:transfer_conditions)
+      expect(described_class.event_data(conversation)).to eq(id: ai_agent.id, name: ai_agent.name, active: false)
+    end
+
+    it 'is nil for a conversation in an inbox without an AI agent' do
+      expect(described_class.event_data(create(:conversation, account: account))).to be_nil
+    end
   end
 
   describe '#handoff!' do

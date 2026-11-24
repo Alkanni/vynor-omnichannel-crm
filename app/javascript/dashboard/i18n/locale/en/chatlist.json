@@ -149,6 +149,8 @@
     "SHOW_QUOTED_TEXT": "Show Quoted Text",
     "MESSAGE_READ": "Read",
     "SENDING": "Sending",
-    "UNREAD_COUNT_OVERFLOW": "9+"
+    "UNREAD_COUNT_OVERFLOW": "9+",
+    "AI_AGENT_BADGE": "AI",
+    "AI_AGENT_BADGE_TOOLTIP": "{agentName} is replying to this conversation"
   }
 }
