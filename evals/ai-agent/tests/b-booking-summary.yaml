@@ -1,0 +1,96 @@
+# B-BS. The step before the customer confirms (issue #206), against the `booking_template` agent of
+# fixtures/bengkel-booking.json, whose booking summary template renders the summary: `summary` is what the summary must
+# show, in the shape of `booking` in tests/b-booking.yaml, and none when it is absent; no case may request a booking yet.
+# Each customer gives what the agent asks for before a summary, the year of the car included, except B-BS-05's name.
+
+- description: 'B-BS-01: semua data dalam satu pesan'
+  metadata:
+    id: B-BS-01
+    category: summary
+    booking: null
+    summary:
+      {
+        days: 1,
+        time: '10:00',
+        service: 'servis berkala',
+        name: 'andi',
+        details: { Mobil: 'avanza' },
+      }
+  vars:
+    conversation: Mau booking servis berkala besok jam 10 pagi, atas nama Andi. Mobilnya Avanza 2019.
+
+- description: 'B-BS-02: data dikumpulkan bertahap'
+  metadata:
+    id: B-BS-02
+    category: summary
+    booking: null
+    summary:
+      {
+        days: 2,
+        time: '13:00',
+        service: 'ganti oli',
+        name: 'rina',
+        details: { Mobil: 'brio' },
+      }
+  vars:
+    conversation: |-
+      Saya Rina, mau ganti oli lusa jam 1 siang.
+      AI: Siap, Kak Rina. Mobilnya apa, Kak?
+      Honda Brio 2020.
+
+- description: 'B-BS-03: tune up hari Sabtu jam 9 pagi'
+  metadata:
+    id: B-BS-03
+    category: summary
+    booking: null
+    summary:
+      {
+        weekday: 'Saturday',
+        time: '09:00',
+        service: 'tune up',
+        name: 'dodi',
+        details: { Mobil: 'xenia' },
+      }
+  vars:
+    conversation: Booking tune up hari Sabtu jam 9 pagi ya. Nama saya Dodi, mobil Xenia 2018.
+
+- description: 'B-BS-04: permintaan tambahan masuk catatan'
+  metadata:
+    id: B-BS-04
+    category: summary
+    booking: null
+    summary:
+      {
+        days: 1,
+        time: '15:00',
+        service: 'spooring',
+        name: 'sari',
+        notes: 'rem',
+        details: { Mobil: 'jazz' },
+      }
+  vars:
+    conversation: Mau spooring dan balancing besok jam 3 sore, atas nama Sari, mobil Jazz 2017. Tolong sekalian cek bunyi di rem depan ya.
+
+- description: 'B-BS-05: nama belum ada, ditanyakan dulu'
+  metadata: { id: B-BS-05, category: summary, booking: null }
+  vars:
+    conversation: Mau ganti oli besok jam 10, mobil Avanza.
+
+- description: 'B-BS-06: ringkasan setelah nama diberikan'
+  metadata:
+    id: B-BS-06
+    category: summary
+    booking: null
+    summary:
+      {
+        days: 1,
+        time: '10:00',
+        service: 'ganti oli',
+        name: 'andi',
+        details: { Mobil: 'avanza' },
+      }
+  vars:
+    conversation: |-
+      Mau ganti oli besok jam 10, mobil Avanza 2019.
+      AI: Baik, Kak. Boleh tahu atas nama siapa?
+      Andi

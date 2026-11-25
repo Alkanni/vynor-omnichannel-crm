@@ -6,6 +6,10 @@ json.sheet_row @reply.sheet_row
 # AiAgents::ActionSchema#parse); the playground records none.
 json.booking @reply.booking
 json.booking_rejection @reply.booking_rejection
+# The summary bubble the reply ends with (the last of messages), or why the booking it asked to show cannot be one (see
+# AiAgents::ReplyGenerator#booking_summary).
+json.booking_summary @reply.booking_summary
+json.booking_summary_rejection @reply.booking_summary_rejection
 json.model @ai_agent.model
 json.scope @reply.trace.scope&.to_h&.slice(:decision, :web_query, :web_search_status, :latency_ms, :input_tokens, :output_tokens)
 # retry_skipped: the reply model was not asked again for a reply without a valid decision, for lack of time.

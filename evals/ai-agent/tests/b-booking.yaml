@@ -4,6 +4,8 @@
 # must request none. The earlier agent replies only use relative days ("besok", "lusa", "Sabtu"), so the cases hold on
 # any run date whose target day the workshop is open (Monday to Saturday), and write times the way the customer did, as
 # the agent does live, so a confirmation that restates the time in 24-hour form meets the reply check as it does live.
+# `summary`, in the same shape, is the summary the `booking_template` agent must show instead of writing it
+# (promptfooconfig.booking-summary.yaml, issue #206); a case without it must show none.
 
 # Positive: the customer confirms the summary of a booking.
 - description: 'B-BK-01: servis berkala besok jam 10, dikonfirmasi'
@@ -162,7 +164,18 @@
       Eh nanti dulu deh, saya cek jadwal dulu.
 
 - description: 'B-BK-12: pelanggan mengoreksi jam pada ringkasan'
-  metadata: { id: B-BK-12, category: negative, booking: null }
+  metadata:
+    id: B-BK-12
+    category: negative
+    booking: null
+    summary:
+      {
+        days: 1,
+        time: '14:00',
+        service: 'tune up',
+        name: 'rudi',
+        details: { Mobil: 'brio' },
+      }
   vars:
     conversation: |-
       Mau tune up besok jam 10 atas nama Rudi, mobil Brio.
@@ -199,7 +212,18 @@
       Oke makasih ya.
 
 - description: 'B-BK-17: minta ganti jam, belum dikonfirmasi'
-  metadata: { id: B-BK-17, category: change, booking: null }
+  metadata:
+    id: B-BK-17
+    category: change
+    booking: null
+    summary:
+      {
+        days: 1,
+        time: '14:00',
+        service: 'servis berkala',
+        name: 'andi',
+        details: { Mobil: 'avanza' },
+      }
   vars:
     conversation: |-
       Mau servis berkala besok jam 10, atas nama Andi, Avanza.

@@ -51,6 +51,12 @@ class Booking < ApplicationRecord
   validates :scheduled_at, presence: true
   validates :notes, length: { maximum: 5_000 }
 
+  # The name a booking the AI asks for has: the one the model gave, else the contact's, since the model often leaves it
+  # blank when the customer never said it; nil when neither has one.
+  def self.ai_customer_name(name, contact)
+    name.presence || contact&.name.to_s.strip.presence
+  end
+
   def next_statuses
     NEXT_STATUSES.fetch(status)
   end
@@ -87,6 +93,18 @@ class Booking < ApplicationRecord
     end
   end
 
+  # A booking template of its agent (see AiAgent::BOOKING_TEMPLATES) with the variables of any message (see Liquidable) and
+  # the booking's (see BookingDrop). The summary a playground reply shows has no conversation, and so none of its variables.
+  # render! raises instead of sending the customer a "Liquid error" text.
+  def render_message(template)
+    drops = { 'booking' => BookingDrop.new(self), 'agent' => UserDrop.new(ai_agent), 'account' => AccountDrop.new(account) }
+    if conversation
+      drops.merge!('contact' => ContactDrop.new(conversation.contact), 'conversation' => ConversationDrop.new(conversation),
+                   'inbox' => InboxDrop.new(conversation.inbox))
+    end
+    Liquid::Template.parse(template).render!(drops)
+  end
+
   private
 
   # The agent sends it, so a conversation the AI still handles stays with the AI (see Message#human_response?), and, as for
@@ -102,16 +120,7 @@ class Booking < ApplicationRecord
 
     conversation.messages.create!(
       account_id: account_id, inbox_id: conversation.inbox_id, message_type: :outgoing, sender: ai_agent,
-      content: render_status_message(template), preserve_waiting_since: conversation.open?
-    )
-  end
-
-  # The template has the variables of any message (see Liquidable) and the booking's (see BookingDrop). render! raises
-  # instead of sending the customer a "Liquid error" text.
-  def render_status_message(template)
-    Liquid::Template.parse(template).render!(
-      'booking' => BookingDrop.new(self), 'contact' => ContactDrop.new(conversation.contact), 'agent' => UserDrop.new(ai_agent),
-      'conversation' => ConversationDrop.new(conversation), 'inbox' => InboxDrop.new(conversation.inbox), 'account' => AccountDrop.new(account)
+      content: render_message(template), preserve_waiting_since: conversation.open?
     )
   end
 

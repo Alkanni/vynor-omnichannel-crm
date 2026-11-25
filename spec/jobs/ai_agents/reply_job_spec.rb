@@ -85,7 +85,7 @@ RSpec.describe AiAgents::ReplyJob do
     expect(AiAgents::ReplyGenerator).to have_received(:new).once
     expect(AiAgents::ReplyGenerator).to have_received(:new)
       .with(ai_agent: ai_agent, messages: array_including(hash_including(content: 'Halo'), hash_including(content: 'Harga detailing?')),
-            written_rows: [], bookings: [])
+            conversation: conversation, written_rows: [], bookings: [])
     expect(ai_replies.count).to eq(2)
     expect(traces.sole.message).to eq(messages.last)
   end
@@ -216,7 +216,8 @@ RSpec.describe AiAgents::ReplyJob do
 
     expect { described_class.perform_now(message) }
       .to have_enqueued_job(AiAgents::AppendSheetRowJob).with(conversation, ['Budi', '', '24 Oktober'])
-    expect(AiAgents::ReplyGenerator).to have_received(:new).with(ai_agent: ai_agent, messages: anything, written_rows: [], bookings: [])
+    expect(AiAgents::ReplyGenerator).to have_received(:new).with(ai_agent: ai_agent, messages: anything, conversation: conversation,
+                                                                 written_rows: [], bookings: [])
   end
 
   it 'records the booking the reply asked for' do
@@ -554,7 +555,7 @@ RSpec.describe AiAgents::ReplyJob do
         reply_trace_id: traces.sole.id, latency_ms: be >= 0,
         input: { 'messages' => [{ 'role' => 'user', 'content' => 'Kenapa mesin mobil overheat?', 'attachments' => [] }] },
         output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil,
-                  'booking_cancellation' => nil }
+                  'booking_cancellation' => nil, 'booking_summary_rejection' => nil }
       )
       steps = AiAgent::RequestLog.sole.steps
       expect(steps.pluck('step')).to eq(%w[scope_check embedding retrieval web_search reply reply_check])

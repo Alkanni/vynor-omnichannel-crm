@@ -109,6 +109,16 @@ RSpec.describe Booking do
       expect(customer_messages.pluck(:content)).to eq(["Booking #{booking.id} atas nama Budi Santoso di Bengkel Maju dibatalkan."])
     end
 
+    it 'can use the notes and the agent\'s own fields, one of them or the filled ones in the agent\'s order' do
+      ai_agent.update!(booking_fields: ['Plat nomor', 'Mobil', 'Kilometer'],
+                       booking_confirmed_message: "Plat {{booking.details[\"Plat nomor\"]}}\n{{booking.extra_fields}}\nCatatan: {{booking.notes}}")
+      booking.update!(notes: 'Bawa STNK', details: { 'Mobil' => 'Avanza', 'Kilometer' => '', 'Plat nomor' => 'B 1', 'Warna' => 'Hitam' })
+
+      booking.reload.change_status!('confirmed', user)
+
+      expect(customer_messages.pluck(:content)).to eq(["Plat B 1\nPlat nomor: B 1\nMobil: Avanza\nWarna: Hitam\nCatatan: Bawa STNK"])
+    end
+
     it 'keeps the status when the message cannot be rendered, instead of sending the error to the customer' do
       ai_agent.update_column(:timezone, 'Mars/Olympus_Mons') # rubocop:disable Rails/SkipsModelValidations
 

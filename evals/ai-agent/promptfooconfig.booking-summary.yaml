@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Booking summary eval (issue #206): the `booking_template` agent of fixtures/bengkel-booking.json, the `booking` agent
+# with a booking summary template, on the booking cases (tests/b-booking.yaml, where B-BK-12 and B-BK-17 must show a
+# summary) and the step before the customer confirms (tests/b-booking-summary.yaml). The booking assertions are those of
+# promptfooconfig.booking.yaml; the summary ones check that the reply ends with the summary exactly when the case
+# expects one, with the expected values, and that the model does not write it as well. Every assertion is deterministic
+# (lib/booking-assertions.mjs); booking-report.mjs prints the gate. Run from this directory; see README.md.
+description: AI Agent booking summary
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://provider.mjs
+    label: booking-template
+    config:
+      agent: booking_template
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 2
+
+defaultTest:
+  assert:
+    - type: javascript
+      metric: booking_requested
+      value: file://lib/booking-assertions.mjs:requestedAsExpected
+    - type: javascript
+      metric: booking_datetime
+      value: file://lib/booking-assertions.mjs:onExpectedTime
+    - type: javascript
+      metric: booking_fields
+      value: file://lib/booking-assertions.mjs:withExpectedFields
+    - type: javascript
+      metric: not_blocked
+      value: context.metadata.blockedReason !== 'unsupported_number'
+    - type: javascript
+      metric: summary_shown
+      value: file://lib/booking-assertions.mjs:summaryAsExpected
+    - type: javascript
+      metric: summary_values
+      value: file://lib/booking-assertions.mjs:summaryWithExpectedValues
+    - type: javascript
+      metric: summary_not_repeated
+      value: file://lib/booking-assertions.mjs:summaryNotRepeated
+
+tests:
+  - file://tests/b-booking.yaml
+  - file://tests/b-booking-summary.yaml

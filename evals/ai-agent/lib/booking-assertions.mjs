@@ -1,7 +1,10 @@
 // The booking assertions of promptfooconfig.booking.yaml, over the `booking` metadata of provider.mjs (what a live reply
 // would request, see AiAgents::ActionSchema#parse) and the `booking` metadata of each case in tests/b-booking.yaml: null
-// for a case that must not request a booking, else what it must request. Dates are relative to when the case runs, in
-// the agent's time zone, so a case reads "besok" the way the agent does.
+// for a case that must not request a booking, else what it must request. The summary assertions of
+// promptfooconfig.booking-summary.yaml (issue #206) do the same over the `bookingSummary` metadata (the summary bubble a
+// live reply of an agent with a summary template ends with) and the `summary` metadata of a case, in the shape of
+// `booking`; a case without it must show none. Dates are relative to when the case runs, in the agent's time zone, so a
+// case reads "besok" the way the agent does.
 const ZONE = 'Asia/Jakarta';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_DAYS = 7;
@@ -93,5 +96,59 @@ export function withExpectedFields(_output, { metadata, test }) {
     pass: wrong.length === 0,
     score: wrong.length === 0 ? 1 : 0,
     reason: wrong.length ? `unexpected ${wrong.join(', ')}` : 'fields match',
+  };
+}
+
+// A summary is shown exactly when the case expects one.
+export function summaryAsExpected(_output, { metadata, test }) {
+  const expected = test.metadata.summary != null;
+  const shown = metadata.bookingSummary != null;
+  const rejection = metadata.bookingSummaryRejection;
+  return {
+    pass: expected === shown,
+    score: expected === shown ? 1 : 0,
+    reason: shown
+      ? `showed ${JSON.stringify(metadata.bookingSummary)}`
+      : `no summary${rejection ? ` (${rejection})` : ''}`,
+  };
+}
+
+// The summary shows the expected date as the template renders it (DD/MM/YYYY), the time, and a part of the service, the
+// customer name, the notes, and the agent fields, case aside; passes when either side has no summary.
+export function summaryWithExpectedValues(_output, { metadata, test }) {
+  const expected = test.metadata.summary;
+  const summary = metadata.bookingSummary;
+  if (!expected || !summary) return true;
+
+  const [year, month, day] = expectedDate(expected).split('-');
+  const missing = [
+    `${day}/${month}/${year}`,
+    expected.time,
+    expected.service,
+    expected.name,
+    expected.notes,
+    ...Object.values(expected.details || {}),
+  ].filter(part => part && !includes(summary, part));
+  return {
+    pass: missing.length === 0,
+    score: missing.length === 0 ? 1 : 0,
+    reason: missing.length ? `missing ${missing.join(', ')}` : 'values match',
+  };
+}
+
+// The model leaves the summary to the template: none of its own bubbles before the summary names the service.
+export function summaryNotRepeated(_output, { metadata, test }) {
+  const expected = test.metadata.summary;
+  if (!expected || !metadata.bookingSummary) return true;
+
+  const repeated = (metadata.messages || [])
+    .slice(0, -1)
+    .filter(bubble => includes(bubble, expected.service));
+  return {
+    pass: repeated.length === 0,
+    score: repeated.length === 0 ? 1 : 0,
+    reason: repeated.length
+      ? `the model also wrote ${JSON.stringify(repeated)}`
+      : 'summary only from the template',
   };
 }

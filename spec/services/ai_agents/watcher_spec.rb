@@ -63,6 +63,16 @@ RSpec.describe AiAgents::Watcher do
                     "Bookings already in this conversation:\nnone")
     end
 
+    it 'leaves out the booking summary, which only a reply shows' do
+      ai_agent.update!(booking_summary_template: 'Ringkasan: {{booking.service}}')
+
+      described_class.new(ai_agent: ai_agent, messages: messages, bookings: []).perform
+
+      request = chat_requests.sole
+      expect(request['tools'].sole['function']['parameters']['properties']).not_to have_key('show_booking_summary')
+      expect(request['messages'].first['content']).not_to include(AiAgents::BookingSummary::INSTRUCTIONS)
+    end
+
     it 'returns why a booking at a time that has passed cannot be one' do
       result = travel_to(Time.utc(2026, 11, 21, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages, bookings: []).perform }
 

@@ -9,24 +9,14 @@
 # the next call; text goes back to the model with a note to call the function for it (see
 # AiAgents::ReplyValidator.retry_messages). The links of the web results a reply cites are added to it after the check,
 # so the model never writes them. The [rank] markers a model still writes in a reply of any agent are taken out of its
-# bubbles before the check and before they are sent (see AiAgents::ReplyValidator.without_rank_markers).
-# Messages are { role: :user | :assistant, content:, attachments: }.
+# bubbles before the check and before they are sent (see AiAgents::ReplyValidator.without_rank_markers). The booking summary
+# a reply of an agent with a summary template shows the customer is added after the check, as the last bubble (see
+# AiAgents::BookingSummary). Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
   MAX_REPLY_MESSAGES = 5
   MESSAGES_PROPERTY = { messages: { type: 'array', items: { type: 'string' } } }.freeze
   ESCAPED_MARKUP = { '<' => '&lt;', '>' => '&gt;' }.freeze
-  Reply = Data.define(:messages, :handoff, :labels, :sheet_row, :booking, :booking_rejection, :booking_cancellation, :trace) do
-    # rubocop:disable Metrics/ParameterLists
-    def initialize(messages:, handoff:, labels:, trace:, sheet_row: nil, booking: nil, booking_rejection: nil, booking_cancellation: nil) = super
-    # rubocop:enable Metrics/ParameterLists
-
-    # What AiAgents::ConversationSession#apply! takes besides the reason.
-    def actions = to_h.slice(:handoff, :labels, :sheet_row, :booking, :booking_rejection, :booking_cancellation)
-
-    # Sent for a decision of the scope check, so it involved neither the knowledge nor the reply model.
-    def scope_reply? = trace.scope&.reply_attribute.present?
-  end
   # scope is an AiAgents::ScopeGuard::Result, nil when the check did not run; retrieval is an
   # AiAgents::KnowledgeRetriever::Result, nil for a scope reply; web_search is the AiAgents::WebSearch::Result of a turn
   # that was searched, with the ranks its results had in the prompt, nil otherwise; validation is an
@@ -97,12 +87,12 @@ class AiAgents::ReplyGenerator
     so use more than one item only when separate bubbles help, and never more than #{MAX_REPLY_MESSAGES}.
   TEXT
 
-  # written_rows: the Google Sheets rows already written for the conversation, and bookings: the bookings the customer still
-  # has in it (see AiAgents::ActionSchema). deadline_ms:
+  # conversation: the conversation the reply is for, nil in the playground. written_rows: the Google Sheets rows already
+  # written for it, and bookings: the bookings the customer still has in it (see AiAgents::ActionSchema). deadline_ms:
   # how long a reply made inside a request may take (see Api::V1::Accounts::AiAgentsController#playground); the reply model
   # is not asked again when the first call took long enough that a second one of the same length would end past it. nil,
   # as for live replies, always asks again.
-  pattr_initialize [:ai_agent!, :messages!, :written_rows, :bookings, :deadline_ms]
+  pattr_initialize [:ai_agent!, :messages!, :conversation, :written_rows, :bookings, :deadline_ms]
 
   def perform
     @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
@@ -128,8 +118,11 @@ class AiAgents::ReplyGenerator
     end
     content = completions.last.arguments
     # The actions still apply to a reply that failed the check, because they state nothing to the customer.
-    Reply.new(messages: sent_messages(content, validation), **actions.parse(content), trace: trace(completions, validation))
+    reply = Reply.new(messages: sent_messages(content, validation), **actions.parse(content), trace: trace(completions, validation))
+    booking_summary.add_to(reply, content)
   end
+
+  def booking_summary = AiAgents::BookingSummary.new(ai_agent: ai_agent, conversation: conversation, actions: actions)
 
   # Another call as long as the last one has to end before the deadline.
   def in_time_for_another_call?(completion) = deadline_ms.nil? || elapsed_ms + completion.latency_ms < deadline_ms
@@ -263,7 +256,7 @@ class AiAgents::ReplyGenerator
   end
 
   def actions
-    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows, bookings: bookings)
+    @actions ||= AiAgents::ActionSchema.new(ai_agent: ai_agent, written_rows: written_rows, bookings: bookings, reply: true)
   end
 
   def client

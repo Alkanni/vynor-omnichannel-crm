@@ -5,7 +5,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     message_await message_limit watcher_enabled timezone session_only_memory ignore_team_handoff
     scope_mode business_description allowed_topics disallowed_topics off_topic_message clarification_message knowledge_gap_message
     web_search_enabled web_search_domains booking_enabled booking_conditions booking_label_id booking_confirmed_message
-    booking_cancelled_message
+    booking_cancelled_message booking_summary_template
   ].freeze
   LIST_SETTINGS = %w[allowed_label_ids inbox_ids booking_fields].freeze
   MAX_PLAYGROUND_MESSAGES = 100
@@ -61,7 +61,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     messages = messages.last(@ai_agent.history_limit)
     @reply = AiAgents::RequestRecorder.record(ai_agent: @ai_agent, source: :playground, input: { messages: messages }) do |log|
       reply = AiAgents::ReplyGenerator.new(ai_agent: @ai_agent, messages: messages, deadline_ms: PLAYGROUND_REPLY_DEADLINE_MS).perform
-      log.output = { messages: reply.messages, **reply.actions }
+      log.output = { messages: reply.messages, **reply.actions, booking_summary_rejection: reply.booking_summary_rejection }
       reply
     end
   rescue AiAgents::LlmError => e

@@ -152,7 +152,7 @@ class AiAgents::ConversationSession
   # the row so the record in hand is left as it is. A booking that replaces one the customer still has marks that one
   # rescheduled, without a message to the customer; one the staff changed meanwhile is not replaced.
   def request_booking!(attributes)
-    customer_name = booking_customer_name(attributes)
+    customer_name = Booking.ai_customer_name(attributes[:customer_name], conversation.contact)
     return reject_booking!(:missing_customer_name) unless customer_name
 
     booking = Conversation.transaction do
@@ -173,11 +173,6 @@ class AiAgents::ConversationSession
   # Marks the booking a new one replaces as rescheduled, when the customer still has it, and returns it.
   def reschedule!(id)
     bookings.find_by(id: id)&.tap(&:rescheduled!) if id
-  end
-
-  # The name the model gave, else the contact's (the model often leaves it blank when the customer never said it).
-  def booking_customer_name(attributes)
-    attributes[:customer_name].presence || conversation.contact.name.to_s.strip.presence
   end
 
   # The agent's booking label and an activity message tell the staff, who confirm the booking.
