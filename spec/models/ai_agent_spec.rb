@@ -257,8 +257,18 @@ RSpec.describe AiAgent do
                                          content: 'w' * 8)
 
       expect(ai_agent.knowledge_stats).to eq(
-        files: 0, links: 1, text_characters: 10, qa_count: 1, qa_characters: 7, products: 1, total_characters: 36
+        files: 0, links: 1, text_characters: 10, qa_count: 1, qa_characters: 7, products: 1, promotions: 0, total_characters: 36
       )
+    end
+
+    it 'counts the promotions active today in the timezone of the agent' do
+      ai_agent.update!(timezone: 'Asia/Jakarta')
+      travel_to(Time.utc(2026, 11, 25, 17, 0))
+      create(:ai_agent_promotion, ai_agent: ai_agent)
+      create(:ai_agent_promotion, ai_agent: ai_agent, starts_on: Date.new(2026, 11, 26))
+      create(:ai_agent_promotion, ai_agent: ai_agent, ends_on: Date.new(2026, 11, 25))
+
+      expect(ai_agent.knowledge_stats[:promotions]).to eq(2)
     end
   end
 
@@ -313,6 +323,22 @@ RSpec.describe AiAgent do
       copied_image = copy.products.first.image
       expect(copied_image).to be_attached
       expect(copied_image.blob_id).not_to eq(product.image.blob_id)
+    end
+
+    it 'copies promotions with their period, linked to the copies of their products' do
+      ai_agent.save!
+      products = create_list(:ai_agent_product, 2, ai_agent: ai_agent)
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Diskon', starts_on: Date.new(2026, 11, 1), ends_on: Date.new(2026, 11, 30),
+                                  products: products)
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Gratis cuci')
+
+      copy = ai_agent.duplicate!
+
+      expect(copy.promotions.order(:id).pluck(:title, :description, :starts_on, :ends_on))
+        .to eq(ai_agent.promotions.order(:id).pluck(:title, :description, :starts_on, :ends_on))
+      expect(copy.promotions.find_by(title: 'Diskon').products).to match_array(copy.products)
+      expect(copy.promotions.find_by(title: 'Gratis cuci').products).to be_empty
+      expect(ai_agent.promotions.find_by(title: 'Diskon').products).to match_array(products)
     end
 
     it 'starts the copy untrained, without the indexing error of the original' do

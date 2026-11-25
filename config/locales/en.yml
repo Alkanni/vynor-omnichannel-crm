@@ -521,6 +521,10 @@ en:
         unreadable_file: 'The file could not be read. It may be damaged or password protected'
         no_text: 'No text was found. If this is a scanned PDF, upload a version where you can highlight the text'
         processing_failed: 'Processing failed. Try syncing again'
+    promotions:
+      errors:
+        ends_before_start: 'cannot be before the start date'
+        unknown_products: 'Select products of this AI agent'
     web_search:
       errors:
         not_configured: 'Web search is not configured. Ask the installation administrator to add the web search API key in Super Admin'

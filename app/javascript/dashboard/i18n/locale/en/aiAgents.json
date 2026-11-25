@@ -298,7 +298,8 @@
         "WEBSITE": "Website",
         "FILE": "File",
         "QA": "Q&A",
-        "PRODUCT": "Product"
+        "PRODUCT": "Product",
+        "PROMOTION": "Promotion"
       },
       "LOAD_ERROR": "Could not load the knowledge. Please refresh the page.",
       "STATS": {
@@ -309,6 +310,7 @@
         "QA": "Q&A",
         "QA_VALUE": "{count} pair · {characters} characters | {count} pairs · {characters} characters",
         "PRODUCTS": "Products",
+        "ACTIVE_PROMOTIONS": "Active promotions",
         "TOTAL_CHARACTERS": "Total Detected Characters"
       },
       "CONFIRM_DELETE": {
@@ -401,6 +403,61 @@
           "EDIT_CONFIRM": "Save",
           "SAVE_SUCCESS": "Product saved",
           "SAVE_ERROR": "Could not save the product. Please try again."
+        }
+      },
+      "PROMOTION": {
+        "TITLE": "AI Promotion Knowledge",
+        "DESCRIPTION": "Promotions your AI agent knows about while they are valid. It mentions a promotion only when a customer asks about promotions, discounts, or the price of something the promotion applies to, and at most one per reply. A promotion moves to Archived by itself after its end date.",
+        "SELECT": "Select",
+        "SEARCH_PLACEHOLDER": "Search",
+        "ADD": "Add promotion",
+        "DELETE_SELECTED": "Delete selected ({count})",
+        "FILTERS": {
+          "ALL": "All"
+        },
+        "STATUS": {
+          "ACTIVE": "Active",
+          "SCHEDULED": "Scheduled",
+          "ARCHIVED": "Archived"
+        },
+        "EMPTY": "No promotions yet. Add a promotion your AI agent can tell customers about.",
+        "NO_RESULTS": "No promotions match your search or filter.",
+        "PERIOD": {
+          "RANGE": "{from} to {to}",
+          "FROM": "From {from}, no end date",
+          "UNTIL": "Until {to}",
+          "ALWAYS": "No end date"
+        },
+        "APPLIES_TO": "Applies to: {products}",
+        "EDIT": "Edit {title}",
+        "DELETE": "Delete {title}",
+        "DELETE_TITLE": "Delete {title}?",
+        "DELETE_DESCRIPTION": "The AI agent will no longer know about this promotion. This cannot be undone. A promotion that has ended stays in Archived without deleting it.",
+        "BULK_DELETE_TITLE": "Delete {count} promotions?",
+        "BULK_DELETE_DESCRIPTION": "The AI agent will no longer know about these promotions. This cannot be undone.",
+        "DELETE_SUCCESS": "Promotions deleted",
+        "DELETE_ERROR": "Could not delete the promotions. Please try again.",
+        "FORM": {
+          "CREATE_TITLE": "Add promotion",
+          "EDIT_TITLE": "Edit promotion",
+          "TITLE": "Title",
+          "TITLE_PLACEHOLDER": "e.g. November tune up discount",
+          "DESCRIPTION": "Details",
+          "DESCRIPTION_PLACEHOLDER": "The benefit, the final price, and the terms",
+          "DESCRIPTION_HINT": "Write the final price, e.g. Tune Up Throttle Body Rp80.000 instead of Rp100.000. The AI agent states only the numbers written here and does not work out discounts.",
+          "STARTS_ON": "Start date",
+          "ENDS_ON": "End date",
+          "NO_END_DATE": "No end date",
+          "PERIOD_HINT": "Leave the start date blank for a promotion that has already started. Dates follow the AI agent's timezone ({timezone}), and a promotion stays valid until the end of its end date.",
+          "PRODUCTS": "Products",
+          "PRODUCTS_PLACEHOLDER": "Select products (optional)",
+          "PRODUCTS_SEARCH_PLACEHOLDER": "Search products",
+          "PRODUCTS_EMPTY": "No products found",
+          "PRODUCTS_HINT": "Leave it empty for a promotion that is not about a product, such as a service.",
+          "CREATE_CONFIRM": "Add promotion",
+          "EDIT_CONFIRM": "Save",
+          "SAVE_SUCCESS": "Promotion saved",
+          "SAVE_ERROR": "Could not save the promotion. Please try again."
         }
       },
       "STATUS": {

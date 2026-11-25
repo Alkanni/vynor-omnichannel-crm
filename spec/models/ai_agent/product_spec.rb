@@ -42,4 +42,22 @@ RSpec.describe AiAgent::Product do
     expect(product).not_to be_valid
     expect(product.errors.attribute_names).to eq([:image])
   end
+
+  describe 'linked promotions' do
+    let(:product) { create(:ai_agent_product, ai_agent: ai_agent) }
+    let!(:promotion) { create(:ai_agent_promotion, ai_agent: ai_agent, products: [product]) }
+    let!(:other_promotion) { create(:ai_agent_promotion, ai_agent: ai_agent) }
+
+    it 'changes the promotions it is linked to when it is renamed, so their chunks name it again' do
+      expect { product.update!(price: 1) }.not_to(change { promotion.reload.updated_at })
+      expect { product.update!(name: 'Stabill') }.to(change { promotion.reload.updated_at })
+      expect { product.update!(name: 'Stabill 2') }.not_to(change { other_promotion.reload.updated_at })
+    end
+
+    it 'changes the promotions it is linked to and unlinks them when it is deleted, keeping the promotions' do
+      expect { product.destroy! }.to(change { promotion.reload.updated_at })
+      expect(promotion.products).to be_empty
+      expect(AiAgent::PromotionProduct.count).to eq(0)
+    end
+  end
 end

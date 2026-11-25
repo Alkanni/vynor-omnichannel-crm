@@ -14,6 +14,10 @@ class AiAgentKnowledgeAPI extends ApiClient {
     return `${this.url}/${agentId}/products`;
   }
 
+  promotionsUrl(agentId) {
+    return `${this.url}/${agentId}/promotions`;
+  }
+
   getSources(agentId, sourceType) {
     return axios.get(this.sourcesUrl(agentId), {
       params: { source_type: sourceType },
@@ -90,6 +94,29 @@ class AiAgentKnowledgeAPI extends ApiClient {
 
   bulkDeleteProducts(agentId, ids) {
     return axios.post(`${this.productsUrl(agentId)}/bulk_destroy`, { ids });
+  }
+
+  // status is active, scheduled, or archived; blank returns every promotion.
+  getPromotions(agentId, { query, status } = {}) {
+    return axios.get(this.promotionsUrl(agentId), {
+      params: { q: query, status },
+    });
+  }
+
+  createPromotion(agentId, data) {
+    return axios.post(this.promotionsUrl(agentId), data);
+  }
+
+  updatePromotion(agentId, id, data) {
+    return axios.patch(`${this.promotionsUrl(agentId)}/${id}`, data);
+  }
+
+  deletePromotion(agentId, id) {
+    return axios.delete(`${this.promotionsUrl(agentId)}/${id}`);
+  }
+
+  bulkDeletePromotions(agentId, ids) {
+    return axios.post(`${this.promotionsUrl(agentId)}/bulk_destroy`, { ids });
   }
 }
 

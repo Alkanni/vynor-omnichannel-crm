@@ -28,9 +28,15 @@ class AiAgent::Product < ApplicationRecord
 
   belongs_to :account
   belongs_to :ai_agent
+  has_many :promotion_products, class_name: 'AiAgent::PromotionProduct', dependent: :delete_all
+  has_many :promotions, through: :promotion_products
   has_one_attached :image
 
   before_validation :assign_account
+  # The chunk of a promotion names its products (see AiAgents::KnowledgeIndexer), so renaming or deleting one changes the
+  # promotions it is linked to. Those of a deleted product are touched before its links go.
+  after_update -> { promotions.touch_all }, if: :saved_change_to_name? # rubocop:disable Rails/SkipsModelValidations
+  before_destroy -> { promotions.touch_all }, prepend: true # rubocop:disable Rails/SkipsModelValidations
   after_commit -> { ai_agent.schedule_training }, unless: :destroyed_by_association
 
   validates :name, presence: true, length: { maximum: 255 }
@@ -53,7 +59,7 @@ class AiAgent::Product < ApplicationRecord
   def copy_to!(target_agent)
     copy = target_agent.products.new(attributes.slice('name', 'description', 'price', 'weight', 'stock'))
     copy.image.attach(io: StringIO.new(image.download), filename: image.filename.to_s, content_type: image.content_type) if image.attached?
-    copy.save!
+    copy.tap(&:save!)
   end
 
   private

@@ -43,6 +43,54 @@ RSpec.describe AiAgents::KnowledgeIndexer do
     )
   end
 
+  describe 'promotions' do
+    # 10:00 on 25 November 2026 in Asia/Jakarta, the default timezone of an AI agent.
+    before { travel_to(Time.utc(2026, 11, 25, 3, 0)) }
+
+    def promotion_chunks
+      ai_agent.knowledge_chunks.where(chunkable_type: AiAgent::Promotion.name).pluck(:content)
+    end
+
+    it 'writes the period, the products, and the details of each promotion that is not archived, as one chunk without a section' do
+      products = [create(:ai_agent_product, ai_agent: ai_agent, name: 'Stabill'), create(:ai_agent_product, ai_agent: ai_agent, name: 'Oli Mesin')]
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Diskon November', description: 'Stabill Rp80.000', products: products,
+                                  starts_on: Date.new(2026, 11, 1), ends_on: Date.new(2026, 11, 30))
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Gratis cuci', description: 'Gratis cuci untuk servis besar')
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Akhir tahun', description: 'Diskon 10%', starts_on: Date.new(2026, 12, 20))
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Oktober', description: 'Sudah lewat', ends_on: Date.new(2026, 11, 24))
+
+      indexer.perform
+
+      expect(promotion_chunks).to contain_exactly(
+        "Promotion: Diskon November\nValid: from 1 November 2026 until 30 November 2026\nApplies to: Stabill, Oli Mesin\nDetails: Stabill Rp80.000",
+        "Promotion: Gratis cuci\nValid: with no end date\nDetails: Gratis cuci untuk servis besar",
+        "Promotion: Akhir tahun\nValid: from 20 December 2026 with no end date\nDetails: Diskon 10%"
+      )
+      expect(ai_agent.knowledge_chunks.where(chunkable_type: AiAgent::Promotion.name).pluck(:section)).to all(be_nil)
+    end
+
+    it 'rewrites a promotion when a product it applies to is renamed or deleted, and removes it once archived' do
+      product = create(:ai_agent_product, ai_agent: ai_agent, name: 'Stabill')
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Diskon', description: 'Rp80.000', ends_on: Date.new(2026, 11, 25), products: [product])
+      indexer.perform
+
+      travel 1.minute
+      product.update!(name: 'Stabill Plus')
+      indexer.perform
+      expect(promotion_chunks).to eq(["Promotion: Diskon\nValid: until 25 November 2026\nApplies to: Stabill Plus\nDetails: Rp80.000"])
+
+      travel 1.minute
+      product.destroy!
+      indexer.perform
+      expect(promotion_chunks).to eq(["Promotion: Diskon\nValid: until 25 November 2026\nDetails: Rp80.000"])
+
+      # 00:00 on 26 November in Asia/Jakarta.
+      travel_to(Time.utc(2026, 11, 25, 17, 0))
+      indexer.perform
+      expect(promotion_chunks).to be_empty
+    end
+  end
+
   it 'logs each batch it embedded without the texts, with the request log on' do
     create(:installation_config, name: 'AI_AGENT_REQUEST_LOG_ENABLED', value: 'true')
     allow(AiAgents::LlmClient).to receive(:new).and_call_original

@@ -8,8 +8,8 @@ RSpec.describe AiAgents::KnowledgeRetriever do
   let(:far_vector) { Array.new(1536) { |index| index == 2 ? 1.0 : 0.0 } }
   let(:embedding_requests) { [] }
 
-  def create_chunk(content, embedding: nil, embedding_model: nil, section: nil)
-    ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: source, chunkable_updated_at: source.updated_at,
+  def create_chunk(content, embedding: nil, embedding_model: nil, section: nil, chunkable: source)
+    ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: chunkable, chunkable_updated_at: chunkable.updated_at,
                                       content: content, embedding: embedding, embedding_model: embedding_model, section: section)
   end
 
@@ -98,6 +98,22 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform.hits).to be_empty
       expect(embedding_requests).to be_empty
     end
+
+    it 'searches only active promotions and keeps the best ranked one, giving the places of the others to the next chunks' do
+      travel_to(Time.utc(2026, 11, 25, 3, 0))
+      ai_agent.update!(context_limit: 3)
+      model = 'text-embedding-3-small'
+      archived = create(:ai_agent_promotion, ai_agent: ai_agent, ends_on: Date.new(2026, 11, 24))
+      create_chunk('Diskon lama', embedding: query_vector, embedding_model: model, chunkable: archived)
+      best = create_chunk('Diskon oli', embedding: query_vector, embedding_model: model, chunkable: create(:ai_agent_promotion, ai_agent: ai_agent))
+      create_chunk('Diskon ban', embedding: close_vector, embedding_model: model, chunkable: create(:ai_agent_promotion, ai_agent: ai_agent))
+      knowledge = [create_chunk('Alamat toko', embedding: close_vector, embedding_model: model),
+                   create_chunk('Harga cuci', embedding: far_vector, embedding_model: model)]
+
+      hits = described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'Jam buka?' }]).perform.hits
+
+      expect(hits.map(&:chunk)).to eq([best, *knowledge])
+    end
   end
 
   context 'without an embedding model' do
@@ -128,6 +144,39 @@ RSpec.describe AiAgents::KnowledgeRetriever do
       create_chunk('Jam buka setiap hari')
 
       expect(described_class.new(ai_agent: ai_agent, messages: [{ role: :user, content: 'harga cuci' }]).perform.hits.map(&:chunk)).to eq([match])
+    end
+  end
+
+  describe 'promotions' do
+    let(:messages) { [{ role: :user, content: 'promo diskon oli mesin' }] }
+
+    # 10:00 on 25 November 2026 in Asia/Jakarta, the default timezone of an AI agent.
+    before do
+      travel_to(Time.utc(2026, 11, 25, 3, 0))
+      ai_agent.update!(context_limit: 3)
+    end
+
+    it 'searches a promotion only from its start date through its end date in the timezone of the AI agent, without indexing it again' do
+      scheduled = create_chunk('Promo diskon oli', chunkable: create(:ai_agent_promotion, ai_agent: ai_agent, starts_on: Date.new(2026, 11, 26)))
+      create_chunk('Promo diskon mesin', chunkable: create(:ai_agent_promotion, ai_agent: ai_agent, ends_on: Date.new(2026, 11, 24)))
+      knowledge = create_chunk('Ganti oli mesin')
+
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.hits.map(&:chunk)).to eq([knowledge])
+
+      # 00:00 on 26 November in Asia/Jakarta.
+      travel_to(Time.utc(2026, 11, 25, 17, 0))
+      expect(described_class.new(ai_agent: ai_agent, messages: messages).perform.hits.map(&:chunk)).to contain_exactly(scheduled, knowledge)
+    end
+
+    it 'keeps only the best ranked promotion and gives the places of the others to the next chunks' do
+      best = create_chunk('Promo diskon oli mesin', chunkable: create(:ai_agent_promotion, ai_agent: ai_agent))
+      create_chunk('Promo diskon oli', chunkable: create(:ai_agent_promotion, ai_agent: ai_agent))
+      create_chunk('Promo diskon', chunkable: create(:ai_agent_promotion, ai_agent: ai_agent))
+      knowledge = [create_chunk('Ganti oli mesin'), create_chunk('Ganti oli')]
+
+      hits = described_class.new(ai_agent: ai_agent, messages: messages).perform.hits
+
+      expect(hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[best, 1], [knowledge[0], 2], [knowledge[1], 3]])
     end
   end
 
