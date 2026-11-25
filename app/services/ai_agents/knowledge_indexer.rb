@@ -1,4 +1,5 @@
-# Brings an agent's knowledge chunks in line with its ready knowledge sources and products.
+# Brings an agent's knowledge chunks in line with its ready knowledge sources, products, and promotions that are not archived
+# (an archived promotion's chunk goes on the next run; see AiAgents::KnowledgeRetriever for the promotions searched).
 # Records are re-embedded only when their updated_at differs from the version stored on their chunks,
 # and a source that is re-syncing or failed is left out until it is ready again. Chunks record the embedding
 # model they were embedded with; without an embedding model they are stored without vectors for keyword search.
@@ -11,9 +12,10 @@ class AiAgents::KnowledgeIndexer
   pattr_initialize [:ai_agent!]
 
   # The AiAgents::TextChunker::Chunk of each chunk of a record in document order, its text opening with the record's title.
-  # A product or Q&A is one chunk without a section.
+  # A product, promotion, or Q&A is one chunk without a section.
   def self.chunks(record)
     return [AiAgents::TextChunker::Chunk.new(section: nil, text: product_text(record))] if record.is_a?(AiAgent::Product)
+    return [AiAgents::TextChunker::Chunk.new(section: nil, text: promotion_text(record))] if record.is_a?(AiAgent::Promotion)
     return [AiAgents::TextChunker::Chunk.new(section: nil, text: "Q: #{record.title}\nA: #{record.content}")] if record.qa?
 
     AiAgents::TextChunker.split(record.content).map { |chunk| chunk.with(text: "#{record.title}\n\n#{chunk.text}") }
@@ -30,6 +32,21 @@ class AiAgents::KnowledgeIndexer
     ].compact.join("\n")
   end
   private_class_method :product_text
+
+  # The dates are written like the current date in the prompt (see AiAgents::ReplyGenerator), so the reply check finds
+  # their numbers in the chunk.
+  def self.promotion_text(promotion)
+    from = "from #{promotion.starts_on.strftime('%-d %B %Y')} " if promotion.starts_on
+    to = promotion.ends_on ? "until #{promotion.ends_on.strftime('%-d %B %Y')}" : 'with no end date'
+    product_names = promotion.products.order(:id).pluck(:name)
+    [
+      "Promotion: #{promotion.title}",
+      "Valid: #{from}#{to}",
+      ("Applies to: #{product_names.join(', ')}" if product_names.any?),
+      "Details: #{promotion.description}"
+    ].compact.join("\n")
+  end
+  private_class_method :promotion_text
 
   # The request log of the run has a step for each batch it embedded, without the texts, which the chunks keep (see
   # AiAgents::RequestRecorder).
@@ -67,7 +84,9 @@ class AiAgents::KnowledgeIndexer
   def indexable_versions
     {
       AiAgent::KnowledgeSource => ai_agent.knowledge_sources.ready.where.not(content: [nil, '']).pluck(:id, :updated_at).to_h,
-      AiAgent::Product => ai_agent.products.pluck(:id, :updated_at).to_h
+      AiAgent::Product => ai_agent.products.pluck(:id, :updated_at).to_h,
+      AiAgent::Promotion => ai_agent.promotions.where.not(id: ai_agent.promotions.status_on('archived', ai_agent.current_date))
+                                    .pluck(:id, :updated_at).to_h
     }
   end
 

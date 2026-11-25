@@ -47,6 +47,11 @@ const rows = computed(() => [
     label: t('AI_AGENTS.KNOWLEDGE.STATS.PRODUCTS'),
     value: formatNumber(props.stats.products),
   },
+  {
+    key: 'promotions',
+    label: t('AI_AGENTS.KNOWLEDGE.STATS.ACTIVE_PROMOTIONS'),
+    value: formatNumber(props.stats.promotions),
+  },
 ]);
 </script>
 

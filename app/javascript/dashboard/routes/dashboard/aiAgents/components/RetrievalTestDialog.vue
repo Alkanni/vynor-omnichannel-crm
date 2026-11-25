@@ -60,6 +60,7 @@ const sourceTypeLabels = computed(() => ({
   file: t('AI_AGENTS.KNOWLEDGE.TABS.FILE'),
   qa: t('AI_AGENTS.KNOWLEDGE.TABS.QA'),
   product: t('AI_AGENTS.KNOWLEDGE.TABS.PRODUCT'),
+  promotion: t('AI_AGENTS.KNOWLEDGE.TABS.PROMOTION'),
 }));
 const modeDescription = computed(() =>
   result.value.mode === 'hybrid'

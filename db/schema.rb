@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -243,6 +243,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_000000) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_ai_agent_products_on_account_id"
     t.index ["ai_agent_id"], name: "index_ai_agent_products_on_ai_agent_id"
+  end
+
+  create_table "ai_agent_promotion_products", force: :cascade do |t|
+    t.bigint "promotion_id", null: false
+    t.bigint "product_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_ai_agent_promotion_products_on_product_id"
+    t.index ["promotion_id", "product_id"], name: "index_ai_agent_promotion_products_uniqueness", unique: true
+  end
+
+  create_table "ai_agent_promotions", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "ai_agent_id", null: false
+    t.string "title", null: false
+    t.text "description", null: false
+    t.date "starts_on"
+    t.date "ends_on"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_ai_agent_promotions_on_account_id"
+    t.index ["ai_agent_id"], name: "index_ai_agent_promotions_on_ai_agent_id"
   end
 
   create_table "ai_agent_reply_traces", force: :cascade do |t|

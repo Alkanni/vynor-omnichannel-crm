@@ -9,6 +9,7 @@ import KnowledgeWebsitePage from './pages/knowledge/KnowledgeWebsitePage.vue';
 import KnowledgeFilePage from './pages/knowledge/KnowledgeFilePage.vue';
 import KnowledgeQaPage from './pages/knowledge/KnowledgeQaPage.vue';
 import KnowledgeProductsPage from './pages/knowledge/KnowledgeProductsPage.vue';
+import KnowledgePromotionsPage from './pages/knowledge/KnowledgePromotionsPage.vue';
 
 const meta = {
   permissions: ['administrator'],
@@ -76,6 +77,12 @@ export const routes = [
             path: 'products',
             name: 'ai_agents_knowledge_products',
             component: KnowledgeProductsPage,
+            meta,
+          },
+          {
+            path: 'promotions',
+            name: 'ai_agents_knowledge_promotions',
+            component: KnowledgePromotionsPage,
             meta,
           },
         ],

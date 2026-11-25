@@ -45,6 +45,10 @@ const tabs = computed(() => [
     label: t('AI_AGENTS.KNOWLEDGE.TABS.PRODUCT'),
     value: 'ai_agents_knowledge_products',
   },
+  {
+    label: t('AI_AGENTS.KNOWLEDGE.TABS.PROMOTION'),
+    value: 'ai_agents_knowledge_promotions',
+  },
 ]);
 const activeTabIndex = computed(() =>
   tabs.value.findIndex(tab => tab.value === route.name)

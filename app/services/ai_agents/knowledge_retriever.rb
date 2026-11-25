@@ -6,6 +6,10 @@
 # farther than AI_AGENT_EMBEDDING_MAX_DISTANCE when it is set. No chunk at all means the model answers without knowledge.
 # With a Context Expansion Radius the chunks next to the matches are sent too (see AiAgents::ContextExpansion).
 #
+# A promotion is searched only on the days it is active in the agent's timezone, whenever its chunk was indexed or removed
+# (see AiAgent::Promotion), and a reply gets at most one: only the best ranked promotion stays, and the places of the others
+# go to the chunks after them.
+#
 # A follow-up question often leaves out its subject ("How much for 4?"), so a conversation with earlier customer turns
 # is searched twice: with the latest turn, and with that turn joined to the ones before it. The first keeps a change of
 # topic in the results, and the second counts less when the latest turn names its own subject (see
@@ -40,7 +44,9 @@ class AiAgents::KnowledgeRetriever
     end
   end
   # queries: the latest customer turn, then that turn with the earlier ones when there are any.
-  Result = Data.define(:mode, :embedding_model, :queries, :hits)
+  Result = Data.define(:mode, :embedding_model, :queries, :hits) do
+    def promotion? = hits.any? { |hit| hit.chunk.chunkable_type == AiAgent::Promotion.name }
+  end
 
   # messages: { role: :user | :assistant, content: }, oldest first.
   pattr_initialize [:ai_agent!, :messages!]
@@ -73,7 +79,7 @@ class AiAgents::KnowledgeRetriever
   # The request log gets the search after its embedding step, with the content of each chunk it found (see
   # AiAgents::RequestRecorder).
   def hits(mode, embedding_model, queries)
-    chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
+    chunks = searched_chunks(embedding_model)
     return [] if queries.empty? || !chunks.exists?
 
     vectors = embedding_model ? AiAgents::LlmClient.new.embed(queries, input_type: :query) : []
@@ -82,8 +88,17 @@ class AiAgents::KnowledgeRetriever
     end
   end
 
+  def searched_chunks(embedding_model)
+    chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
+    promotion = AiAgent::Promotion.name
+    active_promotions = ai_agent.promotions.status_on('active', ai_agent.current_date).select(:id)
+    chunks.where.not(chunkable_type: promotion).or(chunks.where(chunkable_type: promotion, chunkable_id: active_promotions))
+  end
+
   def ranked(chunks, queries, vectors)
-    matches = fused(chunks, queries, vectors).first(ai_agent.context_limit)
+    scored = fused(chunks, queries, vectors)
+    promotions = scored.select { |chunk, _score| chunk.chunkable_type == AiAgent::Promotion.name }
+    matches = (scored - promotions.drop(1)).first(ai_agent.context_limit)
     radius = ai_agent.context_expansion_radius
     return matches.map.with_index(1) { |(chunk, score), rank| Hit.new(chunk: chunk, rank: rank, score: score) } if radius.zero?
 

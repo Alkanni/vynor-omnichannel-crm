@@ -78,6 +78,11 @@ class AiAgents::ReplyGenerator
     Use the knowledge below to answer. State facts such as prices, stock, schedules, and policies only when they appear
     in the knowledge or in the conversation. If the knowledge does not cover the question, say that you do not know.
   TEXT
+  # Only for a turn that found a promotion (see AiAgents::KnowledgeRetriever), so the prompt of every other turn stays the same.
+  PROMOTION_INSTRUCTIONS = <<~TEXT.freeze
+    The knowledge includes a promotion that is valid today. Mention it only when the customer asks about promotions, discounts, or the price of
+    something it applies to. Give its period and terms as the knowledge states them, and never promise a promotion that is not in the knowledge.
+  TEXT
   NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS = <<~TEXT.freeze
     None of your knowledge is relevant to this message. State facts such as prices, stock, schedules, and policies only
     when they appear in the conversation; otherwise say that you do not know.
@@ -192,8 +197,8 @@ class AiAgents::ReplyGenerator
   end
 
   def instructions
-    [ai_agent.behavior.presence, scope_policy, current_time, actions.calendar, knowledge, web_results, actions.instructions, reply_rules,
-     RESPONSE_INSTRUCTIONS].compact.join("\n\n")
+    [ai_agent.behavior.presence, scope_policy, current_time, actions.calendar, knowledge, (PROMOTION_INSTRUCTIONS if retrieval.promotion?),
+     web_results, actions.instructions, reply_rules, RESPONSE_INSTRUCTIONS].compact.join("\n\n")
   end
 
   # Comes after the behavior, so the rules in code outrank whatever the behavior says.

@@ -78,6 +78,7 @@ class AiAgent < ApplicationRecord
   belongs_to :account
   has_many :knowledge_sources, class_name: 'AiAgent::KnowledgeSource', dependent: :destroy
   has_many :products, class_name: 'AiAgent::Product', dependent: :destroy
+  has_many :promotions, class_name: 'AiAgent::Promotion', dependent: :destroy
   has_many :knowledge_chunks, class_name: 'AiAgent::KnowledgeChunk', dependent: :delete_all
   has_many :reply_traces, class_name: 'AiAgent::ReplyTrace', dependent: :delete_all
   has_many :request_logs, class_name: 'AiAgent::RequestLog', dependent: :delete_all
@@ -182,7 +183,8 @@ class AiAgent < ApplicationRecord
       copy.assign_attributes(trained_at: nil, training_error: nil, training_failed_at: nil)
       copy.save!
       knowledge_sources.each { |source| source.copy_to!(copy) }
-      products.each { |product| product.copy_to!(copy) }
+      product_copies = products.to_h { |product| [product.id, product.copy_to!(copy)] }
+      promotions.each { |promotion| promotion.copy_to!(copy, product_copies) }
       copy
     end
   end
@@ -193,6 +195,11 @@ class AiAgent < ApplicationRecord
     return unless Redis::Alfred.set(format(Redis::Alfred::AI_AGENT_TRAINING_SCHEDULED, id: id), 1, nx: true, ex: 1.hour)
 
     AiAgents::IndexKnowledgeJob.set(wait: TRAINING_DELAY).perform_later(self)
+  end
+
+  # Today in the agent's timezone, the day its promotions are valid on (see AiAgent::Promotion).
+  def current_date
+    Time.current.in_time_zone(timezone).to_date
   end
 
   def push_event_data
@@ -214,6 +221,7 @@ class AiAgent < ApplicationRecord
       qa_count: counts.fetch('qa', 0),
       qa_characters: characters.fetch('qa', 0),
       products: products.count,
+      promotions: promotions.status_on('active', current_date).count,
       total_characters: characters.values.sum
     }
   end

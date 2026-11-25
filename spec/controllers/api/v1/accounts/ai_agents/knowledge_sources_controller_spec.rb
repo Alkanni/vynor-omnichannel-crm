@@ -146,12 +146,14 @@ RSpec.describe 'AI Agent knowledge sources API', type: :request do
     it 'returns the knowledge statistics' do
       create(:ai_agent_knowledge_source, ai_agent: ai_agent, content: 'abcde')
       create(:ai_agent_product, ai_agent: ai_agent, name: 'ab', description: nil)
+      create(:ai_agent_promotion, ai_agent: ai_agent)
 
       get "#{base_url}/stats", headers: admin.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
-        'files' => 0, 'links' => 0, 'text_characters' => 5, 'qa_count' => 0, 'qa_characters' => 0, 'products' => 1, 'total_characters' => 7
+        'files' => 0, 'links' => 0, 'text_characters' => 5, 'qa_count' => 0, 'qa_characters' => 0, 'products' => 1, 'promotions' => 1,
+        'total_characters' => 7
       )
     end
   end

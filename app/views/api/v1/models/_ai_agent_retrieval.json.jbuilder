@@ -13,6 +13,9 @@ json.chunks retrieval.hits do |hit|
     if source.is_a?(AiAgent::Product)
       json.type 'product'
       json.title source.name
+    elsif source.is_a?(AiAgent::Promotion)
+      json.type 'promotion'
+      json.title source.title
     else
       json.type source.source_type
       json.title source.title

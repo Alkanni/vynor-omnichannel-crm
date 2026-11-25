@@ -99,6 +99,9 @@ Rails.application.routes.draw do
               resources :products, only: [:index, :create, :update, :destroy] do
                 post :bulk_destroy, on: :collection
               end
+              resources :promotions, only: [:index, :create, :update, :destroy] do
+                post :bulk_destroy, on: :collection
+              end
               resource :google_sheets, only: [:show, :update, :destroy] do
                 post :authorization
                 post :test_connection

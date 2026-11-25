@@ -85,6 +85,24 @@ RSpec.describe AiAgents::ReplyGenerator do
     expect(reply.trace.retry_skipped?).to be_nil
   end
 
+  it 'adds the promotion rules after the knowledge only on a turn that found an active promotion' do
+    ai_agent.update!(context_limit: 2)
+    promotion = create(:ai_agent_promotion, ai_agent: ai_agent)
+    ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: promotion, chunkable_updated_at: promotion.updated_at,
+                                      content: "Promotion: Diskon\nDetails: Rp80.000", embedding: opening_hours,
+                                      embedding_model: 'text-embedding-3-small')
+    travel_to(Time.utc(2026, 10, 22, 3, 0))
+
+    described_class.new(ai_agent: ai_agent, messages: messages).perform
+    promotion.update!(ends_on: Date.new(2026, 10, 21))
+    described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+    with_promotion, without_promotion = chat_requests.map { |request| request['messages'].first['content'] }
+    expect(with_promotion).to include("[2] Promotion: Diskon\nDetails: Rp80.000\n</knowledge>\n\n#{described_class::PROMOTION_INSTRUCTIONS}\n\n" \
+                                      "#{described_class::RESPONSE_INSTRUCTIONS}")
+    expect(without_promotion).not_to include('Promotion: Diskon', described_class::PROMOTION_INSTRUCTIONS)
+  end
+
   context 'when the model writes the [rank] of the knowledge it uses' do
     let(:reply_content) { { messages: ['Kami buka setiap hari pukul 07.30 - 18.00. [1]', '[1]', 'Ada lagi yang bisa dibantu?'] }.to_json }
 
