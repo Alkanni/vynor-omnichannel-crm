@@ -1,3 +1,5 @@
+import { BOOKING_SLOT_TAKEN_ERROR } from './constants';
+
 // A booking time in the viewer's time zone, e.g. "Fri, 20 Nov 2026, 10:00".
 export const formatBookingTime = (time, locale) =>
   new Intl.DateTimeFormat(locale, {
@@ -47,4 +49,10 @@ export const localDateTime = (day, time) => {
 export const startOfLocalDay = (day, addDays = 0) => {
   const [year, month, date] = day.split('-').map(Number);
   return new Date(year, month - 1, date + addDays).toISOString();
+};
+
+// The message of a bookings API error refusing a slot a confirmed booking holds, else null.
+export const slotTakenMessage = error => {
+  const data = error?.response?.data;
+  return data?.error_code === BOOKING_SLOT_TAKEN_ERROR ? data.message : null;
 };

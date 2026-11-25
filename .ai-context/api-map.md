@@ -41,7 +41,7 @@ Extracted with `sed -n 54,466p config/routes.rb | grep -oE "^ {10}(resources?|na
 | `POST …/conversations/:id/assignments` | `Conversations::AssignmentsController` | `Conversations::AssignmentService` (EE-prepended) |
 | `POST /api/v1/widget/messages` | `Api::V1::Widget::MessagesController#create` | `Message.save!` |
 | `POST /webhooks/whatsapp/:phone` | `Webhooks::WhatsappController#process_payload` | `Webhooks::WhatsappEventsJob` |
-| `GET/POST/PATCH …/bookings`, `GET …/bookings/fields` (fork, #178, #196) | `Api::V1::Accounts::BookingsController#index/#create/#update/#fields` | `BookingPolicy` (feature `bookings`, conversation access), `Booking#change_status!` (status message to the customer, #185; only to `Booking::NEXT_STATUSES`, else 422, #191) |
+| `GET/POST/PATCH …/bookings`, `GET …/bookings/fields` (fork, #178, #196) | `Api::V1::Accounts::BookingsController#index/#create/#update/#fields` | `BookingPolicy` (feature `bookings`, conversation access), `Booking#change_status!` (status message to the customer, #185; only to `Booking::NEXT_STATUSES`, else 422, #191); a confirmed booking at the exact time and service of another confirmed booking in the account → 422 `error_code: booking_slot_taken` (#210) |
 
 ## Response rendering
 

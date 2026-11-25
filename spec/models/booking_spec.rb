@@ -196,4 +196,69 @@ RSpec.describe Booking do
     booking.conversation.destroy!
     expect(described_class.exists?(booking.id)).to be(false)
   end
+
+  describe 'the slot of a confirmed booking (#210)' do
+    let!(:holder) { create(:booking, status: :confirmed, service: 'Ganti oli', scheduled_at: Time.utc(2026, 11, 25, 3, 0)) }
+
+    it 'lets a requested booking take any time, which the AI records and staff check when they confirm it' do
+      booking = create(:booking, account: holder.account, service: 'Ganti oli', scheduled_at: holder.scheduled_at)
+
+      expect(booking).to be_requested
+      expect { booking.confirmed! }.to raise_error(CustomExceptions::Booking::SlotTaken)
+      expect(booking.reload).to be_requested
+    end
+
+    it 'leaves the slots of another account alone' do
+      expect(create(:booking, status: :confirmed, service: 'Ganti oli', scheduled_at: holder.scheduled_at)).to be_persisted
+    end
+  end
+
+  describe 'two requests for one slot at once (#210)' do
+    self.use_transactional_tests = false
+
+    # The requests commit, so the rows go once the example ends. Truncating every table outruns the statement timeout.
+    after do
+      connection = ActiveRecord::Base.connection
+      filled = (connection.tables - %w[schema_migrations ar_internal_metadata]).select do |table|
+        connection.select_value("SELECT EXISTS (SELECT 1 FROM #{connection.quote_table_name(table)})")
+      end
+      connection.disable_referential_integrity { filled.each { |table| connection.delete("DELETE FROM #{connection.quote_table_name(table)}") } }
+    end
+
+    # The first request holds the slot without committing yet; the second must wait for it, and then sees its booking.
+    it 'makes the later request wait for the earlier one and then refuses it' do
+      first = create(:booking, service: 'Ganti oli', scheduled_at: Time.utc(2026, 11, 25, 3, 0))
+      second = create(:booking, account: first.account, service: 'ganti OLI', scheduled_at: first.scheduled_at)
+      taken = Queue.new
+      release = Queue.new
+
+      earlier = Thread.new do
+        described_class.connection_pool.with_connection do
+          described_class.transaction do
+            first.confirmed!
+            taken << true
+            release.pop
+          end
+        end
+      end
+      taken.pop
+      later = Thread.new do
+        described_class.connection_pool.with_connection { second.confirmed! }
+      rescue CustomExceptions::Booking::SlotTaken
+        :slot_taken
+      end
+
+      waiting = "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted"
+      Timeout.timeout(5) { sleep 0.05 until ActiveRecord::Base.connection.select_value(waiting).positive? }
+      release << true
+      earlier.join
+
+      expect(later.value).to eq(:slot_taken)
+      expect(first.reload).to be_confirmed
+      expect(second.reload).to be_requested
+    ensure
+      release << true
+      [earlier, later].compact.each { |thread| thread.join(5) }
+    end
+  end
 end

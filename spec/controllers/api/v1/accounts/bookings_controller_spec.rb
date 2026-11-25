@@ -340,4 +340,82 @@ RSpec.describe 'Bookings API', type: :request do
       expect(tomorrow.reload).to be_requested
     end
   end
+
+  # `later` holds a slot: it is confirmed, in an inbox the agent is not a member of, recorded by another AI agent.
+  describe 'a slot a confirmed booking holds (#210)' do
+    let(:slot_taken) do
+      { 'message' => "Booking ##{later.id} is already confirmed for Ganti oli at 2026-11-22 10:00 WIB. Choose another time or service.",
+        'error_code' => 'booking_slot_taken' }
+    end
+    let(:fields) do
+      { conversation_id: conversation.display_id, service: 'ganti OLI', customer_name: 'Rina', scheduled_at: '2026-11-22T03:00:00Z' }
+    end
+
+    before { later.update!(service: 'Ganti oli', ai_agent: create(:ai_agent, account: account)) }
+
+    it 'refuses a new booking at its time and service whatever the case, naming only that booking, and records nothing' do
+      headers = agent.create_new_auth_token
+
+      expect { post url, params: fields, headers: headers, as: :json }.not_to(change { [Booking.count, Message.count] })
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq(slot_taken)
+    end
+
+    it 'takes another service at that time, or that service at another time' do
+      headers = agent.create_new_auth_token
+
+      [{ service: 'Tune up' }, { scheduled_at: '2026-11-22T03:15:00Z' }].each do |change|
+        post url, params: fields.merge(change), headers: headers, as: :json
+        expect(response).to have_http_status(:created), change.inspect
+      end
+    end
+
+    it 'leaves the slot free while that booking is not confirmed' do
+      headers = administrator.create_new_auth_token
+
+      %w[requested cancelled completed no_show rescheduled].each do |status|
+        later.update!(status: status)
+        post url, params: fields, headers: headers, as: :json
+
+        expect(response).to have_http_status(:created), status
+        Booking.find(response.parsed_body['id']).destroy!
+      end
+    end
+
+    it 'refuses to move a confirmed booking into it, and still takes other changes or a requested booking' do
+      tomorrow.update!(status: :confirmed)
+      headers = administrator.create_new_auth_token
+
+      expect do
+        patch "#{url}/#{tomorrow.id}", params: { service: 'Ganti Oli', scheduled_at: '2026-11-22T03:00:00Z' }, headers: headers, as: :json
+      end.not_to change(Message, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq(slot_taken)
+      expect(tomorrow.reload).to have_attributes(service: 'Cuci salon', scheduled_at: Time.utc(2026, 11, 20, 3, 0))
+
+      patch "#{url}/#{later.id}", params: { service: 'GANTI OLI', notes: 'Bawa STNK', details: { 'Plat nomor' => 'B 2' } }, headers: headers,
+                                  as: :json
+      expect(response).to have_http_status(:success)
+
+      requested = create(:booking, account: account, conversation: conversation)
+      patch "#{url}/#{requested.id}", params: { service: 'Ganti oli', scheduled_at: '2026-11-22T03:00:00Z' }, headers: headers, as: :json
+      expect(response).to have_http_status(:success)
+      expect(requested.reload).to have_attributes(status: 'requested', service: 'Ganti oli', scheduled_at: Time.utc(2026, 11, 22, 3, 0))
+    end
+
+    it 'refuses to confirm a requested booking in it without telling the customer, and still cancels that booking' do
+      requested = create(:booking, account: account, conversation: conversation, service: 'Ganti oli', scheduled_at: Time.utc(2026, 11, 22, 3, 0),
+                                   ai_agent: create(:ai_agent, account: account, booking_confirmed_message: 'Booking dikonfirmasi.'))
+      headers = agent.create_new_auth_token
+
+      expect { patch "#{url}/#{requested.id}", params: { status: 'confirmed' }, headers: headers, as: :json }.not_to change(Message, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq(slot_taken)
+      expect(requested.reload).to be_requested
+
+      patch "#{url}/#{requested.id}", params: { status: 'cancelled' }, headers: headers, as: :json
+      expect(response).to have_http_status(:success)
+      expect(requested.reload).to be_cancelled
+    end
+  end
 end
