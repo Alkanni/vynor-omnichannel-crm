@@ -3,6 +3,7 @@ import { useAlert } from 'dashboard/composables';
 import BookingsAPI from 'dashboard/api/bookings';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+import Banner from 'dashboard/components-next/banner/Banner.vue';
 import BookingFormDialog from '../BookingFormDialog.vue';
 
 vi.mock('dashboard/api/bookings', () => ({
@@ -26,8 +27,11 @@ const DialogStub = {
 const mountForm = () =>
   shallowMount(BookingFormDialog, {
     props: { conversationId: 12 },
-    global: { stubs: { Dialog: DialogStub } },
+    global: { stubs: { Dialog: DialogStub, Banner: false } },
   });
+
+const SLOT_TAKEN =
+  'Booking #3 is already confirmed for Ganti oli at 2026-11-25 10:00 WIB. Choose another time or service.';
 
 const values = wrapper =>
   wrapper
@@ -133,6 +137,38 @@ describe('BookingFormDialog', () => {
     expect(closeDialog).not.toHaveBeenCalled();
     expect(wrapper.emitted('saved')).toBeUndefined();
     expect(useAlert).toHaveBeenCalledWith('BOOKINGS.FORM.SAVE_ERROR');
+    expect(wrapper.findComponent(Banner).exists()).toBe(false);
+  });
+
+  it('warns in the form about the confirmed booking that holds the slot, stays open, and forgets it on the next open', async () => {
+    BookingsAPI.create.mockRejectedValue({
+      response: {
+        status: 422,
+        data: { message: SLOT_TAKEN, error_code: 'booking_slot_taken' },
+      },
+    });
+    const wrapper = mountForm();
+    wrapper.vm.open({ customerName: 'Rina' });
+    await flushPromises();
+
+    const inputs = wrapper.findAllComponents(Input);
+    inputs[0].vm.$emit('update:modelValue', 'Ganti oli');
+    inputs[2].vm.$emit('update:modelValue', '2026-11-25');
+    inputs[3].vm.$emit('update:modelValue', '10:00');
+    await flushPromises();
+    confirm(wrapper);
+    await flushPromises();
+
+    const warning = wrapper.findComponent(Banner);
+    expect(warning.props('color')).toBe('amber');
+    expect(warning.text()).toBe(SLOT_TAKEN);
+    expect(closeDialog).not.toHaveBeenCalled();
+    expect(wrapper.emitted('saved')).toBeUndefined();
+    expect(useAlert).not.toHaveBeenCalled();
+
+    wrapper.vm.open({ customerName: 'Rina' });
+    await flushPromises();
+    expect(wrapper.findComponent(Banner).exists()).toBe(false);
   });
 
   it('saves nothing until the service, name, date, and time are filled in', async () => {

@@ -142,4 +142,23 @@ describe('BookingStatusMenu', () => {
     expect(useAlert).toHaveBeenCalledWith('BOOKINGS.UPDATE_ERROR');
     expect(wrapper.emitted('updated')).toBeUndefined();
   });
+
+  it('names the confirmed booking that holds the slot when confirming is refused', async () => {
+    const message =
+      'Booking #3 is already confirmed for Cuci salon at 2026-11-25 10:00 WIB. Choose another time or service.';
+    BookingsAPI.update.mockRejectedValue({
+      response: {
+        status: 422,
+        data: { message, error_code: 'booking_slot_taken' },
+      },
+    });
+    const wrapper = mountMenu();
+
+    pickStatus(wrapper, 'confirmed');
+    await flushPromises();
+
+    expect(useAlert).toHaveBeenCalledWith(message);
+    expect(useAlert).not.toHaveBeenCalledWith('BOOKINGS.UPDATE_ERROR');
+    expect(wrapper.emitted('updated')).toBeUndefined();
+  });
 });

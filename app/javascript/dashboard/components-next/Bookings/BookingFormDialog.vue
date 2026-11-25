@@ -6,7 +6,13 @@ import BookingsAPI from 'dashboard/api/bookings';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
-import { localDate, localDateTime, localTime } from './helpers';
+import Banner from 'dashboard/components-next/banner/Banner.vue';
+import {
+  localDate,
+  localDateTime,
+  localTime,
+  slotTakenMessage,
+} from './helpers';
 
 const props = defineProps({
   // The display id of the conversation a new booking is recorded for.
@@ -24,6 +30,8 @@ const { t } = useI18n();
 const dialogRef = ref(null);
 const booking = ref(null);
 const isSaving = ref(false);
+// Why the last save was refused: the slot a confirmed booking holds, shown in the dialog so staff pick another one.
+const slotTaken = ref('');
 const form = reactive({
   service: '',
   customerName: '',
@@ -43,6 +51,7 @@ const isComplete = computed(() =>
 // viewer's time zone.
 const open = ({ current = null, customerName = '', fields = [] } = {}) => {
   booking.value = current;
+  slotTaken.value = '';
   const at = current && new Date(current.scheduled_at);
   Object.assign(form, {
     service: current?.service || '',
@@ -68,6 +77,7 @@ const save = async () => {
     details: form.details,
   };
   isSaving.value = true;
+  slotTaken.value = '';
   try {
     const { data } = booking.value
       ? await BookingsAPI.update(booking.value.id, fields)
@@ -78,8 +88,9 @@ const save = async () => {
     emit('saved', data);
     useAlert(t('BOOKINGS.FORM.SAVE_SUCCESS'));
     dialogRef.value.close();
-  } catch {
-    useAlert(t('BOOKINGS.FORM.SAVE_ERROR'));
+  } catch (error) {
+    slotTaken.value = slotTakenMessage(error) || '';
+    if (!slotTaken.value) useAlert(t('BOOKINGS.FORM.SAVE_ERROR'));
   } finally {
     isSaving.value = false;
   }
@@ -101,6 +112,7 @@ defineExpose({ open });
     @confirm="save"
   >
     <div class="flex flex-col gap-3">
+      <Banner v-if="slotTaken" color="amber">{{ slotTaken }}</Banner>
       <Input
         id="booking-service"
         v-model="form.service"
