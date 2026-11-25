@@ -8,10 +8,11 @@
 class AiAgents::BookingSummary
   FIELD = 'show_booking_summary'.freeze
   INSTRUCTIONS = <<~TEXT.freeze
-    The summary comes from a template: instead of writing it in "messages", set "show_booking_summary" to true and fill
-    "booking" with its values, as for a booking, and the summary is sent after your messages. Keep "messages" to a short
-    line before it, without the service, date, or time. Set "show_booking_summary" to false otherwise, also when
-    "create_booking" is true.
+    For this agent, the summary comes from a template that is sent after your messages and asks the customer to confirm
+    it. Never write a summary or ask the customer to confirm a booking in "messages". Whenever you would read the summary,
+    also after the customer changes the service, date, or time, set "show_booking_summary" to true, fill "booking" with
+    its values, as for a booking, and put only one short line without any booking detail or question in "messages", such
+    as "Baik, Kak.". Set "show_booking_summary" to false otherwise, also when "create_booking" is true.
   TEXT
 
   # conversation: the conversation of the reply, nil in the playground; actions: its AiAgents::ActionSchema.

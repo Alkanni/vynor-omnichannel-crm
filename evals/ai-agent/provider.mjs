@@ -1,6 +1,7 @@
 // Promptfoo provider that sends a dataset conversation to the AI Agent playground of the app under test.
 // Each line of `conversation` is one message; lines starting with "AI:" are earlier agent replies.
-// The reply text is the output; handoff, labels, the booking a live reply would request, the scope check (with the web
+// The reply text is the output; handoff, labels, the booking a live reply would request, the booking summary it ends with
+// and its bubbles (an agent with a booking summary template, issue #206), the scope check (with the web
 // query of an agent with web search), what became of web search with each web result as the reply model got it, the reply
 // check, retrieval with the content and links of its chunks, model, latency and the tokens per model call go to metadata
 // for assertions and report.mjs.
@@ -42,6 +43,9 @@ export default class AiAgentPlaygroundProvider {
           labels: reply.labels,
           booking: reply.booking,
           bookingRejection: reply.booking_rejection,
+          bookingSummary: reply.booking_summary,
+          bookingSummaryRejection: reply.booking_summary_rejection,
+          messages: reply.messages,
           model: reply.model,
           agentLatencyMs: reply.latency_ms,
           scopeDecision: reply.scope?.decision,

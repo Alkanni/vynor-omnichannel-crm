@@ -38,7 +38,8 @@ context run makes 26 agent calls plus 26 judge calls.
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
 | `fixtures/bengkel-qa.json` | Synthetic car care business for the retrieval eval whose knowledge is 195 Q&A: the same questions (price, duration, warranty, booking, …) for each of 30 services, plus general questions, like a Q&A list written per service (issue #141) |
 | `promptfooconfig.booking.yaml`, `tests/b-booking.yaml`, `lib/booking-assertions.mjs` | Booking eval: 18 cases with the booking each must request, or none, and deterministic assertions over the booking the playground returns (see below) |
-| `fixtures/bengkel-booking.json` | The strict car workshop agent of `bengkel-mobil.json` without web search, with booking requests on, a `Mobil` booking field, and the `booking` label (issue #177) |
+| `fixtures/bengkel-booking.json` | The strict car workshop agent of `bengkel-mobil.json` without web search, with booking requests on, a `Mobil` booking field, and the `booking` label (issue #177), and the same agent with a booking summary template, `booking_template` (issue #206) |
+| `promptfooconfig.booking-summary.yaml`, `tests/b-booking-summary.yaml` | Booking summary eval: the booking cases plus 6 cases of the step before the customer confirms, against the `booking_template` agent, with deterministic assertions over the summary bubble the playground returns (see below) |
 | `booking-report.mjs` | Markdown summary of the booking eval: the gate of issue #177 per run and the failing cases with the booking they requested |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
@@ -258,6 +259,25 @@ node booking-report.mjs output/booking-1.json
   runs as it does live, so `not_blocked` shows whether a summary with a date passes it.
 - Gate (issue #177, AC13): no booking on a negative case, at least 90% of the positive cases with a booking, the date
   and time exact on every booking requested, and no reply blocked as `unsupported_number`. Nothing here calls the judge.
+
+### Booking summary
+
+```bash
+node --env-file=.env setup.mjs bengkel-booking.json
+npx promptfoo@0.124.1 eval -c promptfooconfig.booking-summary.yaml --no-cache -o output/booking-summary-1.json
+node booking-report.mjs output/booking-summary-1.json
+```
+
+- The `booking_template` agent has a booking summary template (issue #206): its reply sets `show_booking_summary`
+  instead of writing the summary, and the playground returns the summary bubble the reply ends with
+  (`booking_summary`, else `booking_summary_rejection`).
+- It runs the booking cases, where `summary` in the metadata of B-BK-12 and B-BK-17 is the summary they must show, and
+  `tests/b-booking-summary.yaml`, the step before the customer confirms. A case without `summary` must show none.
+- Gate: the booking gate above, no summary on a case that expects none, at least 90% of the cases that expect a summary
+  with one, the expected date (`DD/MM/YYYY`), time, service, name, notes, and `Mobil` in every summary, and no model
+  bubble before the summary that names the service as well.
+- An agent without a template gets the prompt and schema it had before issue #206, so the `booking` agent needs no
+  rerun for it: compare its prompt between the two builds instead (the request log keeps it).
 
 ## Multi-chunk context eval
 
