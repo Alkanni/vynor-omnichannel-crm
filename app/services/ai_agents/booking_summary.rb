@@ -11,8 +11,11 @@ class AiAgents::BookingSummary
     For this agent, the summary comes from a template that is sent after your messages and asks the customer to confirm
     it. Never write a summary or ask the customer to confirm a booking in "messages". Whenever you would read the summary,
     also after the customer changes the service, date, or time, set "show_booking_summary" to true, fill "booking" with
-    its values, as for a booking, and put only one short line without any booking detail or question in "messages", such
-    as "Baik, Kak.". Set "show_booking_summary" to false otherwise, also when "create_booking" is true.
+    its values, as for a booking, and put only one short line that introduces the summary in "messages", such as "Baik,
+    Kak, ini ringkasannya:", without any booking detail or question; that line states no fact of its own, so where a
+    "decision" is asked for it is "conversational". When the customer agrees to the summary, even briefly or with a request for the notes, the booking
+    is confirmed: set "create_booking" to true as above, tell them the staff will confirm the request, and set
+    "show_booking_summary" to false. Set "show_booking_summary" to false otherwise.
   TEXT
 
   # conversation: the conversation of the reply, nil in the playground; actions: its AiAgents::ActionSchema.
