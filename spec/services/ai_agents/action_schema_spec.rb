@@ -194,6 +194,59 @@ RSpec.describe AiAgents::ActionSchema do
       it 'says none when the conversation has no bookings yet' do
         expect(described_class.new(ai_agent: ai_agent).instructions).to include("Bookings already in this conversation:\nnone")
       end
+
+      it 'gives a reply of an agent without a summary template the same schema and instructions as any other' do
+        reply_schema = described_class.new(ai_agent: ai_agent, bookings: [held], reply: true)
+
+        expect(reply_schema.json_schema('ai_agent_reply')).to eq(schema.json_schema('ai_agent_reply'))
+        expect(reply_schema.instructions).to eq(schema.instructions)
+        expect(reply_schema.summary_request('show_booking_summary' => true, 'booking' => booking)).to eq(booking: nil, booking_rejection: nil)
+      end
+
+      context 'with a booking summary template' do
+        let(:reply_schema) { described_class.new(ai_agent: ai_agent, bookings: [held], reply: true) }
+
+        before { ai_agent.update!(booking_summary_template: 'Ringkasan: {{booking.service}}') }
+
+        it 'asks a reply whether it shows the summary, after the booking instructions and before the condition' do
+          expect(reply_schema.json_schema('ai_agent_reply')[:schema][:properties][:show_booking_summary]).to eq(type: 'boolean')
+          expect(reply_schema.instructions).to include(
+            "#{described_class::HELD_BOOKING_INSTRUCTIONS}#{AiAgents::BookingSummary::INSTRUCTIONS}Condition:\nSaat customer ingin datang"
+          )
+        end
+
+        it 'leaves the summary out of a schema that is not a reply\'s, such as the Watcher\'s' do
+          expect(schema.json_schema('ai_agent_watch')[:schema][:properties]).not_to have_key(:show_booking_summary)
+          expect(schema.instructions).not_to include(AiAgents::BookingSummary::INSTRUCTIONS)
+          expect(schema.summary_request('show_booking_summary' => true, 'booking' => booking)).to eq(booking: nil, booking_rejection: nil)
+        end
+
+        it 'returns the booking the reply shows, as for a booking request' do
+          expect(reply_schema.summary_request('show_booking_summary' => true, 'booking' => booking)).to eq(
+            booking: { service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 21, 2, 30), notes: nil,
+                       details: { 'Plat nomor' => 'B 1234 CD' }, rescheduled_from_id: nil },
+            booking_rejection: nil
+          )
+          expect(reply_schema.summary_request('show_booking_summary' => true, 'booking' => booking.merge('date' => 'besok')))
+            .to eq(booking: nil, booking_rejection: :invalid_schedule)
+          expect(reply_schema.summary_request('show_booking_summary' => true, 'booking' => booking.merge('service' => '')))
+            .to eq(booking: nil, booking_rejection: :missing_service)
+        end
+
+        it 'returns no summary when the reply shows none or records the booking already' do
+          [{ 'show_booking_summary' => false }, { 'show_booking_summary' => 'true' },
+           { 'show_booking_summary' => true, 'create_booking' => true }].each do |flags|
+            expect(reply_schema.summary_request(flags.merge('booking' => booking))).to eq(booking: nil, booking_rejection: nil), flags.inspect
+          end
+        end
+
+        it 'leaves the summary out while the account lacks the bookings feature' do
+          ai_agent.account.disable_features!('bookings')
+
+          expect(reply_schema).not_to be_any
+          expect(reply_schema.summary_request('show_booking_summary' => true, 'booking' => booking)).to eq(booking: nil, booking_rejection: nil)
+        end
+      end
     end
 
     it 'leaves bookings out while the account lacks the bookings feature' do

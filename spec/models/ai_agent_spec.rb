@@ -172,6 +172,21 @@ RSpec.describe AiAgent do
       expect(ai_agent.errors.attribute_names).to eq([:booking_conditions])
     end
 
+    it 'takes a booking summary template of up to 5,000 characters that is a Liquid template' do
+      ai_agent.booking_summary_template = "Ringkasan {{booking.service}}\n#{'a' * 4_950}"
+      expect(ai_agent).to be_valid
+
+      ai_agent.booking_summary_template = 'Ringkasan {{booking.service'
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.full_messages).to eq(
+        ['Booking summary template has a variable or tag that is not closed, such as {{booking.service']
+      )
+
+      ai_agent.booking_summary_template = 'a' * 5_001
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.attribute_names).to eq([:booking_summary_template])
+    end
+
     it 'takes booking messages of up to 5,000 characters that are Liquid templates' do
       ai_agent.assign_attributes(booking_confirmed_message: "Halo {{booking.customer_name}}, #{'a' * 4_950}", booking_cancelled_message: '')
       expect(ai_agent).to be_valid

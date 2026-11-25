@@ -68,6 +68,13 @@
     "booking": {
       "name": "Eval - Booking Bengkel Vynor Motor",
       "knowledge": []
+    },
+    "booking_template": {
+      "name": "Eval - Booking Bengkel Vynor Motor (template)",
+      "knowledge": [],
+      "settings": {
+        "booking_summary_template": "Ringkasan Booking\nNama: {{booking.customer_name}}\nLayanan: {{booking.service}}\nTanggal: {{booking.date}}\nJam: {{booking.time}}\n{% if booking.extra_fields != blank %}{{booking.extra_fields}}\n{% endif %}{% if booking.notes != blank %}Catatan: {{booking.notes}}\n{% endif %}\nBalas \"Ya\" jika sudah benar."
+      }
     }
   }
 }

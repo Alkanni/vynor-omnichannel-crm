@@ -202,6 +202,22 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(ai_agent.reload.booking_cancelled_message).to eq('')
     end
 
+    it 'saves the booking summary template, and refuses one that is not a Liquid template' do
+      template = "Ringkasan booking\nLayanan: {{booking.service}}\n{{booking.extra_fields}}"
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { booking_summary_template: template }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['booking_summary_template']).to eq(template)
+
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { booking_summary_template: 'Layanan: {{booking.service' }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['attributes']).to eq(['booking_summary_template'])
+      expect(ai_agent.reload.booking_summary_template).to eq(template)
+    end
+
     it 'clears the allowed labels with an empty list' do
       ai_agent.update!(allowed_label_ids: [label.id])
 
@@ -354,6 +370,22 @@ RSpec.describe 'AI Agents API', type: :request do
                                                     'scheduled_at' => '2026-11-20T03:00:00.000Z', 'details' => { 'Plat nomor' => 'B 1' })
     end
 
+    it 'returns the booking summary a live reply would end with, or why it shows none' do
+      trace = AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: nil, web_search: nil, validation: nil, invalid_outputs: [],
+                                                  input_tokens: nil, output_tokens: nil, cached_input_tokens: nil, latency_ms: 10)
+      replies = [
+        AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, Kak.', 'Ringkasan: Cuci salon'], handoff: false, labels: [],
+                                            booking_summary: 'Ringkasan: Cuci salon', trace: trace),
+        AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, Kak.'], handoff: false, labels: [], booking_summary_rejection: :past_schedule,
+                                            trace: trace)
+      ]
+      allow(AiAgents::ReplyGenerator).to receive(:new).and_return(*replies.map { |reply| instance_double(AiAgents::ReplyGenerator, perform: reply) })
+
+      2.times { post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json }
+
+      expect(response.parsed_body).to include('messages' => ['Baik, Kak.'], 'booking_summary' => nil, 'booking_summary_rejection' => 'past_schedule')
+    end
+
     it 'returns the reply of the agent for the conversation so far, with its actions and the knowledge it used' do
       ai_agent.update!(history_limit: 2)
       source = create(:ai_agent_knowledge_source, ai_agent: ai_agent, title: 'Jam operasional')
@@ -379,7 +411,8 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
         'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'booking' => nil,
-        'booking_rejection' => nil, 'model' => ai_agent.model, 'scope' => nil, 'validation' => nil, 'web' => nil,
+        'booking_rejection' => nil, 'booking_summary' => nil, 'booking_summary_rejection' => nil, 'model' => ai_agent.model, 'scope' => nil,
+        'validation' => nil, 'web' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
@@ -574,7 +607,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(log).to have_attributes(source: 'playground', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: nil, message_id: nil,
                                      reply_trace_id: nil, output: { 'messages' => ['Buka 08.00, Kak.'], 'handoff' => false, 'labels' => [],
                                                                     'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil,
-                                                                    'booking_cancellation' => nil })
+                                                                    'booking_cancellation' => nil, 'booking_summary_rejection' => nil })
       expect(log.input['messages']).to eq(messages.map(&:stringify_keys))
       expect(log.steps.sole).to include('step' => 'reply', 'output' => { 'messages' => ['Buka 08.00, Kak.'] })
     end

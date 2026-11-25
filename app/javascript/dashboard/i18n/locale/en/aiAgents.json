@@ -176,6 +176,21 @@
           "DESCRIPTION": "Every booking has the customer name, service, date, time, and notes. Add up to 10 more fields for your business, such as a plate number. Press Enter after each one.",
           "PLACEHOLDER": "e.g. Plate number"
         },
+        "SUMMARY_TEMPLATE": {
+          "TITLE": "Booking summary template",
+          "DESCRIPTION": "Once the customer has given the booking details, the AI agent sends this summary for them to confirm. Leave it empty to let the AI agent write the summary itself. You can use {variables}, and {detail} for one extra field. Try it in the Playground.",
+          "PLACEHOLDER": "e.g. Name: {name}, service: {service}, on {date} at {time}. Reply \"Yes\" if this is correct.",
+          "STARTER_BUTTON": "Fill in a starter template",
+          "STARTER": {
+            "TITLE": "Booking summary",
+            "NAME": "Name",
+            "SERVICE": "Service",
+            "DATE": "Date",
+            "TIME": "Time",
+            "NOTES": "Notes",
+            "CONFIRM": "Reply \"Yes\" if this is correct."
+          }
+        },
         "CONFIRMED_MESSAGE": {
           "TITLE": "Message when a booking is confirmed",
           "DESCRIPTION": "The AI agent sends this to the customer when your team marks a booking as Confirmed. Leave it empty to send nothing. You can use {variables}.",

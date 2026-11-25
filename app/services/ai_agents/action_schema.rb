@@ -1,7 +1,8 @@
 # The conversation actions an AI agent may take, as structured output fields next to its reply: "handoff" when
 # Agent Transfer Conditions are set, "labels" (limited to the allowed labels) when labels are allowed, and a Google
 # Sheets row ("write_sheet_row" + "sheet_row") when the agent's sheet integration is ready to write, and a booking request
-# ("create_booking" + "booking") when the agent records bookings (see AiAgent#booking?).
+# ("create_booking" + "booking") when the agent records bookings (see AiAgent#booking?). A reply of an agent with a booking
+# summary template may also show the customer the summary of a booking ("show_booking_summary", see AiAgents::BookingSummary).
 class AiAgents::ActionSchema
   HANDOFF_INSTRUCTIONS = <<~TEXT.freeze
     Set "handoff" to true when the conversation meets any of the transfer conditions below, and false otherwise.
@@ -43,8 +44,8 @@ class AiAgents::ActionSchema
 
   # written_rows: the sheet rows (value lists) already written for the conversation, so they are not written again.
   # bookings: the bookings the customer still has in the conversation (see AiAgents::ConversationSession#bookings), so they
-  # are not requested again.
-  pattr_initialize [:ai_agent!, :written_rows, :bookings]
+  # are not requested again. reply: whether the schema is a reply's, the only one that may show a booking summary.
+  pattr_initialize [:ai_agent!, :written_rows, :bookings, :reply]
 
   def any?
     properties.any?
@@ -91,6 +92,14 @@ class AiAgents::ActionSchema
       **booking_request(content), booking_cancellation: (held_booking_id(content['cancel_booking']) if ai_agent.booking?) }
   end
 
+  # The booking a reply shows the customer as its summary, or the reason it cannot be one, as for a booking request; both
+  # nil when the reply shows none, or records the booking already.
+  def summary_request(content)
+    return booking_request(content, AiAgents::BookingSummary::FIELD) if summary? && content['create_booking'] != true
+
+    { booking: nil, booking_rejection: nil }
+  end
+
   private
 
   def properties
@@ -99,8 +108,11 @@ class AiAgents::ActionSchema
       properties[:labels] = { type: 'array', items: { type: 'string', enum: allowed_labels } } if allowed_labels.any?
       properties.merge!(sheet_properties) if sheet
       properties.merge!(booking_properties) if ai_agent.booking?
+      properties[AiAgents::BookingSummary::FIELD.to_sym] = { type: 'boolean' } if summary?
     end
   end
+
+  def summary? = reply && ai_agent.booking? && ai_agent.booking_summary_template.present?
 
   def handoff?
     ai_agent.transfer_conditions.present?
@@ -156,12 +168,12 @@ class AiAgents::ActionSchema
     bookings.to_a.any?
   end
 
-  # The booking the model asked for, with a blank name when it gave none, since the conversation's contact fills that in
-  # (see AiAgents::ConversationSession#request_booking!), or the reason it cannot be a booking: no date and time that
-  # parse, a time that has passed, or no service. Both are nil when the model asked for none. rescheduled_from_id is the
-  # booking it replaces, kept only when that is one the customer still has.
-  def booking_request(content)
-    return { booking: nil, booking_rejection: nil } unless ai_agent.booking? && content['create_booking'] == true
+  # The booking the model asked for (with "create_booking", or the flag given), with a blank name when it gave none, since
+  # the conversation's contact fills that in (see Booking.ai_customer_name), or the reason it cannot be a booking: no date
+  # and time that parse, a time that has passed, or no service. Both are nil when the model asked for none.
+  # rescheduled_from_id is the booking it replaces, kept only when that is one the customer still has.
+  def booking_request(content, flag = 'create_booking')
+    return { booking: nil, booking_rejection: nil } unless ai_agent.booking? && content[flag] == true
 
     fields = content['booking'].is_a?(Hash) ? content['booking'] : {}
     values = booking_keys.index_with { |key| fields[key].to_s.strip }
@@ -215,7 +227,8 @@ class AiAgents::ActionSchema
   def booking_instructions
     return unless ai_agent.booking?
 
-    "#{BOOKING_INSTRUCTIONS}#{HELD_BOOKING_INSTRUCTIONS if held_bookings?}Condition:\n#{ai_agent.booking_conditions}\n" \
+    "#{BOOKING_INSTRUCTIONS}#{HELD_BOOKING_INSTRUCTIONS if held_bookings?}#{AiAgents::BookingSummary::INSTRUCTIONS if summary?}" \
+      "Condition:\n#{ai_agent.booking_conditions}\n" \
       "Bookings already in this conversation:\n#{held_booking_lines.join("\n").presence || 'none'}"
   end
 

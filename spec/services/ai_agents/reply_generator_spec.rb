@@ -742,6 +742,28 @@ RSpec.describe AiAgents::ReplyGenerator do
         end
       end
 
+      context 'with a booking summary template' do
+        let(:conversation) { create(:conversation, account: ai_agent.account, contact: create(:contact, account: ai_agent.account, name: 'Budi')) }
+        let(:reply_content) do
+          { decision: 'clarify', sources: [], messages: ['Baik, Kak.'], show_booking_summary: true,
+            booking: { customer_name: '', service: 'Cuci salon', date: '2026-11-20', time: '13:00', notes: '' } }.to_json
+        end
+        let(:reply) do
+          travel_to(Time.utc(2026, 11, 19, 3, 0)) { described_class.new(ai_agent: ai_agent, messages: messages, conversation: conversation).perform }
+        end
+
+        before { ai_agent.update!(booking_summary_template: 'Ringkasan: {{booking.service}} untuk {{booking.customer_name}}, {{booking.date}}') }
+
+        it 'asks whether the reply shows the summary, and ends the checked reply with the summary for the conversation' do
+          expect(reply.messages).to eq(['Baik, Kak.', 'Ringkasan: Cuci salon untuk Budi, 20/11/2026'])
+          expect(reply).to have_attributes(booking_summary: 'Ringkasan: Cuci salon untuk Budi, 20/11/2026', booking: nil)
+          expect(reply.trace.validation.blocked_reason).to be_nil
+          request = chat_requests.sole
+          expect(request['tools'].sole['function']['parameters']['properties']['show_booking_summary']).to eq('type' => 'boolean')
+          expect(request['messages'].first['content']).to include(AiAgents::BookingSummary::INSTRUCTIONS)
+        end
+      end
+
       # The arrival hours come only from the condition, and the date and time of the held booking only from its listing, as
       # when its messages have left the conversation; a price still needs a source.
       {

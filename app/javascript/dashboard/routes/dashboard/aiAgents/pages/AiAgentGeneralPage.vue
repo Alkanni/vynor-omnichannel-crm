@@ -44,14 +44,21 @@ const TEXT_LIMITS = {
   scopeReply: 1000,
   webSearchDomains: 1000,
 };
-// The booking variables a booking status message can use (see BookingDrop).
+// The booking variables a booking template can use (see BookingDrop). The summary shows a booking that is not recorded
+// yet, so it has no id.
 const BOOKING_MESSAGE_VARIABLES = {
   name: '{{booking.customer_name}}',
   service: '{{booking.service}}',
   date: '{{booking.date}}',
   time: '{{booking.time}}',
+  notes: '{{booking.notes}}',
+  extraFields: '{{booking.extra_fields}}',
   id: '{{booking.id}}',
 };
+const BOOKING_SUMMARY_VARIABLES = Object.values(BOOKING_MESSAGE_VARIABLES)
+  .filter(variable => variable !== BOOKING_MESSAGE_VARIABLES.id)
+  .join(', ');
+const BOOKING_DETAIL_VARIABLE = '{{booking.details["Plate number"]}}';
 
 const { t } = useI18n();
 const store = useStore();
@@ -99,6 +106,7 @@ const toForm = agent => ({
   booking_fields: [...agent.booking_fields],
   booking_confirmed_message: agent.booking_confirmed_message || '',
   booking_cancelled_message: agent.booking_cancelled_message || '',
+  booking_summary_template: agent.booking_summary_template || '',
 });
 
 const form = reactive(toForm(props.agent));
@@ -133,6 +141,25 @@ const existingLabelOrNull = id => (existingLabelIds.value.has(id) ? id : null);
 const bookingMessageVariables = Object.values(BOOKING_MESSAGE_VARIABLES).join(
   ', '
 );
+// A starter summary in the interface language for the admin to edit; the extra fields and the notes get a line only when
+// they have a value.
+const fillStarterSummaryTemplate = () => {
+  const { name, service, date, time, notes, extraFields } =
+    BOOKING_MESSAGE_VARIABLES;
+  const notesLabel = t(
+    'AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER.NOTES'
+  );
+  form.booking_summary_template = [
+    t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER.TITLE'),
+    `${t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER.NAME')}: ${name}`,
+    `${t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER.SERVICE')}: ${service}`,
+    `${t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER.DATE')}: ${date}`,
+    `${t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER.TIME')}: ${time}`,
+    `{% if booking.extra_fields != blank %}${extraFields}\n{% endif %}` +
+      `{% if booking.notes != blank %}${notesLabel}: ${notes}\n{% endif %}`,
+    t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER.CONFIRM'),
+  ].join('\n');
+};
 
 const modelOptions = computed(() => {
   const options = availableModels.value.map(model => ({
@@ -836,6 +863,46 @@ onMounted(async () => {
                   :placeholder="
                     t('AI_AGENTS.GENERAL.BOOKING.FIELDS.PLACEHOLDER')
                   "
+                />
+              </SettingsField>
+              <SettingsField
+                :title="t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.TITLE')"
+                :description="
+                  t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.DESCRIPTION', {
+                    variables: BOOKING_SUMMARY_VARIABLES,
+                    detail: BOOKING_DETAIL_VARIABLE,
+                  })
+                "
+              >
+                <TextArea
+                  id="ai-agent-booking-summary-template"
+                  v-model="form.booking_summary_template"
+                  :placeholder="
+                    t(
+                      'AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.PLACEHOLDER',
+                      BOOKING_MESSAGE_VARIABLES
+                    )
+                  "
+                  :max-length="TEXT_LIMITS.bookingMessage"
+                  show-character-count
+                  auto-height
+                  resize
+                  min-height="5rem"
+                />
+                <Button
+                  v-if="!form.booking_summary_template"
+                  type="button"
+                  :label="
+                    t(
+                      'AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.STARTER_BUTTON'
+                    )
+                  "
+                  icon="i-lucide-file-text"
+                  color="slate"
+                  variant="faded"
+                  size="sm"
+                  class="self-start"
+                  @click="fillStarterSummaryTemplate"
                 />
               </SettingsField>
               <SettingsField
