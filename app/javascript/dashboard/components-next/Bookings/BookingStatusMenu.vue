@@ -11,6 +11,7 @@ import {
   BOOKING_STATUS_CLASSES,
   BOOKING_STATUS_LABELS,
 } from './constants';
+import { slotTakenMessage } from './helpers';
 
 const props = defineProps({
   booking: {
@@ -42,8 +43,9 @@ const saveStatus = async status => {
     const { data } = await BookingsAPI.update(props.booking.id, { status });
     emit('updated', data);
     useAlert(t('BOOKINGS.UPDATE_SUCCESS'));
-  } catch {
-    useAlert(t('BOOKINGS.UPDATE_ERROR'));
+  } catch (error) {
+    // A confirmed booking holding the slot is named, so staff know which one to move first.
+    useAlert(slotTakenMessage(error) || t('BOOKINGS.UPDATE_ERROR'));
   } finally {
     isSaving.value = false;
   }

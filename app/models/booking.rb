@@ -51,6 +51,10 @@ class Booking < ApplicationRecord
   validates :scheduled_at, presence: true
   validates :notes, length: { maximum: 5_000 }
 
+  # A confirmed booking holds its slot, so one recorded, confirmed, or moved to another time or service must find the slot
+  # free (#210). Only staff save a booking that way: the AI records requested bookings, which hold no slot.
+  before_save :take_slot!, if: :taking_slot?
+
   # The name a booking the AI asks for has: the one the model gave, else the contact's, since the model often leaves it
   # blank when the customer never said it; nil when neither has one.
   def self.ai_customer_name(name, contact)
@@ -105,7 +109,25 @@ class Booking < ApplicationRecord
     Liquid::Template.parse(template).render!(drops)
   end
 
+  # In the time zone of the booking's agent, which the AI used to read the customer's time.
+  def local_time(time)
+    time.in_time_zone(ai_agent&.timezone || 'UTC').strftime('%Y-%m-%d %H:%M %Z')
+  end
+
   private
+
+  def taking_slot?
+    confirmed? && (new_record? || will_save_change_to_status? || will_save_change_to_scheduled_at? || will_save_change_to_service?)
+  end
+
+  # A slot is the exact time and the service whatever its case, as AiAgents::ConversationSession#holds_booking? compares
+  # them, across the whole account. The lock holds the account's slots until the transaction ends, so of two requests for
+  # one slot the later one waits and then sees the earlier one's booking.
+  def take_slot!
+    self.class.connection.execute(self.class.sanitize_sql_array(['SELECT pg_advisory_xact_lock(hashtext(?), ?)', 'bookings', account_id]))
+    holder = account.bookings.confirmed.where(scheduled_at: scheduled_at).where.not(id: id).find { |other| other.service.casecmp?(service) }
+    raise CustomExceptions::Booking::SlotTaken, holder if holder
+  end
 
   # The agent sends it, so a conversation the AI still handles stays with the AI (see Message#human_response?), and, as for
   # the agent's replies, it leaves waiting_since alone once a human handles the conversation. A channel whose reply window
@@ -134,11 +156,6 @@ class Booking < ApplicationRecord
     when Hash then value.map { |name, text| "#{name} #{text.presence || '-'}" }.join(', ').presence || '-'
     else value.presence || '-'
     end
-  end
-
-  # In the time zone of the booking's agent, which the AI used to read the customer's time.
-  def local_time(time)
-    time.in_time_zone(ai_agent&.timezone || 'UTC').strftime('%Y-%m-%d %H:%M %Z')
   end
 
   def create_activity!(content)

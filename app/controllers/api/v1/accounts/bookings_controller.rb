@@ -8,6 +8,8 @@
 class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
   RESULTS_PER_PAGE = 25
 
+  rescue_from CustomExceptions::Booking::SlotTaken, with: :render_error_response
+
   before_action :check_authorization
   before_action :validate_filters, only: :index
   before_action :fetch_booking, only: :update

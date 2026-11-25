@@ -28,3 +28,7 @@ export const BOOKING_STATUS_CLASSES = Object.freeze({
   no_show: 'bg-n-ruby-3 text-n-ruby-11',
   rescheduled: 'bg-n-iris-3 text-n-iris-11',
 });
+
+// The error_code of the 422 the bookings API returns when a confirmed booking holds the slot already (see
+// CustomExceptions::Booking::SlotTaken); its message names that booking.
+export const BOOKING_SLOT_TAKEN_ERROR = 'booking_slot_taken';

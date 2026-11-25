@@ -458,6 +458,8 @@ en:
       created: '%{user} recorded booking #%{id}: %{service}, %{scheduled_at}'
       edited: '%{user} changed booking #%{id}: %{changes}'
       message_not_sent: "The %{status} message for booking #%{id} was not sent to the customer because the channel's reply window has closed"
+    errors:
+      slot_taken: 'Booking #%{id} is already confirmed for %{service} at %{scheduled_at}. Choose another time or service.'
     statuses:
       requested: Requested
       confirmed: Confirmed
