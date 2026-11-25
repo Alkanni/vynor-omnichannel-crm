@@ -15,6 +15,7 @@ import {
   BaseTableCell,
 } from 'dashboard/components-next/table';
 import Button from 'dashboard/components-next/button/Button.vue';
+import BookingDetailDialog from 'dashboard/components-next/Bookings/BookingDetailDialog.vue';
 import BookingFormDialog from 'dashboard/components-next/Bookings/BookingFormDialog.vue';
 import BookingStatusMenu from 'dashboard/components-next/Bookings/BookingStatusMenu.vue';
 import {
@@ -22,6 +23,7 @@ import {
   BOOKING_STATUS_LABELS,
 } from 'dashboard/components-next/Bookings/constants';
 import {
+  bookingConversationRoute,
   formatBookingTime,
   localDate,
   startOfLocalDay,
@@ -89,20 +91,13 @@ const fetchBookings = async () => {
 };
 
 const formRef = ref(null);
+const detailRef = ref(null);
 
 const replaceBooking = updated => {
   bookings.value = bookings.value.map(booking =>
     booking.id === updated.id ? updated : booking
   );
 };
-
-const conversationRoute = booking => ({
-  name: 'inbox_conversation',
-  params: {
-    accountId: route.params.accountId,
-    conversation_id: booking.conversation.display_id,
-  },
-});
 
 // A filter change starts again from the first page, whose change fetches.
 watch(
@@ -257,6 +252,15 @@ watch(
                           @updated="replaceBooking"
                         />
                         <Button
+                          v-tooltip="t('BOOKINGS.DETAIL.VIEW')"
+                          :aria-label="t('BOOKINGS.DETAIL.VIEW')"
+                          icon="i-lucide-eye"
+                          variant="ghost"
+                          color="slate"
+                          size="xs"
+                          @click="detailRef.open(booking)"
+                        />
+                        <Button
                           v-if="booking.next_statuses.length"
                           v-tooltip="t('BOOKINGS.FORM.EDIT')"
                           :aria-label="t('BOOKINGS.FORM.EDIT')"
@@ -270,7 +274,12 @@ watch(
                     </BaseTableCell>
                     <BaseTableCell>
                       <RouterLink
-                        :to="conversationRoute(booking)"
+                        :to="
+                          bookingConversationRoute(
+                            route.params.accountId,
+                            booking
+                          )
+                        "
                         class="whitespace-nowrap text-body-main text-n-blue-11 hover:underline underline-offset-2"
                       >
                         {{
@@ -294,6 +303,7 @@ watch(
           :items-per-page="BOOKINGS_PER_PAGE"
         />
         <BookingFormDialog ref="formRef" @saved="replaceBooking" />
+        <BookingDetailDialog ref="detailRef" />
       </template>
     </div>
   </section>
