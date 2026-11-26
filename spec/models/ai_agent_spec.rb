@@ -12,7 +12,7 @@ RSpec.describe AiAgent do
         context_limit: 8, context_expansion_radius: 0, temperature: 'balanced', message_await: 10, message_limit: 10,
         watcher_enabled: false, timezone: 'Asia/Jakarta', session_only_memory: false,
         ignore_team_handoff: false, allowed_label_ids: [], scope_mode: 'off', scope_policy_version: 0, web_search_enabled: false,
-        web_search_domains: nil
+        web_search_domains: nil, promotion_offers_enabled: false
       )
       expect(ai_agent).to be_valid
     end
@@ -89,6 +89,17 @@ RSpec.describe AiAgent do
 
       expect(ai_agent).not_to be_valid
       expect(ai_agent.errors.full_messages).to eq(['Web search enabled needs the Strict scope mode'])
+
+      ai_agent.assign_attributes(scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Servis', off_topic_message: 'Maaf.',
+                                 clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.')
+      expect(ai_agent).to be_valid
+    end
+
+    it 'allows proactive promotion offers in strict mode only' do
+      ai_agent.promotion_offers_enabled = true
+
+      expect(ai_agent).not_to be_valid
+      expect(ai_agent.errors.full_messages).to eq(['Promotion offers enabled needs the Strict scope mode'])
 
       ai_agent.assign_attributes(scope_mode: 'strict', business_description: 'Bengkel mobil', allowed_topics: 'Servis', off_topic_message: 'Maaf.',
                                  clarification_message: 'Yang mana?', knowledge_gap_message: 'Belum ada info.')

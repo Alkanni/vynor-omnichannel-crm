@@ -23,6 +23,19 @@ if @reply.trace.web_search
 else
   json.web nil
 end
+# The one promotion of the prompt and whether it was offered or in the knowledge (see AiAgents::PromotionPrompt). The
+# playground has no conversation session, so no promotion counts as mentioned before.
+promotion = @reply.trace.retrieval&.promotion_hit
+if promotion
+  json.promotion do
+    json.id promotion.chunk.chunkable_id
+    json.title promotion.chunk.chunkable.title
+    json.rank promotion.rank
+    json.placement promotion.rank == @reply.trace.retrieval.offer_rank ? 'offer' : 'knowledge'
+  end
+else
+  json.promotion nil
+end
 if @reply.trace.retrieval
   json.retrieval do
     json.partial! 'api/v1/models/ai_agent_retrieval', formats: [:json], retrieval: @reply.trace.retrieval

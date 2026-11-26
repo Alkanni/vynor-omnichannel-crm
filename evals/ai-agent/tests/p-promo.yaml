@@ -1,0 +1,179 @@
+# P-PR. Promotions (issue #215) against the strict agents of fixtures/bengkel-promo.json: `promo` offers promotions
+# proactively, `promo_passive` only mentions them when asked (issue #214). The fixture has four active promotions (oil,
+# battery, and front brake pads of an Avanza, each linked to its product, and a free brake check with every periodic
+# service, linked to none), one scheduled ("Promo Akhir Tahun"), and one archived ("Promo Cuci Mobil"). `promotion` is
+# what the reply must mention (see lib/promo-assertions.mjs): the title of a promotion, 'any', or null for none.
+# Categories, for promo-report.mjs:
+# - relevant: the customer talks about something an active promotion applies to without asking about promotions; the
+#   `promo` agent should offer that promotion, the passive one may only when the price is asked;
+# - irrelevant: nothing an active promotion applies to; no reply may mention one;
+# - complaint: a complaint or a request for staff about something with a promotion; no reply may offer it;
+# - direct: the customer asks about promotions; the reply must mention the right one;
+# - inactive: the customer asks about the scheduled or the archived promotion, which never reaches the prompt.
+# The playground has no conversation session, so the session limits are probed live (promo_probe.rb).
+
+- description: 'P-PR-01: harga oli 5W-30 4 liter'
+  metadata: { id: P-PR-01, category: relevant, promotion: Promo Oli Mesin 5W-30 }
+  vars:
+    conversation: Berapa harga oli mesin 5W-30 yang 4 liter?
+
+- description: 'P-PR-02: stok oli 5W-30'
+  metadata: { id: P-PR-02, category: relevant, promotion: Promo Oli Mesin 5W-30 }
+  vars:
+    conversation: Oli 5W-30 kemasan 4 liter ada stoknya?
+
+- description: 'P-PR-03: oli untuk mobil bensin'
+  metadata: { id: P-PR-03, category: relevant, promotion: Promo Oli Mesin 5W-30 }
+  vars:
+    conversation: Mau ganti oli mesin, oli apa yang cocok untuk mobil bensin?
+
+- description: 'P-PR-04: harga kampas rem depan Avanza'
+  metadata: { id: P-PR-04, category: relevant, promotion: Diskon Kampas Rem Depan }
+  vars:
+    conversation: Mobil saya Avanza, kampas rem depan sudah tipis. Harga kampas rem depannya berapa?
+
+- description: 'P-PR-05: rem Avanza bunyi'
+  metadata: { id: P-PR-05, category: relevant, promotion: Diskon Kampas Rem Depan }
+  vars:
+    conversation: Rem depan Avanza saya bunyi kalau direm, apa kampasnya harus diganti? Ada kampas rem depan untuk Avanza?
+
+- description: 'P-PR-06: aki kering 45Ah'
+  metadata: { id: P-PR-06, category: relevant, promotion: Promo Aki Kering }
+  vars:
+    conversation: Aki mobil saya soak, ada aki kering 45Ah?
+
+- description: 'P-PR-07: harga aki untuk 1.500 cc'
+  metadata: { id: P-PR-07, category: relevant, promotion: Promo Aki Kering }
+  vars:
+    conversation: |-
+      Halo
+      AI: Halo! Selamat datang di Bengkel Vynor Motor. Ada yang bisa kami bantu?
+      Saya butuh aki baru untuk mobil bensin 1.500 cc, harganya berapa?
+
+- description: 'P-PR-08: biaya servis berkala'
+  metadata: { id: P-PR-08, category: relevant, promotion: Gratis Cek Rem }
+  vars:
+    conversation: Mau servis berkala mobil bensin, biayanya berapa?
+
+- description: 'P-PR-09: servis berkala termasuk apa'
+  metadata: { id: P-PR-09, category: relevant, promotion: Gratis Cek Rem }
+  vars:
+    conversation: Servis berkala di sini sudah termasuk apa saja?
+
+- description: 'P-PR-10: oli bisa dipasang'
+  metadata: { id: P-PR-10, category: relevant, promotion: Promo Oli Mesin 5W-30 }
+  vars:
+    conversation: Kalau beli oli mesin 5W-30 4 liter, bisa langsung dipasang di bengkel?
+
+- description: 'P-IR-01: jam buka'
+  metadata: { id: P-IR-01, category: irrelevant, promotion: null }
+  vars:
+    conversation: Bengkel buka jam berapa?
+
+- description: 'P-IR-02: alamat'
+  metadata: { id: P-IR-02, category: irrelevant, promotion: null }
+  vars:
+    conversation: Alamat bengkelnya di mana?
+
+- description: 'P-IR-03: pembayaran'
+  metadata: { id: P-IR-03, category: irrelevant, promotion: null }
+  vars:
+    conversation: Bisa bayar pakai QRIS?
+
+- description: 'P-IR-04: garansi'
+  metadata: { id: P-IR-04, category: irrelevant, promotion: null }
+  vars:
+    conversation: Garansi servisnya berapa lama?
+
+- description: 'P-IR-05: spooring'
+  metadata: { id: P-IR-05, category: irrelevant, promotion: null }
+  vars:
+    conversation: Harga spooring dan balancing berapa?
+
+- description: 'P-IR-06: tune up'
+  metadata: { id: P-IR-06, category: irrelevant, promotion: null }
+  vars:
+    conversation: Tune up mobil berapa biayanya?
+
+- description: 'P-IR-07: wiper'
+  metadata: { id: P-IR-07, category: irrelevant, promotion: null }
+  vars:
+    conversation: Ada wiper blade 20 inci?
+
+- description: 'P-IR-08: filter udara'
+  metadata: { id: P-IR-08, category: irrelevant, promotion: null }
+  vars:
+    conversation: Harga filter udara Avanza berapa?
+
+- description: 'P-IR-09: cara booking'
+  metadata: { id: P-IR-09, category: irrelevant, promotion: null }
+  vars:
+    conversation: Booking servis harus berapa hari sebelumnya?
+
+- description: 'P-IR-10: terima kasih'
+  metadata: { id: P-IR-10, category: irrelevant, promotion: null }
+  vars:
+    conversation: |-
+      Bengkel buka hari Sabtu?
+      AI: Buka, Kak. Senin sampai Sabtu pukul 08.00-17.00 WIB.
+      Oke, terima kasih infonya
+
+- description: 'P-CP-01: oli bocor'
+  metadata: { id: P-CP-01, category: complaint, promotion: null }
+  vars:
+    conversation: Oli yang diganti kemarin di bengkel kalian bocor, saya kecewa sekali!
+
+- description: 'P-CP-02: aki soak lagi'
+  metadata: { id: P-CP-02, category: complaint, promotion: null }
+  vars:
+    conversation: Aki kering 45Ah yang saya beli di sini minggu lalu sudah soak lagi, saya mau komplain.
+
+- description: 'P-CP-03: minta CS soal kampas rem'
+  metadata: { id: P-CP-03, category: complaint, promotion: null }
+  vars:
+    conversation: Saya mau bicara dengan CS manusia soal kampas rem depan Avanza yang kalian pasang.
+
+- description: 'P-CP-04: harga oli beda dengan nota'
+  metadata: { id: P-CP-04, category: complaint, promotion: null }
+  vars:
+    conversation: Tolong sambungkan ke admin, harga oli 5W-30 di nota saya beda dengan yang disebut kemarin.
+
+- description: 'P-CP-05: rem bunyi setelah servis'
+  metadata: { id: P-CP-05, category: complaint, promotion: null }
+  vars:
+    conversation: Rem saya malah bunyi setelah servis berkala di sini, ini gimana tanggung jawabnya?
+
+- description: 'P-DR-01: ada promo apa saja'
+  metadata: { id: P-DR-01, category: direct, promotion: any }
+  vars:
+    conversation: Ada promo apa saja sekarang?
+
+- description: 'P-DR-02: promo oli'
+  metadata: { id: P-DR-02, category: direct, promotion: Promo Oli Mesin 5W-30 }
+  vars:
+    conversation: Ada promo untuk oli mesin?
+
+- description: 'P-DR-03: promo aki sampai kapan'
+  metadata: { id: P-DR-03, category: direct, promotion: Promo Aki Kering }
+  vars:
+    conversation: Promo aki kering masih berlaku sampai kapan?
+
+- description: 'P-IN-01: promo akhir tahun'
+  metadata: { id: P-IN-01, category: inactive }
+  vars:
+    conversation: Ada promo akhir tahun untuk servis berkala?
+
+- description: 'P-IN-02: diskon 20 persen'
+  metadata: { id: P-IN-02, category: inactive }
+  vars:
+    conversation: Katanya ada diskon 20% servis berkala, benar?
+
+- description: 'P-IN-03: cuci mobil gratis'
+  metadata: { id: P-IN-03, category: inactive }
+  vars:
+    conversation: Promo gratis cuci mobil untuk tune up masih ada?
+
+- description: 'P-IN-04: promo bulan lalu'
+  metadata: { id: P-IN-04, category: inactive }
+  vars:
+    conversation: Bulan lalu ada promo cuci mobil, sekarang masih bisa kalau saya tune up?

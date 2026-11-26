@@ -178,6 +178,41 @@ RSpec.describe AiAgents::KnowledgeRetriever do
 
       expect(hits.map { |hit| [hit.chunk, hit.rank] }).to eq([[best, 1], [knowledge[0], 2], [knowledge[1], 3]])
     end
+
+    it 'searches only the promotions the session mentioned once it mentioned as many as the session limit' do
+      mentioned = create_list(:ai_agent_promotion, AiAgent::Promotion::SESSION_LIMIT, ai_agent: ai_agent)
+      earlier = create_chunk('Promo diskon', chunkable: mentioned.first)
+      fourth = create_chunk('Promo diskon oli mesin', chunkable: create(:ai_agent_promotion, ai_agent: ai_agent))
+      knowledge = create_chunk('Ganti oli')
+      search = ->(ids) { described_class.new(ai_agent: ai_agent, messages: messages, mentioned_promotion_ids: ids).perform.hits.map(&:chunk) }
+
+      expect(search.call(mentioned.first(2).map(&:id))).to eq([fourth, knowledge])
+      expect(search.call(mentioned.map(&:id))).to eq([earlier, knowledge])
+    end
+  end
+
+  describe AiAgents::KnowledgeRetriever::Result do
+    let(:promotion) { create(:ai_agent_promotion, ai_agent: ai_agent) }
+    let(:result) do
+      hits = [create_chunk('Ganti oli'), create_chunk('Promo diskon', chunkable: promotion)].map.with_index(1) do |chunk, rank|
+        AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: rank, score: 0.1)
+      end
+      described_class.new(mode: 'keyword', embedding_model: nil, queries: ['promo'], hits: hits)
+    end
+
+    it 'counts the promotion of a strict reply only when the reply cites it and passes the check' do
+      validation = ->(**attributes) { AiAgents::ReplyValidator::Result.new(decision: 'answer', sources: [1], blocked_reason: nil, **attributes) }
+
+      expect(result.mentioned_promotion_id(validation.call(sources: [1, 2]))).to eq(promotion.id)
+      expect(result.mentioned_promotion_id(validation.call)).to be_nil
+      expect(result.mentioned_promotion_id(validation.call(sources: [2], blocked_reason: 'unsupported_number'))).to be_nil
+      expect(result.mentioned_promotion_id(validation.call(decision: 'knowledge_gap', sources: [2]))).to be_nil
+    end
+
+    it 'counts the promotion of the prompt for a reply of an agent with the scope off, which cites nothing' do
+      expect(result.mentioned_promotion_id(nil)).to eq(promotion.id)
+      expect(result.with(hits: result.hits.first(1)).mentioned_promotion_id(nil)).to be_nil
+    end
   end
 
   describe 'context expansion' do

@@ -137,3 +137,72 @@ describe('AiAgentGeneralPage booking summary template', () => {
     );
   });
 });
+
+describe('AiAgentGeneralPage promotion offers', () => {
+  const strictAgent = {
+    scope_mode: 'strict',
+    business_description: 'Bengkel mobil',
+    allowed_topics: 'Servis',
+    off_topic_message: 'Maaf.',
+    clarification_message: 'Yang mana?',
+    knowledge_gap_message: 'Belum ada info.',
+  };
+  const offersToggle = wrapper =>
+    wrapper
+      .findAllComponents({ name: 'ToggleField' })
+      .find(toggle => toggle.props('title') === 'Offer Promotions Proactively');
+  const submit = async wrapper => {
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    return dispatch.mock.calls.find(
+      ([action]) => action === 'aiAgents/update'
+    )[1];
+  };
+
+  beforeEach(() => {
+    dispatch.mockReset();
+    dispatch.mockImplementation((action, payload) =>
+      Promise.resolve(
+        action === 'aiAgents/update' ? { ...agent, ...payload } : agent
+      )
+    );
+  });
+
+  it('is offered for a strict agent only and saves the choice', async () => {
+    expect(offersToggle(mountPage())).toBeUndefined();
+
+    const wrapper = mountPage({
+      ...strictAgent,
+      promotion_offers_enabled: false,
+    });
+    await flushPromises();
+    offersToggle(wrapper).vm.$emit('update:modelValue', true);
+
+    expect(await submit(wrapper)).toMatchObject({
+      promotion_offers_enabled: true,
+    });
+  });
+
+  it('turns off with web search when Strict is turned off', async () => {
+    const wrapper = mountPage({
+      ...strictAgent,
+      web_search_enabled: true,
+      promotion_offers_enabled: true,
+    });
+    await flushPromises();
+    expect(offersToggle(wrapper).props('modelValue')).toBe(true);
+
+    wrapper
+      .findAllComponents({ name: 'ComboBox' })
+      .find(comboBox => comboBox.props('modelValue') === 'strict')
+      .vm.$emit('update:modelValue', 'off');
+    await flushPromises();
+
+    expect(offersToggle(wrapper)).toBeUndefined();
+    expect(await submit(wrapper)).toMatchObject({
+      scope_mode: 'off',
+      web_search_enabled: false,
+      promotion_offers_enabled: false,
+    });
+  });
+});

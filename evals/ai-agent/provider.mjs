@@ -3,14 +3,30 @@
 // The reply text is the output; handoff, labels, the booking a live reply would request, the booking summary it ends with
 // and its bubbles (an agent with a booking summary template, issue #206), the scope check (with the web
 // query of an agent with web search), what became of web search with each web result as the reply model got it, the reply
-// check, retrieval with the content and links of its chunks, model, latency and the tokens per model call go to metadata
-// for assertions and report.mjs.
+// check, retrieval with the content and links of its chunks, the one promotion of the prompt with its placement (offer or
+// knowledge, issue #215), model, latency and the tokens per model call go to metadata for assertions and report.mjs.
 // Retrieval is empty when the scope check answered the turn, so the reply model ran only when it is there, and the reply
 // check runs only for a strict agent's reply model. The token usage adds up the scope check and the reply model; cached input tokens are not part of it.
 import { readFileSync } from 'node:fs';
 import { AGENTS_FILE, appApi } from './lib/app-api.mjs';
 import { toMessages } from './lib/conversation.mjs';
 import { links } from './lib/links.mjs';
+
+// The playground of an app before #215 has no `promotion`; its retrieval has the one promotion of the prompt, in the
+// knowledge, so runs of main compare with runs of a branch.
+function knowledgePromotion(retrieval) {
+  const chunk = (retrieval?.chunks || []).find(
+    ({ source }) => source.type === 'promotion'
+  );
+  return chunk
+    ? {
+        id: chunk.source.id,
+        title: chunk.source.title,
+        rank: chunk.rank,
+        placement: 'knowledge',
+      }
+    : null;
+}
 
 export default class AiAgentPlaygroundProvider {
   // `config.agent` fixes the agent, so one config can run the same cases against several agent variants.
@@ -71,6 +87,10 @@ export default class AiAgentPlaygroundProvider {
           replyDecision: reply.validation?.decision,
           citedRanks: reply.validation?.sources,
           blockedReason: reply.validation?.blocked_reason,
+          promotion:
+            reply.promotion === undefined
+              ? knowledgePromotion(reply.retrieval)
+              : reply.promotion,
           retrievalMode: reply.retrieval?.mode,
           retrieved: (reply.retrieval?.chunks || []).map(
             ({ rank, score, source, content }) => ({

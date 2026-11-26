@@ -11,7 +11,8 @@
 # so the model never writes them. The [rank] markers a model still writes in a reply of any agent are taken out of its
 # bubbles before the check and before they are sent (see AiAgents::ReplyValidator.without_rank_markers). The booking summary
 # a reply of an agent with a summary template shows the customer is added after the check, as the last bubble (see
-# AiAgents::BookingSummary). Messages are { role: :user | :assistant, content:, attachments: }.
+# AiAgents::BookingSummary). The promotion of a turn, if any, reaches the prompt in the knowledge or as an offer (see
+# AiAgents::PromotionPrompt). Messages are { role: :user | :assistant, content:, attachments: }.
 class AiAgents::ReplyGenerator
   TEMPERATURES = { 'precise' => 0.2, 'balanced' => 0.5, 'creative' => 0.8 }.freeze
   MAX_REPLY_MESSAGES = 5
@@ -78,11 +79,6 @@ class AiAgents::ReplyGenerator
     Use the knowledge below to answer. State facts such as prices, stock, schedules, and policies only when they appear
     in the knowledge or in the conversation. If the knowledge does not cover the question, say that you do not know.
   TEXT
-  # Only for a turn that found a promotion (see AiAgents::KnowledgeRetriever), so the prompt of every other turn stays the same.
-  PROMOTION_INSTRUCTIONS = <<~TEXT.freeze
-    The knowledge includes a promotion that is valid today. Mention it only when the customer asks about promotions, discounts, or the price of
-    something it applies to. Give its period and terms as the knowledge states them, and never promise a promotion that is not in the knowledge.
-  TEXT
   NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS = <<~TEXT.freeze
     None of your knowledge is relevant to this message. State facts such as prices, stock, schedules, and policies only
     when they appear in the conversation; otherwise say that you do not know.
@@ -93,11 +89,12 @@ class AiAgents::ReplyGenerator
   TEXT
 
   # conversation: the conversation the reply is for, nil in the playground. written_rows: the Google Sheets rows already
-  # written for it, and bookings: the bookings the customer still has in it (see AiAgents::ActionSchema). deadline_ms:
-  # how long a reply made inside a request may take (see Api::V1::Accounts::AiAgentsController#playground); the reply model
-  # is not asked again when the first call took long enough that a second one of the same length would end past it. nil,
-  # as for live replies, always asks again.
-  pattr_initialize [:ai_agent!, :messages!, :conversation, :written_rows, :bookings, :deadline_ms]
+  # written for it, and bookings: the bookings the customer still has in it (see AiAgents::ActionSchema). promotion_ids: the
+  # promotions its session mentioned (see AiAgents::ConversationSession#promotion_ids). deadline_ms: how long a reply made
+  # inside a request may take (see Api::V1::Accounts::AiAgentsController#playground); the reply model is not asked again
+  # when the first call took long enough that a second one of the same length would end past it. nil, as for live
+  # replies, always asks again.
+  pattr_initialize [:ai_agent!, :messages!, :conversation, :written_rows, :bookings, :promotion_ids, :deadline_ms]
 
   def perform
     @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
@@ -197,7 +194,7 @@ class AiAgents::ReplyGenerator
   end
 
   def instructions
-    [ai_agent.behavior.presence, scope_policy, current_time, actions.calendar, knowledge, (PROMOTION_INSTRUCTIONS if retrieval.promotion?),
+    [ai_agent.behavior.presence, scope_policy, current_time, actions.calendar, knowledge, AiAgents::PromotionPrompt.text(retrieval),
      web_results, actions.instructions, reply_rules, RESPONSE_INSTRUCTIONS].compact.join("\n\n")
   end
 
@@ -216,12 +213,13 @@ class AiAgents::ReplyGenerator
   end
 
   # An agent with knowledge but none relevant to the message still gets the rule against stating facts it was not given.
-  # A strict agent gets its chunks with their angle brackets escaped, so no chunk can close the <knowledge> block.
+  # A strict agent gets its chunks with their angle brackets escaped, so no chunk can close the <knowledge> block. A turn
+  # whose only hit is the promotion it offers has no <knowledge> block (see AiAgents::PromotionPrompt).
   def knowledge
     if retrieval.hits.empty?
       NO_RELEVANT_KNOWLEDGE_INSTRUCTIONS if ai_agent.knowledge_chunks.exists?
-    else
-      entries = retrieval.hits.map do |hit|
+    elsif retrieval.knowledge_hits.any?
+      entries = retrieval.knowledge_hits.map do |hit|
         "[#{hit.rank}] #{ai_agent.scope_strict? ? hit.chunk.content.gsub(/[<>]/, ESCAPED_MARKUP) : hit.chunk.content}"
       end
       "#{KNOWLEDGE_INSTRUCTIONS}\n<knowledge>\n#{entries.join("\n\n")}\n</knowledge>"
@@ -229,8 +227,15 @@ class AiAgents::ReplyGenerator
   end
 
   def retrieval
-    @retrieval ||= AiAgents::KnowledgeRetriever.new(ai_agent: ai_agent, messages: messages).perform
+    @retrieval ||= AiAgents::KnowledgeRetriever.new(ai_agent: ai_agent, messages: messages, mentioned_promotion_ids: promotion_ids)
+                                               .perform.then { |result| offers? ? promotion_prompt.arrange(result) : result }
   end
+
+  # The rules of a turn with web results forbid offers the customer did not ask for (see
+  # AiAgents::ReplyValidator::WEB_INSTRUCTIONS), so a turn that searches the web offers no promotion.
+  def offers? = ai_agent.promotion_offers_enabled && @scope.web_search_status != 'pending'
+
+  def promotion_prompt = AiAgents::PromotionPrompt.new(ai_agent: ai_agent, mentioned_ids: Array(promotion_ids))
 
   # Each entry has its angle brackets escaped like a strict agent's chunks, so no page can close the <web_results> block.
   def web_results

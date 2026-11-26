@@ -41,6 +41,10 @@ context run makes 26 agent calls plus 26 judge calls.
 | `fixtures/bengkel-booking.json` | The strict car workshop agent of `bengkel-mobil.json` without web search, with booking requests on, a `Mobil` booking field, and the `booking` label (issue #177), and the same agent with a booking summary template, `booking_template` (issue #206) |
 | `promptfooconfig.booking-summary.yaml`, `tests/b-booking-summary.yaml` | Booking summary eval: the booking cases plus 6 cases of the step before the customer confirms, against the `booking_template` agent, with deterministic assertions over the summary bubble the playground returns (see below) |
 | `booking-report.mjs` | Markdown summary of the booking eval: the gate of issue #177 per run and the failing cases with the booking they requested |
+| `promptfooconfig.promo.yaml`, `tests/p-promo.yaml`, `lib/promo-assertions.mjs` | Promotion eval: 32 cases (relevant, irrelevant, complaint, direct, inactive) on the `promo` and `promo_passive` agents, with deterministic assertions over the promotion the playground returns (see below) |
+| `fixtures/bengkel-promo.json` | The strict car workshop agent of `bengkel-booking.json` without booking, two more products without a promotion, and six promotions whose dates are days from the run day: four active (three linked to a product, one standalone), one scheduled, one archived (issue #215) |
+| `promo-report.mjs` | Markdown summary of the promotion eval: the gate of issue #215 per agent, with the blocked rate against runs of main, and the failing cases |
+| `promo_probe.rb` | Live probe of the session limits of promotions through an API inbox on a clone (rails runner; see below) |
 | `setup.mjs` | Recreates the eval agents of the fixtures through the API and waits until their knowledge is indexed |
 | `provider.mjs` | Sends each case to `POST /api/v1/accounts/:account_id/ai_agents/:id/playground` |
 | `replay-provider.mjs` | Replays the responses of an earlier run (`REPLAY_OUTPUT`) instead of calling the app, so the same replies can be graded again, e.g. by another judge (issue #174) |
@@ -278,6 +282,34 @@ node booking-report.mjs output/booking-summary-1.json
   bubble before the summary that names the service as well.
 - An agent without a template gets the prompt and schema it had before issue #206, so the `booking` agent needs no
   rerun for it: compare its prompt between the two builds instead (the request log keeps it).
+
+## Promotion eval
+
+```bash
+node --env-file=.env setup.mjs bengkel-promo.json
+npx promptfoo@0.124.1 eval -c promptfooconfig.promo.yaml --no-cache -o output/promo-1.json
+node promo-report.mjs output/promo-1.json --baseline output/promo-main-1.json
+```
+
+- `setup.mjs` creates the fixture's promotions with their dates counted from the run day in the agent's timezone, so
+  every run has four active promotions, `Promo Akhir Tahun` scheduled, and `Promo Cuci Mobil` archived. Run it again on
+  another day: the dates are fixed when the promotions are created.
+- Each case runs on `promo` (Offer Promotions Proactively on) and `promo_passive` (off, #214 behavior). A reply mentions a
+  promotion when it cites its rank, which a strict reply does for every fact it states. `promotion` in a case's metadata
+  is the title the reply must mention, `any`, or `null` for none (then it may not write about a promotion either).
+- The playground returns the one promotion of the prompt with its `placement` (`offer` or `knowledge`); an app before #215
+  has none, and `provider.mjs` takes it from the retrieval, so a run of main gives the baseline (`--baseline`).
+- Gate (issue #215, AC11), for `promo`: at least 80% of the relevant cases mention their promotion, at most 5% of the
+  irrelevant cases and of the complaints or requests for staff mention one, no scheduled or archived promotion in a prompt
+  or a reply, no prompt with more than one promotion, and no more replies blocked by the reply check than on main.
+- The playground has no conversation session, so the session limits (no repeat offer, at most 3 promotions per session,
+  a new session after resolve or a new conversation) come from `promo_probe.rb`. Run it on a throwaway clone with
+  `AI_AGENT_REQUEST_LOG_ENABLED` on, because it reads each prompt from the request log, and Sidekiq running; it creates an
+  API inbox, a contact, and conversations, and sets the agent's Message Await to 0:
+
+  ```bash
+  docker exec -i <rails container> sh -c 'cat > /tmp/promo_probe.rb && cd /app && PROBE_AGENT_ID=<promo agent id> bundle exec rails runner /tmp/promo_probe.rb' < promo_probe.rb
+  ```
 
 ## Multi-chunk context eval
 

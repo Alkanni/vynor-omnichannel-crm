@@ -1,0 +1,138 @@
+{
+  "labels": [
+    "komplain"
+  ],
+  "settings": {
+    "behavior": "Kamu adalah CS Bengkel Vynor Motor. Jawab singkat, ramah, dan dalam Bahasa Indonesia.",
+    "welcome_message": "Halo! Selamat datang di Bengkel Vynor Motor. Ada yang bisa kami bantu?",
+    "transfer_conditions": "Alihkan ke tim CS manusia bila pelanggan komplain atas layanan atau hasil servis bengkel, marah, atau meminta refund.",
+    "label_conditions": "Beri label komplain bila pelanggan menyampaikan keluhan atas layanan atau hasil servis bengkel.",
+    "pending_assigned_message": "Pesan Anda sudah kami teruskan ke petugas yang menangani.",
+    "pending_unassigned_message": "Mohon tunggu, tim CS kami akan segera membalas.",
+    "temperature": "precise",
+    "timezone": "Asia/Jakarta",
+    "history_limit": 30,
+    "context_limit": 8,
+    "scope_mode": "strict",
+    "web_search_enabled": false,
+    "business_description": "Bengkel Vynor Motor, bengkel mobil di Bandung untuk servis berkala, perbaikan ringan, dan penjualan suku cadang (oli, aki, kampas rem).",
+    "allowed_topics": "Layanan dan harga servis, suku cadang dan stok, booking servis, jam buka, lokasi, kontak bengkel, pembayaran, garansi, komplain layanan bengkel. Juga informasi umum seputar mobil: gejala dan penyebab kerusakan, perawatan, jenis dan spesifikasi suku cadang, serta informasi terbaru otomotif seperti recall dan aturan kendaraan.",
+    "disallowed_topics": "Politik, olahraga, hiburan, tugas sekolah, kode program, curhat atau obrolan pribadi, jual beli mobil bekas, topik di luar otomotif, serta mencari nomor telepon, alamat, atau data pribadi orang maupun bisnis lain.",
+    "off_topic_message": "Maaf, Kak, saya hanya bisa membantu seputar Bengkel Vynor Motor dan perawatan mobil, misalnya servis, suku cadang, dan booking.",
+    "clarification_message": "Boleh disebutkan mobil, layanan, atau suku cadang yang Kakak maksud?",
+    "knowledge_gap_message": "Maaf, Kak, info itu belum tersedia di kami. Kakak bisa tanyakan hal lain seputar servis dan suku cadang, atau minta dihubungkan ke tim CS kami."
+  },
+  "knowledge": [
+    {
+      "source_type": "text",
+      "title": "Profil bengkel",
+      "content": "Bengkel Vynor Motor buka Senin sampai Sabtu pukul 08.00-17.00 WIB; hari Minggu dan hari libur nasional tutup. Alamat: Jl. Soekarno-Hatta No. 25, Bandung. Kontak resmi bengkel untuk booking dan pertanyaan: WhatsApp 0812-0000-1234. Pembayaran bisa tunai, transfer bank, atau QRIS."
+    },
+    {
+      "source_type": "text",
+      "title": "Daftar layanan dan harga",
+      "content": "Servis berkala mobil bensin Rp350.000, sudah termasuk oli mesin 4 liter dan pengecekan 20 titik, dikerjakan sekitar 2 jam. Ganti oli saja Rp250.000. Tune up Rp400.000. Spooring dan balancing Rp200.000. Ganti kampas rem depan, jasa Rp100.000 di luar harga kampas. Cek aki gratis. Garansi servis 30 hari atau 1.000 km, mana yang lebih dulu."
+    }
+  ],
+  "products": [
+    {
+      "name": "Oli Mesin 5W-30 4 Liter",
+      "description": "Oli mesin sintetis 5W-30 kemasan 4 liter untuk mobil bensin.",
+      "price": 420000,
+      "stock": 10,
+      "weight": 3800
+    },
+    {
+      "name": "Aki Kering 45Ah",
+      "description": "Aki kering bebas perawatan 45Ah untuk mobil bensin 1.300-1.500 cc.",
+      "price": 850000,
+      "stock": 4,
+      "weight": 11000
+    },
+    {
+      "name": "Kampas Rem Depan Avanza",
+      "description": "Kampas rem depan untuk Toyota Avanza dan Daihatsu Xenia.",
+      "price": 320000,
+      "stock": 6,
+      "weight": 900
+    },
+    {
+      "name": "Wiper Blade Bosch 20 Inci",
+      "description": "Wiper blade frameless 20 inci untuk kaca depan.",
+      "price": 95000,
+      "stock": 12,
+      "weight": 300
+    },
+    {
+      "name": "Filter Udara Avanza",
+      "description": "Filter udara mesin untuk Toyota Avanza dan Daihatsu Xenia.",
+      "price": 85000,
+      "stock": 8,
+      "weight": 250
+    }
+  ],
+  "promotions": [
+    {
+      "title": "Promo Oli Mesin 5W-30",
+      "description": "Oli Mesin 5W-30 4 Liter Rp380.000 (harga normal Rp420.000), khusus pembelian dan pemasangan di bengkel.",
+      "products": [
+        "Oli Mesin 5W-30 4 Liter"
+      ],
+      "startsInDays": -5,
+      "endsInDays": 10
+    },
+    {
+      "title": "Promo Aki Kering",
+      "description": "Aki Kering 45Ah Rp790.000 (harga normal Rp850.000), gratis pemasangan.",
+      "products": [
+        "Aki Kering 45Ah"
+      ],
+      "startsInDays": -10,
+      "endsInDays": 20
+    },
+    {
+      "title": "Gratis Cek Rem",
+      "description": "Gratis pengecekan rem untuk setiap servis berkala.",
+      "products": []
+    },
+    {
+      "title": "Diskon Kampas Rem Depan",
+      "description": "Kampas Rem Depan Avanza Rp290.000 (harga normal Rp320.000).",
+      "products": [
+        "Kampas Rem Depan Avanza"
+      ],
+      "startsInDays": -3,
+      "endsInDays": 7
+    },
+    {
+      "title": "Promo Akhir Tahun",
+      "description": "Diskon 20% servis berkala untuk semua mobil.",
+      "products": [],
+      "startsInDays": 15,
+      "endsInDays": 45
+    },
+    {
+      "title": "Promo Cuci Mobil",
+      "description": "Gratis cuci mobil untuk setiap tune up.",
+      "products": [],
+      "startsInDays": -40,
+      "endsInDays": -5
+    }
+  ],
+  "agents": {
+    "promo": {
+      "name": "Eval - Promo Bengkel Vynor Motor",
+      "knowledge": [],
+      "settings": {
+        "promotion_offers_enabled": true
+      }
+    },
+    "promo_passive": {
+      "name": "Eval - Promo Bengkel Vynor Motor (pasif)",
+      "knowledge": [],
+      "settings": {
+        "promotion_offers_enabled": false
+      }
+    }
+  }
+}

@@ -20,9 +20,11 @@
 # A promotion is valid from starts_on to ends_on in the agent's timezone, both days included, and a blank date leaves
 # that side open. Its status follows from the dates, so it is archived on the day after it ends without any job, and
 # active again once its end date moves. Only active promotions reach the model (see AiAgents::KnowledgeRetriever), and
-# archived ones are not indexed (see AiAgents::KnowledgeIndexer).
+# archived ones are not indexed (see AiAgents::KnowledgeIndexer). A conversation session mentions at most SESSION_LIMIT
+# promotions (see AiAgents::ConversationSession#promotion_ids).
 class AiAgent::Promotion < ApplicationRecord
   STATUSES = %w[active scheduled archived].freeze
+  SESSION_LIMIT = 3
 
   belongs_to :account
   belongs_to :ai_agent
@@ -44,6 +46,13 @@ class AiAgent::Promotion < ApplicationRecord
     when 'scheduled' then where(starts_on: date.next_day..)
     when 'archived' then where(ends_on: ...date)
     end
+  }
+
+  # The promotions a reply may have in its prompt on a date, in a session that mentioned mentioned_ids: the active ones, and
+  # once the session mentioned SESSION_LIMIT promotions, only those, which the customer can still ask about.
+  scope :mentionable, lambda { |date, mentioned_ids|
+    active = status_on('active', date)
+    mentioned_ids.size < SESSION_LIMIT ? active : active.where(id: mentioned_ids)
   }
 
   def status(date = ai_agent.current_date)

@@ -100,6 +100,7 @@ const toForm = agent => ({
   knowledge_gap_message: agent.knowledge_gap_message || '',
   web_search_enabled: agent.web_search_enabled,
   web_search_domains: agent.web_search_domains || '',
+  promotion_offers_enabled: agent.promotion_offers_enabled,
   booking_enabled: agent.booking_enabled,
   booking_conditions: agent.booking_conditions || '',
   booking_label_id: agent.booking_label_id,
@@ -282,10 +283,12 @@ const setRequired = (key, value) => {
   if (value) form[key] = value;
 };
 
-// Web search needs Strict mode, so turning Strict off also turns it off.
+// Web search and promotion offers need Strict mode, so turning Strict off also turns them off.
 const setScopeMode = value => {
   setRequired('scope_mode', value);
-  if (form.scope_mode !== 'strict') form.web_search_enabled = false;
+  if (form.scope_mode === 'strict') return;
+  form.web_search_enabled = false;
+  form.promotion_offers_enabled = false;
 };
 
 const toPayload = values => ({
@@ -704,6 +707,17 @@ onMounted(async () => {
                   min-height="3rem"
                 />
               </SettingsField>
+              <ToggleField
+                v-model="form.promotion_offers_enabled"
+                :title="
+                  t('AI_AGENTS.GENERAL.BUSINESS_SCOPE.PROMOTION_OFFERS.TITLE')
+                "
+                :description="
+                  t(
+                    'AI_AGENTS.GENERAL.BUSINESS_SCOPE.PROMOTION_OFFERS.DESCRIPTION'
+                  )
+                "
+              />
             </template>
           </CollapsiblePanel>
 

@@ -15,6 +15,10 @@ AiAgents::ReplyGenerator::Reply = Data.define(
   # What AiAgents::ConversationSession#apply! takes besides the reason.
   def actions = to_h.slice(:handoff, :labels, :sheet_row, :booking, :booking_rejection, :booking_cancellation)
 
+  # The promotion the reply mentions once sent (see AiAgents::KnowledgeRetriever::Result#mentioned_promotion_id), else nil,
+  # as for a scope reply.
+  def promotion_id = trace.retrieval&.mentioned_promotion_id(trace.validation)
+
   # Sent for a decision of the scope check, so it involved neither the knowledge nor the reply model.
   def scope_reply? = trace.scope&.reply_attribute.present?
 end

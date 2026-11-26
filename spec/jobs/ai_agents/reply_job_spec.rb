@@ -85,9 +85,22 @@ RSpec.describe AiAgents::ReplyJob do
     expect(AiAgents::ReplyGenerator).to have_received(:new).once
     expect(AiAgents::ReplyGenerator).to have_received(:new)
       .with(ai_agent: ai_agent, messages: array_including(hash_including(content: 'Halo'), hash_including(content: 'Harga detailing?')),
-            conversation: conversation, written_rows: [], bookings: [])
+            conversation: conversation, written_rows: [], bookings: [], promotion_ids: [])
     expect(ai_replies.count).to eq(2)
     expect(traces.sole.message).to eq(messages.last)
+  end
+
+  it 'marks each bubble of a sent reply with the promotion it mentions, which the next reply gets as mentioned in the session' do
+    chunk = AiAgent::KnowledgeChunk.new(id: 8, chunkable_type: 'AiAgent::Promotion', chunkable_id: 12)
+    retrieval = trace.retrieval.with(hits: [AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: 1, score: 0.2)])
+    allow(generator).to receive(:perform).and_return(reply.with(trace: trace.with(retrieval: retrieval)))
+
+    described_class.perform_now(create(:message, **message_attributes, content: 'Ada promo?'))
+    described_class.perform_now(create(:message, **message_attributes, content: 'Lainnya?'))
+
+    expect(ai_replies.map { |ai_reply| ai_reply.additional_attributes['ai_agent_promotion'] }).to eq([12, 12, 12, 12])
+    expect(AiAgents::ReplyGenerator).to have_received(:new).with(hash_including(promotion_ids: [])).once
+    expect(AiAgents::ReplyGenerator).to have_received(:new).with(hash_including(promotion_ids: [12])).once
   end
 
   it 'drops the reply when the customer wrote again while it was generated' do
@@ -217,7 +230,7 @@ RSpec.describe AiAgents::ReplyJob do
     expect { described_class.perform_now(message) }
       .to have_enqueued_job(AiAgents::AppendSheetRowJob).with(conversation, ['Budi', '', '24 Oktober'])
     expect(AiAgents::ReplyGenerator).to have_received(:new).with(ai_agent: ai_agent, messages: anything, conversation: conversation,
-                                                                 written_rows: [], bookings: [])
+                                                                 written_rows: [], bookings: [], promotion_ids: [])
   end
 
   it 'records the booking the reply asked for' do

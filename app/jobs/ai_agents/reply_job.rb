@@ -32,7 +32,8 @@ class AiAgents::ReplyJob < ApplicationJob
     AiAgents::RequestRecorder.record(ai_agent: ai_agent, source: :reply, input: { messages: history }, conversation_id: message.conversation_id,
                                      message_id: message.id) do |log|
       reply = AiAgents::ReplyGenerator.new(ai_agent: ai_agent, messages: history, conversation: message.conversation,
-                                           written_rows: session.sheet_rows, bookings: session.bookings).perform
+                                           written_rows: session.sheet_rows, bookings: session.bookings,
+                                           promotion_ids: session.promotion_ids).perform
       # The customer may have written again while the reply was generated; that message's job answers both.
       deliver(session, ai_agent, message, reply, log) if answerable?(session, message)
     end
@@ -40,7 +41,7 @@ class AiAgents::ReplyJob < ApplicationJob
 
   def deliver(session, ai_agent, message, reply, log)
     sent = reply.handoff && ai_agent.silent_handoff ? [] : reply.messages
-    sent.each { |content| session.reply!(content, to: message) }
+    sent.each { |content| session.reply!(content, to: message, promotion_id: reply.promotion_id) }
     session.apply!(**reply.actions, reason: :transfer_conditions)
     trace = record_trace(ai_agent, message, reply.handoff ? :handoff : :replied, labels: reply.labels, **reply.trace.attributes)
     log.output = { messages: sent, **reply.actions, booking_summary_rejection: reply.booking_summary_rejection }
