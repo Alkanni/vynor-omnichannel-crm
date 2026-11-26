@@ -212,6 +212,10 @@
   display_title: 'AI Agent Max Embedding Distance (optional)'
   description: 'The embedding search leaves out knowledge chunks farther from the customer question than this cosine distance (0 = same meaning, 2 = opposite), so unrelated knowledge stays out of the answer. Chunks that share words with the question can still come from the keyword search. The right value depends on the embedding model; measure it with the retrieval eval in evals/ai-agent. Leave blank to keep the nearest chunks up to the Context Limit.'
   locked: false
+- name: AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE
+  display_title: 'AI Agent Promotion Offer Max Distance (optional)'
+  description: 'AI Agents that offer promotions proactively offer one only when the best knowledge match of the customer message is no farther than this cosine distance (0 = same meaning, 2 = opposite), so a question that only comes near a promotion gets no offer. A best match found only by keywords then offers nothing. Without an AI Agent Embedding Model there are no distances, and this setting does not apply. The right value depends on the embedding model; measure it with the promotion eval in evals/ai-agent (0.40 for openrouter/qwen/qwen3-embedding-8b). Leave blank to offer whatever the distance.'
+  locked: false
 - name: AI_AGENT_EMBEDDING_ENDPOINT
   display_title: 'AI Agent Embedding Endpoint (optional)'
   description: 'OpenAI-compatible endpoint for AI Agent embeddings, without the /v1 suffix. Default: the OpenAI API Endpoint above.'

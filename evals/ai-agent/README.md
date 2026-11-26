@@ -302,6 +302,13 @@ node promo-report.mjs output/promo-1.json --baseline output/promo-main-1.json
 - Gate (issue #215, AC11), for `promo`: at least 80% of the relevant cases mention their promotion, at most 5% of the
   irrelevant cases and of the complaints or requests for staff mention one, no scheduled or archived promotion in a prompt
   or a reply, no prompt with more than one promotion, and no more replies blocked by the reply check than on main.
+- `AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE` (issue #223) is an installation setting, not part of the fixture: set it on the
+  app under test before a run (Super Admin → Settings → Captain), and leave it blank to measure #215 behavior. Its gate,
+  for `promo` with the setting filled in, is no irrelevant case with `<promotion_offer>` in its prompt (the report row
+  "Irrelevant cases with an offer in the prompt", which lists them), on top of the #215 gate. At 0.40 with
+  `openrouter/qwen/qwen3-embedding-8b` (2026-11-26, 4 runs per side) it was 0/40 against 8/40 on main. The gateway's
+  vectors vary by about 0.01 between calls, so compare blocked replies over several runs per side, and take a case whose
+  prompt the setting did not change as noise.
 - The playground has no conversation session, so the session limits (no repeat offer, at most 3 promotions per session,
   a new session after resolve or a new conversation) come from `promo_probe.rb`. Run it on a throwaway clone with
   `AI_AGENT_REQUEST_LOG_ENABLED` on, because it reads each prompt from the request log, and Sidekiq running; it creates an

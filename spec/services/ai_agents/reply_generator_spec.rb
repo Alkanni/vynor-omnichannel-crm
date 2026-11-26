@@ -494,6 +494,21 @@ RSpec.describe AiAgents::ReplyGenerator do
       expect(reply.trace.attributes).to include(cited_ranks: [4], blocked_reason: nil)
     end
 
+    it 'offers only when the embedding search found the best match no farther than AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE' do
+      create(:installation_config, name: 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE', value: '0.4')
+      expect(system_prompt).to include('<promotion_offer>')
+
+      # About 0.55 from the turn, and still the best match through the words it shares with it.
+      ai_agent.knowledge_chunks.find_by!(chunkable: promotion.products.sole).update!(embedding: Array.new(1536) { |index| [1.0, 2.0][index] || 0.0 })
+      far = described_class.new(ai_agent: ai_agent, messages: messages).perform
+
+      far_prompt = chat_requests.last['messages'].first['content']
+      expect(far.trace.retrieval.hits.first.chunk.chunkable).to eq(promotion.products.sole)
+      expect(far_prompt).not_to include('<promotion_offer>')
+      expect(far_prompt[%r{<knowledge>(.*)</knowledge>}m, 1]).to include('Promotion: Diskon oli')
+      expect(far_prompt).to include("</knowledge>\n\n#{AiAgents::PromotionPrompt::KNOWLEDGE_INSTRUCTIONS}")
+    end
+
     it 'counts no promotion for a reply that does not cite it' do
       reply_content.replace({ decision: 'conversational', sources: [], messages: ['Baik, Kak.'] }.to_json)
 

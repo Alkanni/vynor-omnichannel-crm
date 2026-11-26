@@ -37,7 +37,10 @@ class InstallationConfig < ApplicationRecord
   before_validation :set_lock
   validates :name, presence: true
   validate :saml_sso_users_check, if: -> { name == 'ENABLE_SAML_SSO_LOGIN' }
-  validate :ai_agent_max_distance_check, if: -> { name == 'AI_AGENT_EMBEDDING_MAX_DISTANCE' }
+  validate -> { ai_agent_max_distance_check('AI Agent Max Embedding Distance must be a number greater than 0 and at most 2') },
+           if: -> { name == 'AI_AGENT_EMBEDDING_MAX_DISTANCE' }
+  validate -> { ai_agent_max_distance_check(I18n.t('ai_agents.promotions.errors.offer_max_distance')) },
+           if: -> { name == 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE' }
   validate :ai_agent_web_search_budget_check, if: -> { name == 'AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET' }
   validate :ai_agent_product_currency_check, if: -> { name == 'AI_AGENT_PRODUCT_CURRENCY' }
 
@@ -76,13 +79,13 @@ class InstallationConfig < ApplicationRecord
   end
 
   # Cosine distance runs from 0 (same direction) to 2 (opposite).
-  def ai_agent_max_distance_check
+  def ai_agent_max_distance_check(message)
     return if value.blank?
 
     distance = Float(value, exception: false)
     return if distance&.positive? && distance <= 2
 
-    errors.add(:base, 'AI Agent Max Embedding Distance must be a number greater than 0 and at most 2')
+    errors.add(:base, message)
   end
 
   # Blank means the default budget (see AiAgents::WebSearch.monthly_budget).

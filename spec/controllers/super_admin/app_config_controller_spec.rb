@@ -83,6 +83,20 @@ RSpec.describe 'Super Admin Application Config API', type: :request do
         expect(flash[:alert]).to eq('AI Agent Max Embedding Distance must be a number greater than 0 and at most 2')
         expect(InstallationConfig.find_by(name: 'AI_AGENT_EMBEDDING_MAX_DISTANCE')&.value).to be_nil
       end
+
+      it 'saves an AI Agent promotion offer max distance and rejects one that is not a cosine distance' do
+        sign_in(super_admin, scope: :super_admin)
+        post '/super_admin/app_config?config=captain', params: { app_config: { AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE: '0.4' } }
+
+        expect(response).to redirect_to(super_admin_settings_path)
+        expect(InstallationConfig.find_by(name: 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE').value).to eq('0.4')
+
+        post '/super_admin/app_config?config=captain', params: { app_config: { AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE: '3' } }
+
+        expect(response).to redirect_to(super_admin_app_config_path(config: 'captain'))
+        expect(flash[:alert]).to eq('AI Agent Promotion Offer Max Distance must be a number greater than 0 and at most 2')
+        expect(InstallationConfig.find_by(name: 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE').value).to eq('0.4')
+      end
     end
   end
 end

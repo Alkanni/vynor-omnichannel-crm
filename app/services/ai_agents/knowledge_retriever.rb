@@ -56,6 +56,9 @@ class AiAgents::KnowledgeRetriever
 
     def offer = (hits.find { |hit| hit.rank == offer_rank } if offer_rank)
 
+    # The hit the search scored highest, else nil. Neighbors of the matches have no score (see AiAgents::ContextExpansion).
+    def best_match = hits.select(&:score).max_by(&:score)
+
     # The hits of the <knowledge> block: all but the offer.
     def knowledge_hits = hits.reject { |hit| hit.rank == offer_rank }
 

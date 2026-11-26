@@ -9,6 +9,10 @@
 # is offered: it moves out of <knowledge>, with any other promotion there, and gets the rank after the knowledge, so the
 # prompt still has a single promotion. When the session mentioned it before, nothing is offered and the knowledge stays as
 # it was, so the customer can still ask about that promotion but never gets it offered twice in a session.
+#
+# A turn about something else still has a best match, so with AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE a hybrid search offers
+# only when the embedding search found its best match at that cosine distance or nearer (see near?). Otherwise the
+# knowledge stays as it was, as for an agent that does not offer.
 class AiAgents::PromotionPrompt
   # Follows the knowledge of a turn whose <knowledge> has a promotion, so the prompt of every other turn stays the same.
   KNOWLEDGE_INSTRUCTIONS = <<~TEXT.freeze
@@ -37,7 +41,7 @@ class AiAgents::PromotionPrompt
 
   # The retrieval with the promotion to offer as its last hit, else the retrieval as it was.
   def arrange(retrieval)
-    promotion_id = offer_id(retrieval.hits)
+    promotion_id = offer_id(retrieval)
     return retrieval if promotion_id.nil? || mentioned_ids.include?(promotion_id)
 
     knowledge = renumbered(retrieval.hits.reject { |hit| hit.chunk.chunkable_type == AiAgent::Promotion.name })
@@ -48,13 +52,27 @@ class AiAgents::PromotionPrompt
 
   private
 
-  # The promotion the best match is, or one that applies to the product it is. Neighbors of the matches have no score (see
-  # AiAgents::ContextExpansion).
-  def offer_id(hits)
-    best = hits.select(&:score).max_by(&:score)&.chunk
-    case best&.chunkable_type
+  # Whether the best match is near enough to the customer message to offer, which only AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE
+  # limits. Its distance is the one the Playground and the Retrieval Test show (see AiAgents::KnowledgeRetriever#fused): from
+  # the embedding search of the latest turn, whose candidates nearly always include it, else from the one with the earlier
+  # turns. A best match that the keyword search of the latest turn found but its embedding search did not has none, and
+  # offers nothing. A keyword search has no distances, so the setting does not apply to it.
+  def near?(mode, best)
+    max_distance = AiAgents::LlmClient.setting('AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE')
+    return true if max_distance.nil? || mode != 'hybrid'
+
+    distance = best.attributes['neighbor_distance']
+    distance.present? && distance <= Float(max_distance)
+  end
+
+  # The promotion the best match is, or one that applies to the product it is, when it is near enough.
+  def offer_id(retrieval)
+    best = retrieval.best_match&.chunk
+    return unless best && near?(retrieval.mode, best)
+
+    case best.chunkable_type
     when AiAgent::Promotion.name then best.chunkable_id
-    when AiAgent::Product.name then product_offer_id(best.chunkable_id, hits)
+    when AiAgent::Product.name then product_offer_id(best.chunkable_id, retrieval.hits)
     end
   end
 
