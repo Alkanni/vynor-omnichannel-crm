@@ -526,6 +526,7 @@ en:
         ends_before_start: 'cannot be before the start date'
         unknown_products: 'Select products of this AI agent'
         strict_scope_required: 'needs the Strict scope mode'
+        offer_max_distance: 'AI Agent Promotion Offer Max Distance must be a number greater than 0 and at most 2'
     web_search:
       errors:
         not_configured: 'Web search is not configured. Ask the installation administrator to add the web search API key in Super Admin'

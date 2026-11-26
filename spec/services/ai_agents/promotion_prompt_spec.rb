@@ -109,6 +109,48 @@ RSpec.describe AiAgents::PromotionPrompt do
       expect(prompt.arrange(result).hits.map { |hit| [hit.chunk, hit.rank, hit.neighbor_of] })
         .to eq([[oil_chunk, 1, nil], [hours, 2, 1], [offer, 3, nil]])
     end
+
+    context 'with AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE' do
+      let!(:offer) { promotion_chunk('Promotion: Diskon oli', products: [oil]) }
+
+      before { create(:installation_config, name: 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE', value: '0.4') }
+
+      # The chunk as the embedding search returns it, at a cosine distance from the latest turn.
+      def found_at(chunk, distance)
+        AiAgent::KnowledgeChunk.select('ai_agent_knowledge_chunks.*', "CAST(#{distance} AS float8) AS neighbor_distance").find(chunk.id)
+      end
+
+      def hybrid(*chunks)
+        retrieval(*chunks).with(mode: 'hybrid', embedding_model: 'text-embedding-3-small')
+      end
+
+      it 'offers as without it when the best match of a hybrid search is that near or nearer' do
+        [0.4, 0.1].each do |distance|
+          expect(prompt.arrange(hybrid(found_at(oil_chunk, distance), hours)).offer).to have_attributes(chunk: offer, rank: 3)
+        end
+      end
+
+      it 'offers nothing and keeps the knowledge as it is when the best match is farther or has no distance' do
+        passive = promotion_chunk('Promotion: Gratis cek rem')
+
+        [hybrid(found_at(oil_chunk, 0.41), hours, passive), hybrid(oil_chunk, hours, passive)].each do |result|
+          expect(prompt.arrange(result)).to eq(result)
+        end
+      end
+
+      it 'measures the best match, not the nearest hit' do
+        result = hybrid(found_at(oil_chunk, 0.5), found_at(hours, 0.1))
+
+        expect(prompt.arrange(result)).to eq(result)
+      end
+
+      it 'offers whatever the distance when it is blank, or in a keyword search, which has no distances' do
+        expect(prompt.arrange(retrieval(oil_chunk, hours)).offer.chunk).to eq(offer)
+
+        InstallationConfig.find_by!(name: 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE').update!(value: '')
+        expect(prompt.arrange(hybrid(found_at(oil_chunk, 1.5), hours)).offer.chunk).to eq(offer)
+      end
+    end
   end
 
   describe '.text' do

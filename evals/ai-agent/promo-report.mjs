@@ -1,6 +1,6 @@
-// Summarizes promptfoo JSON outputs of promptfooconfig.promo.yaml as Markdown: the gate of issue #215 per provider over
-// all the runs given, then every case that failed an assertion. Runs of the same config on main after --baseline give the
-// rate of replies the reply check blocked, which the runs before it may not exceed. The session limits come from the
+// Summarizes promptfoo JSON outputs of promptfooconfig.promo.yaml as Markdown: the gate of issues #215 and #223 per provider
+// over all the runs given, then every case that failed an assertion. Runs of the same config on main after --baseline give
+// the rate of replies the reply check blocked, which the runs before it may not exceed. The session limits come from the
 // live probe (promo_probe.rb), not from here.
 // Usage: node promo-report.mjs output/promo-1.json [...] [--baseline output/promo-main-1.json ...]
 import { readFileSync } from 'node:fs';
@@ -44,6 +44,10 @@ function gate(cases, baseline) {
   const spam = irrelevant.filter(testCase =>
     failed(testCase, 'promotion_mentioned')
   );
+  // An irrelevant case whose prompt had the offer block, whether or not the reply used it (#223).
+  const irrelevantOffers = irrelevant.filter(
+    testCase => testCase.promotion?.placement === 'offer'
+  );
   const complaints = inCategory('complaint');
   const complaintOffers = complaints.filter(testCase =>
     failed(testCase, 'promotion_mentioned')
@@ -73,6 +77,12 @@ function gate(cases, baseline) {
       percent(spam.length, irrelevant.length),
       '≤ 5%',
       spam.length <= 0.05 * irrelevant.length,
+    ],
+    [
+      'Irrelevant cases with an offer in the prompt (#223)',
+      `${percent(irrelevantOffers.length, irrelevant.length)}${irrelevantOffers.length ? `: ${[...new Set(irrelevantOffers.map(testCase => testCase.id))].join(', ')}` : ''}`,
+      '0',
+      irrelevantOffers.length === 0,
     ],
     [
       'Replies with a scheduled or archived promotion',

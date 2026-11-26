@@ -34,6 +34,23 @@ RSpec.describe InstallationConfig do
     end
   end
 
+  describe 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE' do
+    it 'accepts a blank value or a cosine distance above 0 and up to 2' do
+      ['', '0.4', '2', 0.35].each do |value|
+        expect(described_class.new(name: 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE', value: value)).to be_valid
+      end
+    end
+
+    it 'rejects anything else' do
+      ['0', '-0.1', '2.5', 'abc', '0,4'].each do |value|
+        config = described_class.new(name: 'AI_AGENT_PROMOTION_OFFER_MAX_DISTANCE', value: value)
+
+        expect(config).not_to be_valid
+        expect(config.errors[:base]).to eq(['AI Agent Promotion Offer Max Distance must be a number greater than 0 and at most 2'])
+      end
+    end
+  end
+
   describe 'AI_AGENT_WEB_SEARCH_MONTHLY_BUDGET' do
     it 'accepts a blank value or an amount of 0 or more' do
       ['', '0', '8', '2.5', 8].each do |value|
