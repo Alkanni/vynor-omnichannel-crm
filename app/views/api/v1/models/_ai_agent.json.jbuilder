@@ -31,6 +31,7 @@ json.clarification_message ai_agent.clarification_message
 json.knowledge_gap_message ai_agent.knowledge_gap_message
 json.web_search_enabled ai_agent.web_search_enabled
 json.web_search_domains ai_agent.web_search_domains
+json.promotion_offers_enabled ai_agent.promotion_offers_enabled
 json.booking_enabled ai_agent.booking_enabled
 json.booking_conditions ai_agent.booking_conditions
 json.booking_label_id ai_agent.booking_label_id

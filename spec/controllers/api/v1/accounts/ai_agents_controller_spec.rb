@@ -113,7 +113,7 @@ RSpec.describe 'AI Agents API', type: :request do
         session_only_memory: true, ignore_team_handoff: true, scope_mode: 'strict', business_description: 'Toko roti di Bandung',
         allowed_topics: 'Harga dan stok', disallowed_topics: 'Politik', off_topic_message: 'Maaf, di luar layanan kami.',
         clarification_message: 'Produk yang mana, Kak?', knowledge_gap_message: 'Maaf, info itu belum tersedia.',
-        web_search_enabled: true, web_search_domains: 'kompas.com, otomotif.tempo.co'
+        web_search_enabled: true, web_search_domains: 'kompas.com, otomotif.tempo.co', promotion_offers_enabled: true
       }
     end
 
@@ -124,7 +124,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(ai_agent.reload).to have_attributes(params)
       expect(response.parsed_body).to include(params.slice(:scope_mode, :business_description, :allowed_topics, :disallowed_topics,
                                                            :off_topic_message, :clarification_message, :knowledge_gap_message,
-                                                           :web_search_enabled, :web_search_domains).stringify_keys)
+                                                           :web_search_enabled, :web_search_domains, :promotion_offers_enabled).stringify_keys)
       expect(response.parsed_body['scope_policy_version']).to eq(1)
     end
 
@@ -154,6 +154,16 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response.parsed_body).to include('attributes' => contain_exactly('web_search_enabled', 'web_search_domains'),
                                               'message' => 'Web search enabled needs the Strict scope mode, Web search domains is invalid')
       expect(ai_agent.reload).to have_attributes(web_search_enabled: false, web_search_domains: nil)
+    end
+
+    it 'returns unprocessable entity for proactive promotion offers without the strict scope' do
+      patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
+            params: { promotion_offers_enabled: true }, headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to include('attributes' => ['promotion_offers_enabled'],
+                                              'message' => 'Promotion offers enabled needs the Strict scope mode')
+      expect(ai_agent.reload.promotion_offers_enabled).to be(false)
     end
 
     it 'returns unprocessable entity for an unknown scope mode and for a policy over the length limit' do
@@ -412,7 +422,7 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response.parsed_body).to eq(
         'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'booking' => nil,
         'booking_rejection' => nil, 'booking_summary' => nil, 'booking_summary_rejection' => nil, 'model' => ai_agent.model, 'scope' => nil,
-        'validation' => nil, 'web' => nil,
+        'validation' => nil, 'web' => nil, 'promotion' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
           'chunks' => [
@@ -429,6 +439,31 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(AiAgents::ReplyGenerator).to have_received(:new)
         .with(ai_agent: ai_agent, messages: [{ role: :assistant, content: 'Halo Kak' }, { role: :user, content: 'Jam buka?' }], deadline_ms: 14_000)
       expect(AiAgent::ReplyTrace.count).to eq(0)
+    end
+
+    it 'returns the promotion of the prompt with its rank and whether it was offered or in the knowledge' do
+      source = create(:ai_agent_knowledge_source, ai_agent: ai_agent)
+      promotion = create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Diskon oli')
+      hits = [[source, 'Ganti oli'], [promotion, 'Promotion: Diskon oli']].map.with_index(1) do |(chunkable, content), rank|
+        chunk = ai_agent.knowledge_chunks.create!(account: account, chunkable: chunkable, chunkable_updated_at: chunkable.updated_at,
+                                                  content: content)
+        AiAgents::KnowledgeRetriever::Hit.new(chunk: chunk, rank: rank, score: 0.1)
+      end
+      retrieval = AiAgents::KnowledgeRetriever::Result.new(mode: 'keyword', embedding_model: nil, queries: ['oli'], hits: hits)
+      trace = AiAgents::ReplyGenerator::Trace.new(scope: nil, retrieval: retrieval, web_search: nil, validation: nil, invalid_outputs: [],
+                                                  input_tokens: 120, output_tokens: 30, cached_input_tokens: 64, latency_ms: 850)
+      generator = instance_double(AiAgents::ReplyGenerator)
+      reply = AiAgents::ReplyGenerator::Reply.new(messages: ['Ada promo.'], handoff: false, labels: [], trace: trace)
+      allow(generator).to receive(:perform).and_return(reply, reply.with(trace: trace.with(retrieval: retrieval.with(offer_rank: 2))))
+      allow(AiAgents::ReplyGenerator).to receive(:new).and_return(generator)
+
+      placements = Array.new(2) do
+        post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json
+        response.parsed_body['promotion']
+      end
+
+      expect(placements).to eq([{ 'id' => promotion.id, 'title' => 'Diskon oli', 'rank' => 2, 'placement' => 'knowledge' },
+                                { 'id' => promotion.id, 'title' => 'Diskon oli', 'rank' => 2, 'placement' => 'offer' }])
     end
 
     it 'returns the decision of the scope check with its web search, and no retrieval when the check answered the turn' do

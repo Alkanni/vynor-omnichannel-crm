@@ -253,6 +253,27 @@ RSpec.describe AiAgents::ConversationSession do
     end
   end
 
+  describe '#promotion_ids' do
+    it 'returns the promotions the AI replies of the current session mentioned, once each' do
+      question = create(:message, **message_attributes, content: 'Ada promo?')
+      2.times { |index| session.reply!("Bubble #{index}", to: question, promotion_id: 4) }
+      session.reply!('Ada promo lain', to: create(:message, **message_attributes, content: 'Lainnya?'), promotion_id: 9)
+      without_promotion = session.reply!('Jam buka 08.00', to: create(:message, **message_attributes, content: 'Jam buka?'))
+      create(:message, **message_attributes, message_type: :outgoing, content: 'Dari staf', additional_attributes: { 'ai_agent_promotion' => 5 })
+
+      expect(session.promotion_ids).to contain_exactly(4, 9)
+      expect(without_promotion.additional_attributes.keys).to eq(['ai_agent_reply_to'])
+    end
+
+    it 'starts again with none after the conversation is resolved' do
+      session.reply!('Ada promo', to: create(:message, **message_attributes, content: 'Ada promo?'), promotion_id: 4)
+
+      create(:reporting_event, name: 'conversation_resolved', account: account, inbox: inbox, conversation: conversation,
+                               event_end_time: Time.current)
+      expect(session.promotion_ids).to be_empty
+    end
+  end
+
   describe '.event_data' do
     it 'names the agent and whether it answers the conversation now' do
       expect(described_class.event_data(conversation)).to eq(id: ai_agent.id, name: ai_agent.name, active: true)

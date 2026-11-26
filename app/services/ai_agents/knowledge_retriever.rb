@@ -8,7 +8,8 @@
 #
 # A promotion is searched only on the days it is active in the agent's timezone, whenever its chunk was indexed or removed
 # (see AiAgent::Promotion), and a reply gets at most one: only the best ranked promotion stays, and the places of the others
-# go to the chunks after them.
+# go to the chunks after them. Once the conversation session mentioned AiAgent::Promotion::SESSION_LIMIT promotions, only
+# those are searched (see AiAgent::Promotion.mentionable).
 #
 # A follow-up question often leaves out its subject ("How much for 4?"), so a conversation with earlier customer turns
 # is searched twice: with the latest turn, and with that turn joined to the ones before it. The first keeps a change of
@@ -43,13 +44,35 @@ class AiAgents::KnowledgeRetriever
       super
     end
   end
-  # queries: the latest customer turn, then that turn with the earlier ones when there are any.
-  Result = Data.define(:mode, :embedding_model, :queries, :hits) do
-    def promotion? = hits.any? { |hit| hit.chunk.chunkable_type == AiAgent::Promotion.name }
+  # queries: the latest customer turn, then that turn with the earlier ones when there are any. offer_rank is the rank of
+  # the promotion a reply offers, the last of the hits, when there is one (see AiAgents::PromotionPrompt).
+  Result = Data.define(:mode, :embedding_model, :queries, :hits, :offer_rank) do
+    def initialize(mode:, embedding_model:, queries:, hits:, offer_rank: nil)
+      super
+    end
+
+    # The hit of the one promotion of the prompt, in the knowledge or as the offer, else nil.
+    def promotion_hit = hits.find { |hit| hit.chunk.chunkable_type == AiAgent::Promotion.name }
+
+    def offer = (hits.find { |hit| hit.rank == offer_rank } if offer_rank)
+
+    # The hits of the <knowledge> block: all but the offer.
+    def knowledge_hits = hits.reject { |hit| hit.rank == offer_rank }
+
+    # The promotion a sent reply mentions (see AiAgents::ConversationSession#promotion_ids). A reply of a strict agent
+    # (validation, an AiAgents::ReplyValidator::Result) mentions the one it cites, unless it failed the check or is a
+    # knowledge gap. Other agents cite nothing, so their reply counts the promotion its prompt had, whether it named it or not.
+    def mentioned_promotion_id(validation)
+      hit = promotion_hit
+      return if hit.nil? || validation&.knowledge_gap?
+
+      hit.chunk.chunkable_id if validation.nil? || validation.sources.include?(hit.rank)
+    end
   end
 
-  # messages: { role: :user | :assistant, content: }, oldest first.
-  pattr_initialize [:ai_agent!, :messages!]
+  # messages: { role: :user | :assistant, content: }, oldest first. mentioned_promotion_ids: the promotions the conversation
+  # session mentioned (see AiAgents::ConversationSession#promotion_ids); none in the playground and the Retrieval Test.
+  pattr_initialize [:ai_agent!, :messages!, :mentioned_promotion_ids]
 
   def perform
     embedding_model = AiAgents::LlmClient.embedding_model
@@ -91,8 +114,8 @@ class AiAgents::KnowledgeRetriever
   def searched_chunks(embedding_model)
     chunks = ai_agent.knowledge_chunks.searchable(embedding_model)
     promotion = AiAgent::Promotion.name
-    active_promotions = ai_agent.promotions.status_on('active', ai_agent.current_date).select(:id)
-    chunks.where.not(chunkable_type: promotion).or(chunks.where(chunkable_type: promotion, chunkable_id: active_promotions))
+    mentionable = ai_agent.promotions.mentionable(ai_agent.current_date, Array(mentioned_promotion_ids)).select(:id)
+    chunks.where.not(chunkable_type: promotion).or(chunks.where(chunkable_type: promotion, chunkable_id: mentionable))
   end
 
   def ranked(chunks, queries, vectors)

@@ -8,6 +8,7 @@ class AiAgents::ConversationSession
   WELCOME_MARKER = 'ai_agent_welcome'.freeze
   BOOKING_REJECTED_MARKER = 'ai_agent_booking_rejected'.freeze
   BOOKING_CANCELLATION_MARKER = 'ai_agent_booking_cancellation'.freeze
+  PROMOTION_MARKER = 'ai_agent_promotion'.freeze
 
   pattr_initialize [:conversation!, :ai_agent!]
 
@@ -49,8 +50,16 @@ class AiAgents::ConversationSession
     end
   end
 
-  def reply!(content, to:)
-    send_message(content, REPLY_MARKER => to.id)
+  # promotion_id: the promotion the reply mentions (see AiAgents::ReplyGenerator::Reply), marked on each of its bubbles.
+  def reply!(content, to:, promotion_id: nil)
+    send_message(content, { REPLY_MARKER => to.id, PROMOTION_MARKER => promotion_id }.compact)
+  end
+
+  # The promotions the replies of this session mentioned, which a reply mentions no more than
+  # AiAgent::Promotion::SESSION_LIMIT of and never offers again (see AiAgents::PromotionPrompt).
+  def promotion_ids
+    session_messages.where(sender: ai_agent).where("messages.additional_attributes ->> '#{PROMOTION_MARKER}' IS NOT NULL")
+                    .pluck(Arel.sql("(messages.additional_attributes ->> '#{PROMOTION_MARKER}')::bigint")).uniq
   end
 
   # booking: the attributes of a Booking the reply asked for, booking_rejection: why one it asked for cannot be a

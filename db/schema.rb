@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -370,6 +370,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_000000) do
     t.text "booking_confirmed_message"
     t.text "booking_cancelled_message"
     t.text "booking_summary_template"
+    t.boolean "promotion_offers_enabled", default: false, null: false
     t.index ["account_id"], name: "index_ai_agents_on_account_id"
   end
 

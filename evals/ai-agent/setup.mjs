@@ -1,6 +1,8 @@
 // Recreates the eval AI agents of the given fixtures (default: every file in fixtures/) through the app API, waits
 // until their knowledge is indexed, and records their ids in .eval-agents.json for the providers. Only agents named
-// in those fixtures are replaced.
+// in those fixtures are replaced. A fixture's promotions (issue #214) name the products they apply to, and their dates
+// are days from today in the fixture's timezone (startsInDays, endsInDays; left out = no date), so a run on any day gets
+// the same active, scheduled, and archived promotions.
 // Usage: node --env-file=.env setup.mjs [toko-roti.json ...]
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -50,13 +52,37 @@ async function createAgent(fixture, { name, knowledge, settings }) {
       body: source,
     });
   }
+  const productIds = {};
   for (const product of fixture.products) {
-    await appApi(`/ai_agents/${agent.id}/products`, {
+    const created = await appApi(`/ai_agents/${agent.id}/products`, {
       method: 'POST',
       body: product,
     });
+    productIds[product.name] = created.id;
+  }
+  for (const promotion of fixture.promotions || []) {
+    await appApi(`/ai_agents/${agent.id}/promotions`, {
+      method: 'POST',
+      body: {
+        title: promotion.title,
+        description: promotion.description,
+        starts_on: daysFromToday(promotion.startsInDays, fixture),
+        ends_on: daysFromToday(promotion.endsInDays, fixture),
+        product_ids: promotion.products.map(name => productIds[name]),
+      },
+    });
   }
   return agent.id;
+}
+
+// The date that many days from today in the fixture's timezone, as YYYY-MM-DD; null without a number of days.
+function daysFromToday(days, fixture) {
+  if (days == null) return null;
+
+  const date = new Date(Date.now() + days * 86_400_000);
+  return date.toLocaleDateString('en-CA', {
+    timeZone: fixture.settings.timezone,
+  });
 }
 
 async function waitForTraining(id) {

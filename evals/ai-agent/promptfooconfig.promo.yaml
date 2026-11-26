@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Promotion eval (issue #215): whether the strict agent of fixtures/bengkel-promo.json offers an active promotion when
+# the customer talks about what it applies to, and never on other topics, complaints, or requests for staff, and whether
+# a promotion that is not active ever reaches a reply. Each case runs on the agent that offers promotions (`promo`) and
+# on the one that only mentions them when asked (`promo_passive`). Every assertion is deterministic
+# (lib/promo-assertions.mjs); promo-report.mjs prints the gate, and promo_probe.rb probes the session limits live. Run
+# from this directory; see README.md.
+description: AI Agent promotions
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://provider.mjs
+    label: promo
+    config:
+      agent: promo
+  - id: file://provider.mjs
+    label: promo_passive
+    config:
+      agent: promo_passive
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 2
+
+defaultTest:
+  assert:
+    - type: javascript
+      metric: promotion_mentioned
+      value: file://lib/promo-assertions.mjs:mentionsAsExpected
+    - type: javascript
+      metric: one_promotion
+      value: file://lib/promo-assertions.mjs:onePromotionAtMost
+    - type: javascript
+      metric: no_inactive_promotion
+      value: file://lib/promo-assertions.mjs:noInactivePromotion
+
+tests:
+  - file://tests/p-promo.yaml

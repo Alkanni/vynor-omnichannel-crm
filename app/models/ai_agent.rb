@@ -28,6 +28,7 @@
 #  off_topic_message          :text
 #  pending_assigned_message   :string
 #  pending_unassigned_message :string
+#  promotion_offers_enabled   :boolean          default(FALSE), not null
 #  read_file_limit            :integer          default(3), not null
 #  scope_mode                 :string           default("off"), not null
 #  scope_policy_version       :integer          default(0), not null
@@ -124,6 +125,8 @@ class AiAgent < ApplicationRecord
   validate -> { errors.add(:web_search_enabled, I18n.t('ai_agents.web_search.errors.strict_scope_required')) },
            if: -> { web_search_enabled && !scope_strict? }
   validate -> { errors.add(:web_search_domains, :invalid) }, unless: -> { web_search_domain_list.all?(WEB_SEARCH_DOMAIN) }
+  validate -> { errors.add(:promotion_offers_enabled, I18n.t('ai_agents.promotions.errors.strict_scope_required')) },
+           if: -> { promotion_offers_enabled && !scope_strict? }
   validate :model_supported
   validate :allowed_labels_belong_to_account
   validate -> { errors.add(:booking_label_id, :invalid) }, if: -> { booking_label_id && !account.labels.exists?(booking_label_id) }

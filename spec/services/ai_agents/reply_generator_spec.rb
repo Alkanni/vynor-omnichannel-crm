@@ -98,9 +98,9 @@ RSpec.describe AiAgents::ReplyGenerator do
     described_class.new(ai_agent: ai_agent, messages: messages).perform
 
     with_promotion, without_promotion = chat_requests.map { |request| request['messages'].first['content'] }
-    expect(with_promotion).to include("[2] Promotion: Diskon\nDetails: Rp80.000\n</knowledge>\n\n#{described_class::PROMOTION_INSTRUCTIONS}\n\n" \
-                                      "#{described_class::RESPONSE_INSTRUCTIONS}")
-    expect(without_promotion).not_to include('Promotion: Diskon', described_class::PROMOTION_INSTRUCTIONS)
+    rules = AiAgents::PromotionPrompt::KNOWLEDGE_INSTRUCTIONS
+    expect(with_promotion).to include("Details: Rp80.000\n</knowledge>\n\n#{rules}\n\n#{described_class::RESPONSE_INSTRUCTIONS}")
+    expect(without_promotion).not_to include('Promotion: Diskon', rules)
   end
 
   context 'when the model writes the [rank] of the knowledge it uses' do
@@ -179,6 +179,7 @@ RSpec.describe AiAgents::ReplyGenerator do
           it 'answers with the text of the agent, without the knowledge search or the reply model' do
             expect(reply).to have_attributes(messages: [text], handoff: false, labels: [], sheet_row: nil)
             expect(reply).to be_scope_reply
+            expect(reply.promotion_id).to be_nil
             expect(scope_requests.size).to eq(1)
             expect(embedding_requests).to be_empty
             expect(chat_requests).to be_empty
@@ -455,6 +456,75 @@ RSpec.describe AiAgents::ReplyGenerator do
     end
   end
 
+  describe 'promotion offers' do
+    let(:messages) { [{ role: :user, content: 'Harga oli mesin berapa?' }] }
+    let(:promotion) do
+      create(:ai_agent_promotion, ai_agent: ai_agent, title: 'Diskon oli', ends_on: Date.new(2026, 11, 30),
+                                  products: [create(:ai_agent_product, ai_agent: ai_agent, name: 'Oli Mesin')])
+    end
+    let(:reply_content) { { decision: 'answer', sources: [4], messages: ['Ada promo Oli Mesin Rp80.000 sampai 30 November.'] }.to_json }
+    let(:reply) { described_class.new(ai_agent: ai_agent, messages: messages).perform }
+    let(:system_prompt) do
+      reply
+      chat_requests.sole['messages'].first['content']
+    end
+
+    before do
+      travel_to(Time.utc(2026, 11, 25, 3, 0))
+      ai_agent.update!(scope_mode: 'strict', business_description: 'Bengkel', allowed_topics: 'Servis dan suku cadang',
+                       off_topic_message: 'Maaf, di luar layanan kami.', clarification_message: 'Yang mana, Kak?',
+                       knowledge_gap_message: 'Maaf, info itu belum tersedia.', context_limit: 4, promotion_offers_enabled: true)
+      # The product is the best match: as near as the opening hours and sharing the words of the question.
+      { promotion.products.sole => ["Product: Oli Mesin\nPrice: Rp100.000", opening_hours],
+        promotion => ["Promotion: Diskon oli\nValid: until 30 November 2026\nDetails: Rp80.000", pricing] }.each do |chunkable, (content, embedding)|
+        ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: chunkable, chunkable_updated_at: chunkable.updated_at,
+                                          content: content, embedding: embedding, embedding_model: 'text-embedding-3-small')
+      end
+    end
+
+    it 'offers the promotion of a product the turn found after the knowledge, and counts it once the reply cites it' do
+      expect(system_prompt).to include(
+        "#{AiAgents::PromotionPrompt::OFFER_INSTRUCTIONS}\n<promotion_offer>\n[4] Promotion: Diskon oli\nValid: until 30 November 2026\n" \
+        "Details: Rp80.000\n</promotion_offer>"
+      )
+      expect(system_prompt[%r{<knowledge>(.*)</knowledge>}m, 1]).to include('Product: Oli Mesin')
+      expect(system_prompt[%r{<knowledge>(.*)</knowledge>}m, 1]).not_to include('Promotion:')
+      expect(system_prompt).not_to include(AiAgents::PromotionPrompt::KNOWLEDGE_INSTRUCTIONS)
+      expect(reply).to have_attributes(messages: ['Ada promo Oli Mesin Rp80.000 sampai 30 November.'], promotion_id: promotion.id)
+      expect(reply.trace.attributes).to include(cited_ranks: [4], blocked_reason: nil)
+    end
+
+    it 'counts no promotion for a reply that does not cite it' do
+      reply_content.replace({ decision: 'conversational', sources: [], messages: ['Baik, Kak.'] }.to_json)
+
+      expect(reply.promotion_id).to be_nil
+    end
+
+    it 'keeps the promotion in the knowledge, mentioned only when asked, when the agent does not offer promotions' do
+      ai_agent.update!(promotion_offers_enabled: false)
+
+      expect(system_prompt).not_to include('<promotion_offer>')
+      expect(system_prompt[%r{<knowledge>(.*)</knowledge>}m, 1]).to include('Promotion: Diskon oli')
+      expect(system_prompt).to include("</knowledge>\n\n#{AiAgents::PromotionPrompt::KNOWLEDGE_INSTRUCTIONS}")
+    end
+
+    it 'never offers again a promotion the session mentioned, which stays in the knowledge for the customer to ask about' do
+      described_class.new(ai_agent: ai_agent, messages: messages, promotion_ids: [promotion.id]).perform
+
+      system_prompt = chat_requests.sole['messages'].first['content']
+      expect(system_prompt).not_to include('<promotion_offer>')
+      expect(system_prompt[%r{<knowledge>(.*)</knowledge>}m, 1]).to include('Promotion: Diskon oli')
+    end
+
+    it 'counts the promotion the prompt had for an agent with the scope off, which cites nothing' do
+      ai_agent.update!(scope_mode: 'off', promotion_offers_enabled: false)
+      reply_content.replace({ messages: ['Oli Mesin Rp100.000.'] }.to_json)
+
+      expect(reply.promotion_id).to eq(promotion.id)
+      expect(system_prompt).not_to include('<promotion_offer>')
+    end
+  end
+
   describe 'web search' do
     let(:scope_arguments) { { decision: 'IN_SCOPE', web_query: 'penyebab mesin mobil overheat' } }
     let(:reply_content) { { decision: 'answer', sources: [1], messages: ['Kami buka setiap hari pukul 07.30 - 18.00.'] }.to_json }
@@ -481,6 +551,27 @@ RSpec.describe AiAgents::ReplyGenerator do
       stub_request(:post, 'https://api.exa.ai/search').to_return(
         status: 200, headers: { 'Content-Type' => 'application/json' }, body: { results: exa_results, costDollars: { total: 0.004 } }.to_json
       )
+    end
+
+    it 'offers no promotion on a turn that searches the web, whose rules forbid offers the customer did not ask for' do
+      ai_agent.update!(context_limit: 3, promotion_offers_enabled: true)
+      product = create(:ai_agent_product, ai_agent: ai_agent, name: 'Oli Mesin')
+      promotion = create(:ai_agent_promotion, ai_agent: ai_agent, products: [product])
+      # The product is the best match, nearest and sharing the most words, so a turn without web results offers its promotion.
+      ai_agent.knowledge_chunks.find_by!(content: 'Jam buka: setiap hari 07.30 - 18.00').update!(embedding: pricing)
+      [[product, "Product: Oli Mesin\nJam buka bengkel hari Minggu", opening_hours], [promotion, 'Promotion: Diskon oli', pricing]]
+        .each do |chunkable, content, embedding|
+          ai_agent.knowledge_chunks.create!(account: ai_agent.account, chunkable: chunkable, chunkable_updated_at: chunkable.updated_at,
+                                            content: content, embedding: embedding, embedding_model: 'text-embedding-3-small')
+        end
+
+      expect(system_prompt).to include('<web_results>')
+      expect(system_prompt).not_to include('<promotion_offer>', AiAgents::PromotionPrompt::OFFER_INSTRUCTIONS)
+
+      scope_arguments[:web_query] = ''
+      described_class.new(ai_agent: ai_agent, messages: messages).perform
+      expect(chat_requests.last['messages'].first['content']).to include('<promotion_offer>')
+      expect(chat_requests.last['messages'].first['content']).not_to include('<web_results>')
     end
 
     it 'searches the query of the scope check and gives the results to the reply model after the knowledge, ranked after it' do
