@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAlert } from 'dashboard/composables';
 import BookingsAPI from 'dashboard/api/bookings';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
@@ -51,17 +50,8 @@ const replaceBooking = updated => {
 
 const formRef = ref(null);
 
-const addBooking = async () => {
-  try {
-    const { data } = await BookingsAPI.fields(props.conversationId);
-    formRef.value.open({
-      customerName: props.contactName,
-      fields: data.fields,
-    });
-  } catch {
-    useAlert(t('BOOKINGS.FORM.FIELDS_ERROR'));
-  }
-};
+const addBooking = () =>
+  formRef.value.open({ customerName: props.contactName });
 
 // A new or edited booking, in its place by time.
 const saveBooking = saved => {

@@ -34,9 +34,11 @@ class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
     render :update, status: :created
   end
 
-  # The fields the AI agent of the conversation's inbox asks for, which a booking recorded there also holds.
+  # The fields the AI agent of the conversation's inbox asks for, which a booking recorded there also holds, and the
+  # services it offers (see AiAgent::BookingFields). Staff may leave a required field empty, and fill in any value.
   def fields
-    render json: { fields: Array(@conversation.inbox.ai_agent&.booking_fields) }
+    ai_agent = @conversation.inbox.ai_agent
+    render json: { fields: Array(ai_agent&.booking_fields), services: Array(ai_agent&.booking_services) }
   end
 
   def update

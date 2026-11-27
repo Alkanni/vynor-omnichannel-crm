@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Structured booking fields eval (issue #207): the `booking_fields` agent of fixtures/bengkel-booking.json, with required
+# fields, a choice, a number, and a list of services, on tests/b-booking-fields.yaml. Besides the booking assertions of
+# promptfooconfig.booking.yaml, it checks that a reply asks for a missing required field before the summary, and that a
+# booking holds the service from the list and the option the customer described in other words. Every assertion is
+# deterministic (lib/booking-assertions.mjs); booking-report.mjs prints the gate. Run from this directory; see README.md.
+description: AI Agent structured booking fields
+
+prompts:
+  - '{{ conversation }}'
+
+providers:
+  - id: file://provider.mjs
+    label: booking-fields
+    config:
+      agent: booking_fields
+
+sharing: false
+
+evaluateOptions:
+  maxConcurrency: 2
+
+defaultTest:
+  assert:
+    - type: javascript
+      metric: booking_requested
+      value: file://lib/booking-assertions.mjs:requestedAsExpected
+    - type: javascript
+      metric: booking_datetime
+      value: file://lib/booking-assertions.mjs:onExpectedTime
+    - type: javascript
+      metric: booking_fields
+      value: file://lib/booking-assertions.mjs:withExpectedFields
+    - type: javascript
+      metric: booking_exact
+      value: file://lib/booking-assertions.mjs:withExactValues
+    - type: javascript
+      metric: asks_required
+      value: file://lib/booking-assertions.mjs:asksAsExpected
+    - type: javascript
+      metric: not_blocked
+      value: context.metadata.blockedReason !== 'unsupported_number'
+
+tests:
+  - file://tests/b-booking-fields.yaml

@@ -153,13 +153,16 @@ class AiAgents::ActionSchema
 
   # A booking replaces or cancels only one the conversation still has, so the fields for that come with held bookings.
   def booking_keys
-    (held_bookings? ? AiAgent::BOOKING_CORE_FIELDS : AiAgent::BOOKING_CORE_FIELDS - [REPLACES_FIELD]) + ai_agent.booking_fields
+    (held_bookings? ? AiAgent::BOOKING_CORE_FIELDS : AiAgent::BOOKING_CORE_FIELDS - [REPLACES_FIELD]) + booking_fields.names
   end
 
+  def booking_fields = AiAgent::BookingFields.new(ai_agent)
+
   def booking_properties
+    fields = booking_keys.index_with { { type: 'string' } }.merge(booking_fields.properties)
     properties = {
       create_booking: { type: 'boolean' },
-      booking: { type: 'object', properties: booking_keys.index_with { { type: 'string' } }, required: booking_keys, additionalProperties: false }
+      booking: { type: 'object', properties: fields, required: booking_keys, additionalProperties: false }
     }
     held_bookings? ? properties.merge(cancel_booking: { type: 'string' }) : properties
   end
@@ -170,24 +173,30 @@ class AiAgents::ActionSchema
 
   # The booking the model asked for (with "create_booking", or the flag given), with a blank name when it gave none, since
   # the conversation's contact fills that in (see Booking.ai_customer_name), or the reason it cannot be a booking: no date
-  # and time that parse, a time that has passed, or no service. Both are nil when the model asked for none.
-  # rescheduled_from_id is the booking it replaces, kept only when that is one the customer still has.
+  # and time that parse, a time that has passed, no service, or an empty required field, which booking_missing_fields
+  # names. Both are nil when the model asked for none. rescheduled_from_id is the booking it replaces, kept only when that
+  # is one the customer still has. A value outside the options of a field or of the services is kept as written.
   def booking_request(content, flag = 'create_booking')
     return { booking: nil, booking_rejection: nil } unless ai_agent.booking? && content[flag] == true
 
-    fields = content['booking'].is_a?(Hash) ? content['booking'] : {}
-    values = booking_keys.index_with { |key| fields[key].to_s.strip }
+    values = booking_values(content['booking'])
     scheduled_at = scheduled_at(values['date'], values['time'])
     return { booking: nil, booking_rejection: :invalid_schedule } unless scheduled_at
     return { booking: nil, booking_rejection: :past_schedule } if scheduled_at <= Time.current
     return { booking: nil, booking_rejection: :missing_service } if values['service'].empty?
 
+    missing = booking_fields.missing(values)
+    return { booking: nil, booking_rejection: :missing_required_field, booking_missing_fields: missing } if missing.any?
+
     { booking: booking_attributes(values, scheduled_at), booking_rejection: nil }
   end
 
+  # The stripped value of each booking field, empty for one the model left out.
+  def booking_values(fields) = booking_keys.index_with { |key| (fields[key] if fields.is_a?(Hash)).to_s.strip }
+
   def booking_attributes(values, scheduled_at)
     { service: values['service'], customer_name: values['customer_name'], scheduled_at: scheduled_at, notes: values['notes'].presence,
-      details: values.slice(*ai_agent.booking_fields), rescheduled_from_id: held_booking_id(values[REPLACES_FIELD]) }
+      details: values.slice(*booking_fields.names), rescheduled_from_id: held_booking_id(values[REPLACES_FIELD]) }
   end
 
   # The id of a booking the customer still has, from the number the model wrote ("12" or "#12"), else nil.
@@ -227,8 +236,8 @@ class AiAgents::ActionSchema
   def booking_instructions
     return unless ai_agent.booking?
 
-    "#{BOOKING_INSTRUCTIONS}#{HELD_BOOKING_INSTRUCTIONS if held_bookings?}#{AiAgents::BookingSummary::INSTRUCTIONS if summary?}" \
-      "Condition:\n#{ai_agent.booking_conditions}\n" \
+    "#{BOOKING_INSTRUCTIONS}#{booking_fields.instructions}#{HELD_BOOKING_INSTRUCTIONS if held_bookings?}" \
+      "#{AiAgents::BookingSummary::INSTRUCTIONS if summary?}Condition:\n#{ai_agent.booking_conditions}\n" \
       "Bookings already in this conversation:\n#{held_booking_lines.join("\n").presence || 'none'}"
   end
 

@@ -210,13 +210,44 @@ RSpec.describe AiAgent do
       )
     end
 
-    it 'accepts up to ten trimmed booking field names that are unique and not core field names' do
-      ai_agent.booking_fields = ['Plat nomor', 'Jumlah orang']
+    it 'accepts up to ten booking fields with trimmed names that are unique and not core field names' do
+      text = { 'name' => 'Plat nomor', 'description' => '', 'type' => 'text', 'options' => [], 'required' => false }
+      ai_agent.booking_fields = [text, text.merge('name' => 'Jumlah orang', 'type' => 'number', 'description' => 'a' * 200, 'required' => true),
+                                 text.merge('name' => 'Mobil', 'type' => 'choice', 'options' => Array.new(20) { |index| "Mobil #{index}" })]
       expect(ai_agent).to be_valid
 
-      [Array.new(11) { |index| "Field #{index}" }, %w[Plat plat], ['Service'], [' Plat'], [''], ['a' * 51], ["Plat\nnomor"], [1]].each do |fields|
+      names = [Array.new(11) { |index| "Field #{index}" }, %w[Plat plat], ['Service'], [' Plat'], [''], ['a' * 51], ["Plat\nnomor"], [1]]
+      names.each do |list|
+        ai_agent.booking_fields = list.map { |name| text.merge('name' => name) }
+        expect(ai_agent).not_to be_valid, list.inspect
+      end
+    end
+
+    it 'accepts only booking fields with the keys of a field, a type, a short description, and options for a choice alone' do
+      text = { 'name' => 'Plat nomor', 'description' => '', 'type' => 'text', 'options' => [], 'required' => false }
+      choice = text.merge('type' => 'choice', 'options' => %w[Mobil Motor])
+
+      [['Plat nomor'], text, [text.merge('placeholder' => '')], [text.except('options')], [text.merge('type' => 'date')],
+       [text.merge('description' => 'a' * 201)], [text.merge('description' => nil)], [text.merge('required' => 'true')],
+       [text.merge('options' => %w[Mobil Motor])], [text.merge('type' => 'number', 'options' => ['1'])],
+       [choice.merge('options' => ['Mobil'])], [choice.merge('options' => Array.new(21) { |index| "Opsi #{index}" })],
+       [choice.merge('options' => %w[Mobil mobil])], [choice.merge('options' => ['Mobil', ' '])], [choice.merge('options' => 'Mobil, Motor')],
+       [choice.merge('options' => ['Mobil', 'a' * 51])]].each do |fields|
         ai_agent.booking_fields = fields
         expect(ai_agent).not_to be_valid, fields.inspect
+        expect(ai_agent.errors.attribute_names).to eq([:booking_fields])
+      end
+    end
+
+    it 'accepts up to 30 booking services with trimmed names of up to 100 characters that are unique' do
+      ai_agent.booking_services = Array.new(29) { |index| "Layanan #{index}" } + ['a' * 100]
+      expect(ai_agent).to be_valid
+
+      [Array.new(31) { |index| "Layanan #{index}" }, ['Ganti oli', 'ganti oli'], [' Ganti oli'], [''], ['a' * 101], ["Ganti\noli"], [1],
+       'Ganti oli'].each do |services|
+        ai_agent.booking_services = services
+        expect(ai_agent).not_to be_valid, services.inspect
+        expect(ai_agent.errors.attribute_names).to eq([:booking_services])
       end
     end
   end

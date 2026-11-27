@@ -22,7 +22,15 @@
     "knowledge_gap_message": "Maaf, Kak, info itu belum tersedia di kami. Kakak bisa tanyakan hal lain seputar servis dan suku cadang, atau minta dihubungkan ke tim CS kami.",
     "booking_enabled": true,
     "booking_conditions": "Pelanggan ingin datang ke bengkel untuk servis, perbaikan, atau pemasangan suku cadang pada tanggal dan jam tertentu.",
-    "booking_fields": ["Mobil"]
+    "booking_fields": [
+      {
+        "name": "Mobil",
+        "description": "",
+        "type": "text",
+        "options": [],
+        "required": false
+      }
+    ]
   },
   "knowledge": [
     {
@@ -74,6 +82,50 @@
       "knowledge": [],
       "settings": {
         "booking_summary_template": "Ringkasan Booking\nNama: {{booking.customer_name}}\nLayanan: {{booking.service}}\nTanggal: {{booking.date}}\nJam: {{booking.time}}\n{% if booking.extra_fields != blank %}{{booking.extra_fields}}\n{% endif %}{% if booking.notes != blank %}Catatan: {{booking.notes}}\n{% endif %}\nBalas \"Ya\" jika sudah benar."
+      }
+    },
+    "booking_fields": {
+      "name": "Eval - Booking Bengkel Vynor Motor (field terstruktur)",
+      "knowledge": [],
+      "settings": {
+        "booking_fields": [
+          {
+            "name": "Mobil",
+            "description": "Merek, tipe, dan tahun mobil, contoh: Toyota Avanza 2019",
+            "type": "text",
+            "options": [],
+            "required": true
+          },
+          {
+            "name": "Nomor polisi",
+            "description": "Contoh: D 1234 ABC",
+            "type": "text",
+            "options": [],
+            "required": true
+          },
+          {
+            "name": "Transmisi",
+            "description": "",
+            "type": "choice",
+            "options": ["Manual", "Matic"],
+            "required": false
+          },
+          {
+            "name": "Kilometer",
+            "description": "Angka odometer saat ini",
+            "type": "number",
+            "options": [],
+            "required": false
+          }
+        ],
+        "booking_services": [
+          "Servis berkala",
+          "Ganti oli",
+          "Tune up",
+          "Spooring dan balancing",
+          "Ganti kampas rem",
+          "Cek aki"
+        ]
       }
     }
   }

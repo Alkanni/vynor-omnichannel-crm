@@ -38,8 +38,9 @@ context run makes 26 agent calls plus 26 judge calls.
 | `fixtures/toko-roti-dokumen.json` | Synthetic long documents for the retrieval eval: a guide to 12 branches whose subsections do not name their branch, and a wholesale price table of 88 rows that only make sense with its header. More chunks than the Context Limit |
 | `fixtures/bengkel-qa.json` | Synthetic car care business for the retrieval eval whose knowledge is 195 Q&A: the same questions (price, duration, warranty, booking, …) for each of 30 services, plus general questions, like a Q&A list written per service (issue #141) |
 | `promptfooconfig.booking.yaml`, `tests/b-booking.yaml`, `lib/booking-assertions.mjs` | Booking eval: 18 cases with the booking each must request, or none, and deterministic assertions over the booking the playground returns (see below) |
-| `fixtures/bengkel-booking.json` | The strict car workshop agent of `bengkel-mobil.json` without web search, with booking requests on, a `Mobil` booking field, and the `booking` label (issue #177), and the same agent with a booking summary template, `booking_template` (issue #206) |
+| `fixtures/bengkel-booking.json` | The strict car workshop agent of `bengkel-mobil.json` without web search, with booking requests on, a plain text `Mobil` booking field, and the `booking` label (issue #177), the same agent with a booking summary template, `booking_template` (issue #206), and with required, choice, and number fields and a list of services, `booking_fields` (issue #207) |
 | `promptfooconfig.booking-summary.yaml`, `tests/b-booking-summary.yaml` | Booking summary eval: the booking cases plus 6 cases of the step before the customer confirms, against the `booking_template` agent, with deterministic assertions over the summary bubble the playground returns (see below) |
+| `promptfooconfig.booking-fields.yaml`, `tests/b-booking-fields.yaml` | Structured booking fields eval: 6 cases against the `booking_fields` agent, whether a reply asks for a missing required field and a booking holds the listed service and the option the customer described in other words (see below) |
 | `booking-report.mjs` | Markdown summary of the booking eval: the gate of issue #177 per run and the failing cases with the booking they requested |
 | `promptfooconfig.promo.yaml`, `tests/p-promo.yaml`, `lib/promo-assertions.mjs` | Promotion eval: 32 cases (relevant, irrelevant, complaint, direct, inactive) on the `promo` and `promo_passive` agents, with deterministic assertions over the promotion the playground returns (see below) |
 | `fixtures/bengkel-promo.json` | The strict car workshop agent of `bengkel-booking.json` without booking, two more products without a promotion, and six promotions whose dates are days from the run day: four active (three linked to a product, one standalone), one scheduled, one archived (issue #215) |
@@ -282,6 +283,26 @@ node booking-report.mjs output/booking-summary-1.json
   bubble before the summary that names the service as well.
 - An agent without a template gets the prompt and schema it had before issue #206, so the `booking` agent needs no
   rerun for it: compare its prompt between the two builds instead (the request log keeps it).
+
+### Structured booking fields
+
+```bash
+node --env-file=.env setup.mjs bengkel-booking.json
+npx promptfoo@0.124.1 eval -c promptfooconfig.booking-fields.yaml --no-cache -o output/booking-fields-1.json
+node booking-report.mjs output/booking-fields-1.json
+```
+
+- The `booking_fields` agent (issue #207) requires `Mobil` and `Nomor polisi`, has the choice `Transmisi` (Manual or
+  Matic), the number `Kilometer`, and six services. Its booking fields are objects, so `setup.mjs` needs a build with
+  issue #207; on an older build, run the other booking evals with the fixture of that build.
+- A case with `asks` must not request a booking, and its reply must use one of those words: it asks for the missing
+  required field before the summary. `exact` in a case's `booking` lists values the booking must hold as written: the
+  service from the list and the option of a choice the customer described in other words ("otomatis", "masih pakai
+  kopling"), or a number written in words ("45 ribu").
+- The report adds the cases that ask for a missing required field and the bookings with the exact values (report
+  only). A booking the reply asked for with a required field empty shows as a `missing_required_field` rejection.
+- The `booking` agent's `Mobil` is the plain text field a field name becomes, which gets exactly the prompt and schema
+  the name had, so compare its prompt between the two builds rather than rerunning the booking eval for it.
 
 ## Promotion eval
 

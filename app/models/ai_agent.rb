@@ -11,6 +11,7 @@
 #  booking_confirmed_message  :text
 #  booking_enabled            :boolean          default(FALSE), not null
 #  booking_fields             :jsonb            not null
+#  booking_services           :jsonb            not null
 #  booking_summary_template   :text
 #  business_description       :text
 #  clarification_message      :text
@@ -65,11 +66,11 @@ class AiAgent < ApplicationRecord
   # A host name such as kompas.com or otomotif.kompas.com, as the web search providers take it (see AiAgents::WebSearch).
   WEB_SEARCH_DOMAIN = /\A(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\z/i
   TRAINING_DELAY = 10.seconds
-  # The booking fields every booking has (see AiAgents::ActionSchema); booking_fields adds the agent's own.
+  # The booking fields every booking has (see AiAgents::ActionSchema); booking_fields adds the agent's own, and
+  # booking_services lists the services it offers (see AiAgent::BookingFields).
   BOOKING_CORE_FIELDS = %w[customer_name service date time notes replaces_booking].freeze
   MAX_BOOKING_FIELDS = 10
-  # A trimmed name of 1 to 50 characters on one line.
-  BOOKING_FIELD_NAME = /\A\S(?:.{0,48}\S)?\z/
+  MAX_BOOKING_SERVICES = 30
   # The message the customer gets when the staff set a booking to one of these statuses (see Booking#change_status!).
   BOOKING_MESSAGES = { 'confirmed' => :booking_confirmed_message, 'cancelled' => :booking_cancelled_message }.freeze
   # The Liquid templates of the booking settings: the status messages and the summary a reply shows the customer before they
@@ -107,6 +108,7 @@ class AiAgent < ApplicationRecord
   validates :transfer_conditions, :label_conditions, :booking_conditions, length: { maximum: 3_000 }
   validates :booking_conditions, :booking_label_id, presence: true, if: :booking_enabled
   validates :booking_fields, length: { maximum: MAX_BOOKING_FIELDS }
+  validates :booking_services, length: { maximum: MAX_BOOKING_SERVICES }
   validates :pending_assigned_message, :pending_unassigned_message, length: { maximum: 200 }
   validates :history_limit, numericality: { only_integer: true, in: 1..100 }
   validates :read_file_limit, numericality: { only_integer: true, in: 0..10 }
@@ -130,7 +132,10 @@ class AiAgent < ApplicationRecord
   validate :model_supported
   validate :allowed_labels_belong_to_account
   validate -> { errors.add(:booking_label_id, :invalid) }, if: -> { booking_label_id && !account.labels.exists?(booking_label_id) }
-  validate :booking_fields_valid
+  # Each field becomes a field of the booking function, so names are unique, case aside, and not core field names.
+  validate -> { errors.add(:booking_fields, :invalid) }, unless: -> { AiAgent::BookingFields.valid?(booking_fields, BOOKING_CORE_FIELDS) }
+  validate -> { errors.add(:booking_services, :invalid) },
+           unless: -> { AiAgent::BookingFields.names?(booking_services, AiAgent::BookingFields::SERVICE) }
   validate :booking_templates_valid
 
   before_update -> { self.scope_policy_version += 1 }, if: -> { changed.intersect?(SCOPE_POLICY_ATTRIBUTES) }
@@ -240,15 +245,6 @@ class AiAgent < ApplicationRecord
 
   def model_supported
     errors.add(:model, :inclusion) unless self.class.available_models.any? { |available| available[:id] == model }
-  end
-
-  # Each name becomes a field of the booking function, so names are unique, case aside, and not core field names.
-  def booking_fields_valid
-    names = Array(booking_fields)
-    return errors.add(:booking_fields, :invalid) unless names.all? { |name| name.is_a?(String) && name.match?(BOOKING_FIELD_NAME) }
-
-    names = names.map(&:downcase)
-    errors.add(:booking_fields, :invalid) if names.uniq.size < names.size || names.intersect?(BOOKING_CORE_FIELDS)
   end
 
   # A booking template that does not parse as Liquid would reach the customer unrendered.

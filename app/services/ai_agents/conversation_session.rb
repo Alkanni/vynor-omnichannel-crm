@@ -63,13 +63,14 @@ class AiAgents::ConversationSession
   end
 
   # booking: the attributes of a Booking the reply asked for, booking_rejection: why one it asked for cannot be a
-  # booking, and booking_cancellation: the id of a booking the customer asked to cancel (see AiAgents::ActionSchema#parse).
+  # booking, booking_missing_fields: the required fields it left empty, and booking_cancellation: the id of a booking the
+  # customer asked to cancel (see AiAgents::ActionSchema#parse).
   # rubocop:disable Metrics/ParameterLists
-  def apply!(handoff:, labels:, reason:, sheet_row: nil, booking: nil, booking_rejection: nil, booking_cancellation: nil)
+  def apply!(handoff:, labels:, reason:, sheet_row: nil, booking: nil, booking_rejection: nil, booking_missing_fields: nil, booking_cancellation: nil)
     add_labels(labels)
     AiAgents::AppendSheetRowJob.perform_later(conversation, sheet_row) if sheet_row
     request_booking!(booking) if booking
-    reject_booking!(booking_rejection) if booking_rejection
+    reject_booking!(booking_rejection, booking_missing_fields) if booking_rejection
     request_cancellation!(booking_cancellation) if booking_cancellation
     handoff!(reason) if handoff
   end
@@ -212,14 +213,15 @@ class AiAgents::ConversationSession
 
   # A booking the model asked for that cannot be recorded tells the staff why, with the agent's booking label, so they
   # follow it up with the customer, who was told the staff will confirm it. The reply and the Watcher may both ask for
-  # it after the same customer message, which tells the staff once.
-  def reject_booking!(reason)
+  # it after the same customer message, which tells the staff once. fields: the required fields a booking left empty.
+  def reject_booking!(reason, fields = nil)
     return if noted_since_customer_wrote?(BOOKING_REJECTED_MARKER)
 
     add_booking_label
+    reason_text = I18n.t("ai_agents.bookings.rejection_reasons.#{reason}", count: fields&.size, fields: fields&.join(', '))
     conversation.messages.create!(
       account_id: conversation.account_id, inbox_id: conversation.inbox_id, message_type: :activity,
-      content: I18n.t('ai_agents.bookings.rejected', agent: ai_agent.name, reason: I18n.t("ai_agents.bookings.rejection_reasons.#{reason}")),
+      content: I18n.t('ai_agents.bookings.rejected', agent: ai_agent.name, reason: reason_text),
       additional_attributes: { BOOKING_REJECTED_MARKER => reason }
     )
   end

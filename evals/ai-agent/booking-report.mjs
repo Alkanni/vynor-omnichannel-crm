@@ -1,6 +1,7 @@
 // Summarizes promptfoo JSON outputs of promptfooconfig.booking.yaml as Markdown: the booking gate of issue #177 per run,
 // then every case that failed an assertion with the booking it requested. A run of promptfooconfig.booking-summary.yaml
-// also gets the summary gate of issue #206 and the summary of each failing case.
+// also gets the summary gate of issue #206 and the summary of each failing case, and a run of
+// promptfooconfig.booking-fields.yaml the structured field rows of issue #207.
 // Usage: node booking-report.mjs output/booking-1.json [output/booking-2.json ...]
 import { readFileSync } from 'node:fs';
 
@@ -14,6 +15,7 @@ function loadRun(file) {
     expected: result.testCase.metadata.booking,
     requested: result.response?.metadata?.booking ?? null,
     rejection: result.response?.metadata?.bookingRejection ?? null,
+    asks: result.testCase.metadata.asks ?? null,
     summaryExpected: result.testCase.metadata.summary ?? null,
     summary: result.response?.metadata?.bookingSummary ?? null,
     summaryRejection:
@@ -31,6 +33,31 @@ function loadRun(file) {
 
 const percent = (part, whole) =>
   whole ? `${Math.round((part / whole) * 100)}% (${part}/${whole})` : 'n/a';
+
+// Issue #207: a reply asks for a missing required field before the summary, and a booking holds the listed service and
+// the option the customer described in other words.
+function fieldsGate(valid, created) {
+  const asking = valid.filter(testCase => testCase.asks);
+  const asked = asking.filter(testCase => testCase.checks.asks_required?.pass);
+  const withExact = created.filter(testCase => testCase.expected.exact);
+  const exact = withExact.filter(
+    testCase => testCase.checks.booking_exact?.pass
+  );
+  return [
+    [
+      'Cases that ask for a missing required field',
+      percent(asked.length, asking.length),
+      '—',
+      null,
+    ],
+    [
+      'Bookings with the exact service and options',
+      percent(exact.length, withExact.length),
+      '—',
+      null,
+    ],
+  ];
+}
 
 // Issue #206: a summary exactly on the cases that expect one, with their values, and never also written by the model.
 function summaryGate(valid) {
@@ -139,6 +166,9 @@ function gate(cases) {
     ],
     ...(valid.some(testCase => testCase.checks.summary_shown)
       ? summaryGate(valid)
+      : []),
+    ...(valid.some(testCase => testCase.checks.booking_exact)
+      ? fieldsGate(valid, created)
       : []),
     [
       'Errored cases (left out)',

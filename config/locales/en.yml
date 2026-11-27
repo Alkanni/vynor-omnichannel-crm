@@ -479,6 +479,9 @@ en:
         past_schedule: the date and time have already passed
         missing_service: the service is missing
         missing_customer_name: the customer name is missing
+        missing_required_field:
+          one: 'the required field %{fields} is empty'
+          other: 'the required fields %{fields} are empty'
       invalid_message: 'has a variable or tag that is not closed, such as {{booking.service'
     google_sheets:
       row_added: '%{agent} added a row to Google Sheets'

@@ -7,7 +7,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     web_search_enabled web_search_domains booking_enabled booking_conditions booking_label_id booking_confirmed_message
     booking_cancelled_message booking_summary_template promotion_offers_enabled
   ].freeze
-  LIST_SETTINGS = %w[allowed_label_ids inbox_ids booking_fields].freeze
+  LIST_SETTINGS = %w[allowed_label_ids inbox_ids booking_services].freeze
   MAX_PLAYGROUND_MESSAGES = 100
   MAX_PLAYGROUND_MESSAGE_LENGTH = 10_000
   PLAYGROUND_ROLES = %w[user assistant].freeze
@@ -15,7 +15,7 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
   PLAYGROUND_REPLY_DEADLINE_MS = 14_000
 
   # inbox_ids is not a column, so the default JSON wrapping into ai_agent would drop it.
-  wrap_parameters :ai_agent, include: SETTINGS + LIST_SETTINGS
+  wrap_parameters :ai_agent, include: [*SETTINGS, *LIST_SETTINGS, 'booking_fields']
 
   before_action :fetch_ai_agent, except: [:index, :create, :models]
   before_action :check_authorization
@@ -98,8 +98,10 @@ class Api::V1::Accounts::AiAgentsController < Api::V1::Accounts::BaseController
     @ai_agent = Current.account.ai_agents.find(params[:id])
   end
 
+  # Booking fields are objects that AiAgent::BookingFields checks whole, so a key it does not know is rejected, not dropped.
   def permitted_params
-    params.require(:ai_agent).permit(*SETTINGS, LIST_SETTINGS.index_with { [] })
+    settings = params.require(:ai_agent)
+    settings.permit(*SETTINGS, LIST_SETTINGS.index_with { [] }).to_h.merge(settings.to_unsafe_h.slice(:booking_fields))
   end
 
   # inbox_ids= finds inboxes across all accounts, so ids outside this account are rejected before the

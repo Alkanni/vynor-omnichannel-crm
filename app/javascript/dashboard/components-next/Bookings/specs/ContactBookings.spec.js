@@ -1,14 +1,12 @@
 import { flushPromises, shallowMount } from '@vue/test-utils';
-import { useAlert } from 'dashboard/composables';
 import BookingsAPI from 'dashboard/api/bookings';
 import Button from 'dashboard/components-next/button/Button.vue';
 import BookingStatusMenu from '../BookingStatusMenu.vue';
 import ContactBookings from '../ContactBookings.vue';
 
 vi.mock('dashboard/api/bookings', () => ({
-  default: { list: vi.fn(), fields: vi.fn() },
+  default: { list: vi.fn() },
 }));
-vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 vi.mock('vue-i18n', async () => {
   const { ref } = await import('vue');
   return {
@@ -145,9 +143,8 @@ describe('ContactBookings', () => {
     expect(menu.props('booking')).toMatchObject({ id: 2, status: 'confirmed' });
   });
 
-  it('adds a booking to the open conversation with the contact name and the agent fields', async () => {
+  it('adds a booking to the open conversation with the contact name', async () => {
     BookingsAPI.list.mockResolvedValue({ data: { payload: [upcoming] } });
-    BookingsAPI.fields.mockResolvedValue({ data: { fields: ['Plat nomor'] } });
     const wrapper = mountPanel(5, { conversationId: 12, contactName: 'Rina' });
     await flushPromises();
 
@@ -157,11 +154,7 @@ describe('ContactBookings', () => {
     add.vm.$emit('click');
     await flushPromises();
 
-    expect(BookingsAPI.fields).toHaveBeenCalledWith(12);
-    expect(openForm).toHaveBeenCalledWith({
-      customerName: 'Rina',
-      fields: ['Plat nomor'],
-    });
+    expect(openForm).toHaveBeenCalledWith({ customerName: 'Rina' });
 
     const added = { ...booking(9, 'Poles body', '2101-01-10T03:00:00Z') };
     wrapper.findComponent(FormStub).vm.$emit('saved', added);
@@ -169,22 +162,14 @@ describe('ContactBookings', () => {
     expect(services(wrapper)).toEqual(['Cuci salon', 'Poles body']);
   });
 
-  it('offers no add button without a conversation, and tells the user when the fields cannot load', async () => {
+  it('offers no add button without a conversation', async () => {
     BookingsAPI.list.mockResolvedValue({ data: { payload: [] } });
+
     expect(
       mountPanel()
         .findAllComponents(Button)
         .some(button => button.props('label') === 'BOOKINGS.FORM.ADD')
     ).toBe(false);
-
-    BookingsAPI.fields.mockRejectedValue(new Error('Network Error'));
-    const wrapper = mountPanel(5, { conversationId: 12 });
-    await flushPromises();
-    wrapper.findAllComponents(Button)[0].vm.$emit('click');
-    await flushPromises();
-
-    expect(openForm).not.toHaveBeenCalled();
-    expect(useAlert).toHaveBeenCalledWith('BOOKINGS.FORM.FIELDS_ERROR');
   });
 
   it('edits a booking that can still change, and shows it as saved', async () => {

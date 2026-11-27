@@ -175,20 +175,36 @@ RSpec.describe 'AI Agents API', type: :request do
     end
 
     it 'saves the booking settings, and refuses bookings without a condition, with another account\'s label, or with core field names' do
+      fields = [{ 'name' => 'Plat nomor', 'description' => 'Contoh: D 1234 ABC', 'type' => 'text', 'options' => [], 'required' => true },
+                { 'name' => 'Tipe kendaraan', 'description' => '', 'type' => 'choice', 'options' => %w[Mobil Motor], 'required' => false }]
       booking_settings = { booking_enabled: true, booking_conditions: 'Saat customer ingin datang ke bengkel.', booking_label_id: label.id,
-                           booking_fields: ['Plat nomor'] }
+                           booking_fields: fields, booking_services: ['Servis berkala', 'Ganti oli'] }
       patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}", params: booking_settings, headers: admin.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to include(booking_settings.stringify_keys)
 
       patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}",
-            params: { booking_conditions: '', booking_label_id: create(:label).id, booking_fields: ['service'] },
+            params: { booking_conditions: '', booking_label_id: create(:label).id, booking_fields: [fields.first.merge('name' => 'service')],
+                      booking_services: ['Ganti oli', 'ganti oli'] },
             headers: admin.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body['attributes']).to contain_exactly('booking_conditions', 'booking_label_id', 'booking_fields')
+      expect(response.parsed_body['attributes']).to contain_exactly('booking_conditions', 'booking_label_id', 'booking_fields', 'booking_services')
       expect(ai_agent.reload).to have_attributes(booking_settings)
+    end
+
+    it 'refuses booking fields that are not field objects, with a key the field does not have, or the names of before' do
+      field = { 'name' => 'Plat nomor', 'description' => '', 'type' => 'text', 'options' => [], 'required' => false }
+
+      headers = admin.create_new_auth_token
+      [[field.merge('placeholder' => 'D 1234 ABC')], [field.except('description')], ['Plat nomor'], field].each do |fields|
+        patch "/api/v1/accounts/#{account.id}/ai_agents/#{ai_agent.id}", params: { booking_fields: fields }, headers: headers, as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity), fields.inspect
+        expect(response.parsed_body['attributes']).to eq(['booking_fields'])
+      end
+      expect(ai_agent.reload.booking_fields).to eq([])
     end
 
     it 'saves and clears the booking messages, and refuses a message that is not a Liquid template' do
@@ -386,14 +402,15 @@ RSpec.describe 'AI Agents API', type: :request do
       replies = [
         AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, Kak.', 'Ringkasan: Cuci salon'], handoff: false, labels: [],
                                             booking_summary: 'Ringkasan: Cuci salon', trace: trace),
-        AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, Kak.'], handoff: false, labels: [], booking_summary_rejection: :past_schedule,
+        AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, Kak.'], handoff: false, labels: [], booking_summary_rejection: :missing_required_field,
                                             trace: trace)
       ]
       allow(AiAgents::ReplyGenerator).to receive(:new).and_return(*replies.map { |reply| instance_double(AiAgents::ReplyGenerator, perform: reply) })
 
       2.times { post url, params: { messages: messages }, headers: admin.create_new_auth_token, as: :json }
 
-      expect(response.parsed_body).to include('messages' => ['Baik, Kak.'], 'booking_summary' => nil, 'booking_summary_rejection' => 'past_schedule')
+      expect(response.parsed_body).to include('messages' => ['Baik, Kak.'], 'booking_summary' => nil,
+                                              'booking_summary_rejection' => 'missing_required_field')
     end
 
     it 'returns the reply of the agent for the conversation so far, with its actions and the knowledge it used' do
@@ -421,7 +438,8 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to eq(
         'messages' => ['Kami buka 07.30 - 18.00.'], 'handoff' => true, 'labels' => ['booking'], 'sheet_row' => nil, 'booking' => nil,
-        'booking_rejection' => nil, 'booking_summary' => nil, 'booking_summary_rejection' => nil, 'model' => ai_agent.model, 'scope' => nil,
+        'booking_rejection' => nil, 'booking_missing_fields' => nil, 'booking_summary' => nil, 'booking_summary_rejection' => nil,
+        'model' => ai_agent.model, 'scope' => nil,
         'validation' => nil, 'web' => nil, 'promotion' => nil,
         'retrieval' => {
           'mode' => 'hybrid', 'embedding_model' => 'text-embedding-3-small', 'queries' => ['Jam buka?'],
@@ -642,7 +660,8 @@ RSpec.describe 'AI Agents API', type: :request do
       expect(log).to have_attributes(source: 'playground', status: 'ok', ai_agent_id: ai_agent.id, conversation_id: nil, message_id: nil,
                                      reply_trace_id: nil, output: { 'messages' => ['Buka 08.00, Kak.'], 'handoff' => false, 'labels' => [],
                                                                     'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil,
-                                                                    'booking_cancellation' => nil, 'booking_summary_rejection' => nil })
+                                                                    'booking_missing_fields' => nil, 'booking_cancellation' => nil,
+                                                                    'booking_summary_rejection' => nil })
       expect(log.input['messages']).to eq(messages.map(&:stringify_keys))
       expect(log.steps.sole).to include('step' => 'reply', 'output' => { 'messages' => ['Buka 08.00, Kak.'] })
     end

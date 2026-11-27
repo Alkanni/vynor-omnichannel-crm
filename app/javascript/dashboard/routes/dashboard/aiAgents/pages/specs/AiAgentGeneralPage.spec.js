@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createI18n } from 'vue-i18n';
 import aiAgents from 'dashboard/i18n/locale/en/aiAgents.json';
 import AiAgentGeneralPage from '../AiAgentGeneralPage.vue';
+import BookingFieldsEditor from '../../components/BookingFieldsEditor.vue';
 
 const dispatch = vi.fn();
 
@@ -51,7 +52,16 @@ const agent = {
   booking_enabled: true,
   booking_conditions: 'Saat customer ingin datang ke bengkel.',
   booking_label_id: null,
-  booking_fields: ['Plate number'],
+  booking_fields: [
+    {
+      name: 'Plate number',
+      description: '',
+      type: 'text',
+      options: [],
+      required: false,
+    },
+  ],
+  booking_services: [],
   booking_summary_template: null,
 };
 
@@ -135,6 +145,55 @@ describe('AiAgentGeneralPage booking summary template', () => {
       'You can use {{booking.customer_name}}, {{booking.service}}, {{booking.date}}, {{booking.time}}, ' +
         '{{booking.notes}}, {{booking.extra_fields}}, and {{booking.details["Plate number"]}} for one extra field.'
     );
+  });
+});
+
+describe('AiAgentGeneralPage booking fields and services', () => {
+  beforeEach(() => {
+    dispatch.mockReset();
+    dispatch.mockImplementation((action, payload) =>
+      Promise.resolve(
+        action === 'aiAgents/update' ? { ...agent, ...payload } : agent
+      )
+    );
+  });
+
+  it('saves the fields of the editor and the services, and shows them as saved', async () => {
+    const fields = [
+      ...agent.booking_fields,
+      {
+        name: 'Vehicle',
+        description: 'Car or motorbike',
+        type: 'choice',
+        options: ['Car', 'Motorbike'],
+        required: true,
+      },
+    ];
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const editor = wrapper.findComponent(BookingFieldsEditor);
+    expect(editor.props('modelValue')).toEqual(agent.booking_fields);
+    editor.vm.$emit('update:modelValue', fields);
+    wrapper
+      .findComponent({ name: 'TagInput' })
+      .vm.$emit('update:modelValue', ['Regular service']);
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(dispatch).toHaveBeenCalledWith(
+      'aiAgents/update',
+      expect.objectContaining({
+        booking_fields: fields,
+        booking_services: ['Regular service'],
+      })
+    );
+    expect(
+      wrapper.findComponent(BookingFieldsEditor).props('modelValue')
+    ).toEqual(fields);
+    expect(
+      wrapper.findComponent({ name: 'TagInput' }).props('modelValue')
+    ).toEqual(['Regular service']);
   });
 });
 
