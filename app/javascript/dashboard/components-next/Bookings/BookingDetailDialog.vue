@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import BookingHistory from './BookingHistory.vue';
 import { BOOKING_STATUS_CLASSES, BOOKING_STATUS_LABELS } from './constants';
 import { bookingConversationRoute, formatBookingTime } from './helpers';
 
@@ -13,6 +14,8 @@ const { t, locale } = useI18n();
 const route = useRoute();
 const dialogRef = ref(null);
 const booking = ref(null);
+// Each opening loads the history again (see BookingHistory), so it shows the changes made since the last one.
+const openCount = ref(0);
 
 // The booking's fields in reading order, the agent's own fields (details) after the customer's.
 const fields = computed(() => {
@@ -40,6 +43,7 @@ const fields = computed(() => {
 // The booking as the list holds it, so a changed booking shows its latest values the next time.
 const open = current => {
   booking.value = current;
+  openCount.value += 1;
   dialogRef.value.open();
 };
 
@@ -103,6 +107,7 @@ defineExpose({ open });
           })
         }}
       </RouterLink>
+      <BookingHistory :key="openCount" :booking-id="booking.id" />
     </div>
   </Dialog>
 </template>

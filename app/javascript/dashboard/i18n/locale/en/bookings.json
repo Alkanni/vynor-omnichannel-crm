@@ -62,6 +62,18 @@
       "AI_AGENT": "AI agent",
       "RECORDED_AT": "Recorded"
     },
+    "HISTORY": {
+      "TITLE": "History",
+      "LOADING": "Loading the history…",
+      "LOAD_ERROR": "Could not load the history. Close the booking and open it again to retry.",
+      "EMPTY": "This booking was recorded before booking history existed, so it has no history yet. Its next changes will appear here.",
+      "CREATED": "{actor} recorded the booking",
+      "UPDATED": "{actor} changed the booking",
+      "AI_AGENT_ACTOR": "{name} (AI agent)",
+      "UNKNOWN_ACTOR": "Unknown",
+      "FIELD_CHANGE": "{field}: {from} → {to}",
+      "REASON": "Reason: {reason}"
+    },
     "FIELD_VALUE": "{field}: {value}",
     "RESCHEDULED_FROM": "Replaces booking #{id}"
   }

@@ -1,3 +1,4 @@
+import { onMounted } from 'vue';
 import { flushPromises, shallowMount } from '@vue/test-utils';
 import BookingDetailDialog from '../BookingDetailDialog.vue';
 import { formatBookingTime } from '../helpers';
@@ -26,6 +27,16 @@ const RouterLinkStub = {
   props: ['to'],
   template: '<a><slot /></a>',
 };
+// Each mount loads the history.
+const mountHistory = vi.fn();
+const BookingHistoryStub = {
+  name: 'BookingHistory',
+  props: ['bookingId'],
+  setup(props) {
+    onMounted(() => mountHistory(props.bookingId));
+  },
+  template: '<div />',
+};
 
 const booking = {
   id: 12,
@@ -45,7 +56,13 @@ const booking = {
 
 const mountDialog = () =>
   shallowMount(BookingDetailDialog, {
-    global: { stubs: { Dialog: DialogStub, RouterLink: RouterLinkStub } },
+    global: {
+      stubs: {
+        Dialog: DialogStub,
+        RouterLink: RouterLinkStub,
+        BookingHistory: BookingHistoryStub,
+      },
+    },
   });
 
 const openWith = async current => {
@@ -143,6 +160,17 @@ describe('BookingDetailDialog', () => {
       params: { accountId: '1', conversation_id: 7 },
     });
     expect(link.text()).toBe('BOOKINGS.TABLE.OPEN_CONVERSATION {"id":7}');
+  });
+
+  it('shows the history of the booking, loaded again each time it opens', async () => {
+    const wrapper = await openWith(booking);
+    expect(mountHistory).toHaveBeenCalledWith(12);
+
+    wrapper.vm.open(booking);
+    await flushPromises();
+
+    expect(mountHistory).toHaveBeenCalledTimes(2);
+    expect(mountHistory).toHaveBeenLastCalledWith(12);
   });
 
   it('shows the booking it is opened with the next time', async () => {

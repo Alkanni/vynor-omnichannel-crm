@@ -4,7 +4,7 @@
 # `conversation_id`, the conversation's display id. create and update take the booking fields (`service`,
 # `customer_name`, `scheduled_at` as an ISO 8601 time, `notes`, and `details` as names and text); update with a `status`
 # changes only the status, to the booking's own (which changes nothing) or one of its next statuses (see
-# Booking::NEXT_STATUSES).
+# Booking::NEXT_STATUSES). history lists the booking's changes (see Booking#audits).
 class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
   RESULTS_PER_PAGE = 25
 
@@ -12,7 +12,7 @@ class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
 
   before_action :check_authorization
   before_action :validate_filters, only: :index
-  before_action :fetch_booking, only: :update
+  before_action :fetch_booking, only: [:update, :history]
   before_action :fetch_conversation, only: [:create, :fields]
   before_action :validate_fields, only: [:create, :update]
 
@@ -49,6 +49,11 @@ class Api::V1::Accounts::BookingsController < Api::V1::Accounts::BaseController
     end
 
     @booking.change_status!(params[:status], Current.user)
+  end
+
+  # Oldest first.
+  def history
+    @audits = @booking.audits.includes(:user)
   end
 
   private

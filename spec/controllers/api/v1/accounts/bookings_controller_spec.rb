@@ -138,6 +138,7 @@ RSpec.describe 'Bookings API', type: :request do
       expect(booking).to have_attributes(status: 'confirmed', service: 'Poles body', customer_name: 'Rina', notes: nil,
                                          scheduled_at: Time.utc(2026, 11, 25, 3, 0), details: { 'Plat nomor' => 'B 9 XY' },
                                          contact: conversation.contact, ai_agent: ai_agent)
+      expect(booking.audits.sole).to have_attributes(action: 'create', user: agent)
       expect(response.parsed_body).to include('id' => booking.id, 'status' => 'confirmed', 'next_statuses' => %w[cancelled completed no_show])
       expect(conversation.messages.activity.pluck(:content))
         .to include("#{agent.name} recorded booking ##{booking.id}: Poles body, 2026-11-25 10:00 WIB")
@@ -431,6 +432,75 @@ RSpec.describe 'Bookings API', type: :request do
       patch "#{url}/#{requested.id}", params: { status: 'cancelled' }, headers: headers, as: :json
       expect(response).to have_http_status(:success)
       expect(requested.reload).to be_cancelled
+    end
+  end
+
+  describe 'GET /api/v1/accounts/{account.id}/bookings/:id/history (#225)' do
+    let(:ai_agent) { create(:ai_agent, account: account, name: 'CS Bengkel') }
+    let(:booking) do
+      Booking.audit_as(ai_agent) do
+        create(:booking, account: account, conversation: conversation, scheduled_at: Time.utc(2026, 11, 21, 3, 0),
+                         details: { 'Plat nomor' => 'B 1' })
+      end
+    end
+
+    it 'lists who recorded and changed the booking, oldest first, with each value before and after' do
+      headers = agent.create_new_auth_token
+      patch "#{url}/#{booking.id}", params: { service: 'Poles body', details: { 'Plat nomor' => 'B 2' } }, headers: headers, as: :json
+      patch "#{url}/#{booking.id}", params: { status: 'confirmed' }, headers: headers, as: :json
+
+      get "#{url}/#{booking.id}/history", headers: headers, as: :json
+
+      expect(response).to have_http_status(:success)
+      created, edited, confirmed = booking.audits.to_a
+      staff = { 'type' => 'User', 'id' => agent.id, 'name' => agent.name }
+      expect(response.parsed_body['payload']).to eq(
+        [{ 'id' => created.id, 'action' => 'create', 'actor' => { 'type' => 'AiAgent', 'id' => ai_agent.id, 'name' => 'CS Bengkel' },
+           'changes' => [{ 'field' => 'status', 'from' => nil, 'to' => 'requested' },
+                         { 'field' => 'service', 'from' => nil, 'to' => 'Cuci salon' },
+                         { 'field' => 'customer_name', 'from' => nil, 'to' => 'Budi' },
+                         { 'field' => 'scheduled_at', 'from' => nil, 'to' => '2026-11-21T03:00:00.000Z' },
+                         { 'field' => 'notes', 'from' => nil, 'to' => nil },
+                         { 'field' => 'details', 'from' => nil, 'to' => { 'Plat nomor' => 'B 1' } }],
+           'comment' => nil, 'created_at' => created.created_at.iso8601 },
+         { 'id' => edited.id, 'action' => 'update', 'actor' => staff,
+           'changes' => [{ 'field' => 'service', 'from' => 'Cuci salon', 'to' => 'Poles body' },
+                         { 'field' => 'details', 'from' => { 'Plat nomor' => 'B 1' }, 'to' => { 'Plat nomor' => 'B 2' } }],
+           'comment' => nil, 'created_at' => edited.created_at.iso8601 },
+         { 'id' => confirmed.id, 'action' => 'update', 'actor' => staff,
+           'changes' => [{ 'field' => 'status', 'from' => 'requested', 'to' => 'confirmed' }],
+           'comment' => nil, 'created_at' => confirmed.created_at.iso8601 }]
+      )
+    end
+
+    it 'names the user of an access token, no one for a change without a user, and no name once the user is deleted' do
+      patch "#{url}/#{tomorrow.id}", params: { status: 'confirmed' }, headers: { api_access_token: agent.access_token.token }, as: :json
+      expect(response).to have_http_status(:success)
+      staff = { 'type' => 'User', 'id' => agent.id }
+
+      get "#{url}/#{tomorrow.id}/history", headers: administrator.create_new_auth_token, as: :json
+      expect(response.parsed_body['payload'].pluck('actor')).to eq([nil, staff.merge('name' => agent.name)])
+
+      agent.destroy!
+      get "#{url}/#{tomorrow.id}/history", headers: administrator.create_new_auth_token, as: :json
+      expect(response.parsed_body['payload'].pluck('actor')).to eq([nil, staff.merge('name' => nil)])
+    end
+
+    it 'does not find a booking outside the conversations of the user, or of another account' do
+      get "#{url}/#{later.id}/history", headers: agent.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+
+      get "#{url}/#{create(:booking).id}/history", headers: administrator.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns unauthorized while the account lacks the bookings feature, and without a login' do
+      account.disable_features!('bookings')
+
+      get "#{url}/#{tomorrow.id}/history", headers: administrator.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unauthorized)
+      get "#{url}/#{tomorrow.id}/history", as: :json
+      expect(response).to have_http_status(:unauthorized)
     end
   end
 end

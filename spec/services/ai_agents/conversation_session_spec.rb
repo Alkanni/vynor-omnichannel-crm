@@ -74,6 +74,7 @@ RSpec.describe AiAgents::ConversationSession do
       expect(requested).to have_attributes(account: account, contact: conversation.contact, ai_agent: ai_agent, status: 'requested',
                                            service: 'Cuci salon', customer_name: 'Budi', scheduled_at: Time.utc(2026, 11, 20, 3, 0),
                                            details: { 'Plat nomor' => 'B 1234 CD' })
+      expect(requested.audits.sole).to have_attributes(action: 'create', user: ai_agent)
       expect(conversation.reload.label_list).to eq(['booking'])
       expect(conversation.messages.activity.pluck(:content))
         .to include("#{ai_agent.name} recorded booking request ##{requested.id}: Cuci salon, 2026-11-20 10:00 WIB")
@@ -189,6 +190,10 @@ RSpec.describe AiAgents::ConversationSession do
         replacement = conversation.bookings.requested.sole
         expect(replacement.rescheduled_from).to eq(held)
         expect(held.reload).to be_rescheduled
+        expect([held.audits.last, replacement.audits.sole]).to match(
+          [have_attributes(user: ai_agent, audited_changes: { 'status' => %w[confirmed rescheduled] }),
+           have_attributes(action: 'create', user: ai_agent)]
+        )
         expect(session.bookings).to eq([replacement])
         expect(conversation.messages.outgoing).to be_empty
         expect(conversation.messages.activity.pluck(:content))
