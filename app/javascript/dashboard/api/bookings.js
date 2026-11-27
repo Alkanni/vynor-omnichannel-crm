@@ -18,6 +18,11 @@ class BookingsAPI extends ApiClient {
       params: { conversation_id: conversationId },
     });
   }
+
+  // Who recorded and changed a booking, oldest first.
+  history(id) {
+    return axios.get(`${this.url}/${id}/history`);
+  }
 }
 
 export default new BookingsAPI();

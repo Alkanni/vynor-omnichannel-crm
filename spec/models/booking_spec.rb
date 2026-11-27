@@ -200,6 +200,51 @@ RSpec.describe Booking do
     expect(described_class.exists?(booking.id)).to be(false)
   end
 
+  describe 'the history (#225)' do
+    let(:user) { create(:user, account: booking.account, name: 'Sari') }
+
+    it 'starts with the first values of the booking' do
+      recorded = create(:booking, notes: 'Bawa STNK', details: { 'Plat nomor' => 'B 1' })
+
+      expect(recorded.audits.sole).to have_attributes(
+        action: 'create', audited_changes: { 'status' => 'requested', 'service' => 'Cuci salon', 'customer_name' => 'Budi',
+                                             'scheduled_at' => recorded.scheduled_at.as_json, 'notes' => 'Bawa STNK',
+                                             'details' => { 'Plat nomor' => 'B 1' } }
+      )
+    end
+
+    it 'keeps each change of the fields and of the status, statuses by name, and nothing for values the booking has' do
+      booking.edit!({ customer_name: 'Budi' }, user)
+      booking.edit!({ service: 'Poles body', notes: 'Bawa STNK' }, user)
+      booking.change_status!('confirmed', user)
+      booking.change_status!('confirmed', user)
+
+      expect(booking.audits.drop(1).map { |audit| [audit.action, audit.audited_changes] }).to eq(
+        [['update', { 'service' => ['Cuci salon', 'Poles body'], 'notes' => [nil, 'Bawa STNK'] }],
+         ['update', { 'status' => %w[requested confirmed] }]]
+      )
+    end
+
+    it 'makes no change whose history cannot be written' do
+      user
+      allow(Audited::Audit).to receive(:new).and_raise(ActiveRecord::StatementInvalid, 'audits unavailable')
+
+      expect { create(:booking, account: booking.account, conversation: booking.conversation) }.to raise_error(ActiveRecord::StatementInvalid)
+      expect { booking.edit!({ service: 'Poles body' }, user) }.to raise_error(ActiveRecord::StatementInvalid)
+      expect { booking.change_status!('confirmed', user) }.to raise_error(ActiveRecord::StatementInvalid)
+      expect(booking.conversation.bookings).to eq([booking])
+      expect(booking.reload).to have_attributes(service: 'Cuci salon', status: 'requested')
+      expect(booking.conversation.messages).to be_empty
+    end
+
+    it 'goes with its booking when the conversation is deleted' do
+      create(:booking, account: booking.account, conversation: booking.conversation)
+      booking.edit!({ service: 'Poles body' }, user)
+
+      expect { booking.conversation.destroy! }.to change(Audited::Audit, :count).from(3).to(0)
+    end
+  end
+
   describe 'the slot of a confirmed booking (#210)' do
     let!(:holder) { create(:booking, status: :confirmed, service: 'Ganti oli', scheduled_at: Time.utc(2026, 11, 25, 3, 0)) }
 

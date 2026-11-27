@@ -61,5 +61,13 @@ describe('#BookingsAPI', () => {
         { params: { conversation_id: 12 } }
       );
     });
+
+    it('#history asks for the history of a booking', () => {
+      bookings.history(7);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/bookings/7/history'
+      );
+    });
   });
 });

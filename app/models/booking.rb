@@ -46,6 +46,16 @@ class Booking < ApplicationRecord
   }.freeze
   # What the staff may change on a booking besides its status, in the order an edit's activity names them (see #edit!).
   EDITABLE_FIELDS = %w[service customer_name scheduled_at notes details].freeze
+  # What the booking's history keeps, in the order the API lists a change's fields (see #audits).
+  HISTORY_FIELDS = ['status', *EDITABLE_FIELDS].freeze
+
+  # Each create and change, with who made it: the signed-in user for the staff, whom the gem takes from the request
+  # (Audited::Sweeper calls current_user, also set for an access token), and the AI agent for the AI (see
+  # AiAgents::ConversationSession#request_booking!). It is written in the same transaction as the change, so a change
+  # whose history cannot be written is not made either.
+  audited only: HISTORY_FIELDS, on: %i[create update]
+  # The gem's own association, which leaves the history of a deleted booking, with the customer's details, behind.
+  has_many :audits, -> { order(version: :asc) }, as: :auditable, class_name: 'Audited::Audit', inverse_of: :auditable, dependent: :delete_all
 
   validates :service, :customer_name, presence: true, length: { maximum: 255 }
   validates :scheduled_at, presence: true

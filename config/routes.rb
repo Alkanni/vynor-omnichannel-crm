@@ -74,6 +74,7 @@ Rails.application.routes.draw do
           end
           resources :bookings, only: [:index, :create, :update] do
             get :fields, on: :collection
+            get :history, on: :member
           end
           resources :ai_agents, only: [:index, :create, :show, :update, :destroy] do
             get :models, on: :collection

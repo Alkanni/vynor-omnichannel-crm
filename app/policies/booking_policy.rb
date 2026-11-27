@@ -17,6 +17,10 @@ class BookingPolicy < ApplicationPolicy
     account.feature_enabled?('bookings')
   end
 
+  def history?
+    account.feature_enabled?('bookings')
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       scope.where(conversation_id: Conversations::PermissionFilterService.new(account.conversations, user, account).perform.select(:id))

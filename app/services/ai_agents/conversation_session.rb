@@ -160,18 +160,21 @@ class AiAgents::ConversationSession
   # A booking with the same service and time as one the customer still has is not requested again. The reply and the
   # Watcher may both ask for it, so the check and the insert run under the conversation's row lock, taken on a copy of
   # the row so the record in hand is left as it is. A booking that replaces one the customer still has marks that one
-  # rescheduled, without a message to the customer; one the staff changed meanwhile is not replaced.
+  # rescheduled, without a message to the customer; one the staff changed meanwhile is not replaced. The bookings'
+  # history names the AI agent for both (see Booking#audits).
   def request_booking!(attributes)
     customer_name = Booking.ai_customer_name(attributes[:customer_name], conversation.contact)
     return reject_booking!(:missing_customer_name) unless customer_name
 
-    booking = Conversation.transaction do
-      Conversation.lock.find(conversation.id)
-      next if holds_booking?(attributes)
+    booking = Booking.audit_as(ai_agent) do
+      Conversation.transaction do
+        Conversation.lock.find(conversation.id)
+        next if holds_booking?(attributes)
 
-      replaced = reschedule!(attributes[:rescheduled_from_id])
-      conversation.bookings.create!(account: conversation.account, contact: conversation.contact, ai_agent: ai_agent,
-                                    **attributes, customer_name: customer_name, rescheduled_from_id: replaced&.id)
+        replaced = reschedule!(attributes[:rescheduled_from_id])
+        conversation.bookings.create!(account: conversation.account, contact: conversation.contact, ai_agent: ai_agent,
+                                      **attributes, customer_name: customer_name, rescheduled_from_id: replaced&.id)
+      end
     end
     announce_booking!(booking) if booking
   end

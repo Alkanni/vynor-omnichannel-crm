@@ -134,7 +134,8 @@ class Conversation < ApplicationRecord
   has_many :automation_rule_pending_executions, dependent: :delete_all
   has_many :ai_agent_reply_traces, class_name: 'AiAgent::ReplyTrace', dependent: :delete_all
   has_many :ai_agent_request_logs, class_name: 'AiAgent::RequestLog', dependent: :delete_all
-  has_many :bookings, dependent: :delete_all
+  # Destroyed one by one so their history goes too (see Booking#audits).
+  has_many :bookings, dependent: :destroy
 
   before_save :ensure_snooze_until_reset
   before_save :set_status_changed_at
