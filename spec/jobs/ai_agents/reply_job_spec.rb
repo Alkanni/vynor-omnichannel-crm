@@ -254,14 +254,15 @@ RSpec.describe AiAgents::ReplyJob do
     message = create(:message, **message_attributes, content: 'Ya, sudah benar')
     allow(generator).to receive(:perform).and_return(
       AiAgents::ReplyGenerator::Reply.new(messages: ['Baik, kami teruskan ke staff.'], handoff: false, labels: [],
-                                          booking_rejection: :missing_service, trace: trace)
+                                          booking_rejection: :missing_required_field, booking_missing_fields: ['Plat nomor'], trace: trace)
     )
 
     described_class.perform_now(message)
 
     expect(ai_replies.pluck(:content)).to eq(['Baik, kami teruskan ke staff.'])
     expect(conversation.bookings).to be_empty
-    expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_booking_rejected' = 'missing_service'")).to exist
+    expect(conversation.messages.activity.where("additional_attributes ->> 'ai_agent_booking_rejected' = 'missing_required_field'").sole.content)
+      .to include('because the required field Plat nomor is empty')
     expect(conversation.reload.label_list).to eq(['booking'])
   end
 
@@ -568,7 +569,7 @@ RSpec.describe AiAgents::ReplyJob do
         reply_trace_id: traces.sole.id, latency_ms: be >= 0,
         input: { 'messages' => [{ 'role' => 'user', 'content' => 'Kenapa mesin mobil overheat?', 'attachments' => [] }] },
         output: { 'messages' => [sent], 'handoff' => false, 'labels' => [], 'sheet_row' => nil, 'booking' => nil, 'booking_rejection' => nil,
-                  'booking_cancellation' => nil, 'booking_summary_rejection' => nil }
+                  'booking_missing_fields' => nil, 'booking_cancellation' => nil, 'booking_summary_rejection' => nil }
       )
       steps = AiAgent::RequestLog.sole.steps
       expect(steps.pluck('step')).to eq(%w[scope_check embedding retrieval web_search reply reply_check])

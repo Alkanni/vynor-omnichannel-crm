@@ -117,7 +117,12 @@ RSpec.describe 'Bookings API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/bookings' do
-    let(:ai_agent) { create(:ai_agent, account: account, booking_fields: ['Plat nomor'], booking_confirmed_message: 'Booking dikonfirmasi.') }
+    let(:ai_agent) do
+      create(:ai_agent, account: account, booking_confirmed_message: 'Booking dikonfirmasi.', booking_services: ['Servis berkala'],
+                        booking_fields: [{ 'name' => 'Plat nomor', 'description' => '', 'type' => 'text', 'options' => [], 'required' => true },
+                                         { 'name' => 'Mobil', 'description' => '', 'type' => 'choice', 'options' => %w[Avanza Xenia],
+                                           'required' => false }])
+    end
     let(:fields) do
       { conversation_id: conversation.display_id, service: ' Poles body ', customer_name: 'Rina', scheduled_at: '2026-11-25T03:00:00Z',
         notes: ' ', details: { 'Plat nomor' => ' B 9 XY ' } }
@@ -143,6 +148,13 @@ RSpec.describe 'Bookings API', type: :request do
       post url, params: fields.merge(scheduled_at: '2020-01-10T03:00:00Z'), headers: agent.create_new_auth_token, as: :json
 
       expect(response).to have_http_status(:created)
+    end
+
+    it 'records a booking with a required field empty and values outside the services and options, which only guide the staff' do
+      post url, params: fields.merge(details: { 'Plat nomor' => '', 'Mobil' => 'Innova' }), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:created)
+      expect(conversation.bookings.order(:id).last).to have_attributes(service: 'Poles body', details: { 'Plat nomor' => '', 'Mobil' => 'Innova' })
     end
 
     it 'refuses a booking without a service or a time, or with fields that are not text' do
@@ -180,14 +192,17 @@ RSpec.describe 'Bookings API', type: :request do
   end
 
   describe 'GET /api/v1/accounts/{account.id}/bookings/fields' do
-    it 'returns the booking fields of the AI agent of the conversation\'s inbox, none without one' do
+    it 'returns the booking fields and services of the AI agent of the conversation\'s inbox, none without one' do
       headers = agent.create_new_auth_token
       get "#{url}/fields", params: { conversation_id: conversation.display_id }, headers: headers
-      expect(response.parsed_body).to eq('fields' => [])
+      expect(response.parsed_body).to eq('fields' => [], 'services' => [])
 
-      create(:ai_agent_inbox, ai_agent: create(:ai_agent, account: account, booking_fields: ['Plat nomor', 'Mobil']), inbox: inbox)
+      fields = [{ 'name' => 'Plat nomor', 'description' => 'Contoh: D 1234 ABC', 'type' => 'text', 'options' => [], 'required' => true },
+                { 'name' => 'Mobil', 'description' => '', 'type' => 'choice', 'options' => %w[Avanza Xenia], 'required' => false }]
+      ai_agent = create(:ai_agent, account: account, booking_fields: fields, booking_services: ['Servis berkala', 'Ganti oli'])
+      create(:ai_agent_inbox, ai_agent: ai_agent, inbox: inbox)
       get "#{url}/fields", params: { conversation_id: conversation.display_id }, headers: headers
-      expect(response.parsed_body).to eq('fields' => ['Plat nomor', 'Mobil'])
+      expect(response.parsed_body).to eq('fields' => fields, 'services' => ['Servis berkala', 'Ganti oli'])
 
       outside = create(:conversation, account: account, inbox: other_inbox)
       get "#{url}/fields", params: { conversation_id: outside.display_id }, headers: headers

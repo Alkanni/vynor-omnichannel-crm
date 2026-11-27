@@ -110,7 +110,10 @@ RSpec.describe Booking do
     end
 
     it 'can use the notes and the agent\'s own fields, one of them or the filled ones in the agent\'s order' do
-      ai_agent.update!(booking_fields: ['Plat nomor', 'Mobil', 'Kilometer'],
+      fields = ['Plat nomor', 'Mobil', 'Kilometer'].map do |name|
+        { 'name' => name, 'description' => '', 'type' => 'text', 'options' => [], 'required' => false }
+      end
+      ai_agent.update!(booking_fields: fields,
                        booking_confirmed_message: "Plat {{booking.details[\"Plat nomor\"]}}\n{{booking.extra_fields}}\nCatatan: {{booking.notes}}")
       booking.update!(notes: 'Bawa STNK', details: { 'Mobil' => 'Avanza', 'Kilometer' => '', 'Plat nomor' => 'B 1', 'Warna' => 'Hitam' })
 

@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import BookingsAPI from 'dashboard/api/bookings';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import Banner from 'dashboard/components-next/banner/Banner.vue';
 import {
@@ -25,6 +26,7 @@ const props = defineProps({
 const emit = defineEmits(['saved']);
 
 const NOTES_MAX_LENGTH = 5000;
+const FIELD_TYPES = { number: 'number', choice: 'choice' };
 
 const { t } = useI18n();
 const dialogRef = ref(null);
@@ -32,6 +34,10 @@ const booking = ref(null);
 const isSaving = ref(false);
 // Why the last save was refused: the slot a confirmed booking holds, shown in the dialog so staff pick another one.
 const slotTaken = ref('');
+// The fields and services of the AI agent of the conversation (see AiAgent::BookingFields). They only guide the staff: a
+// required field may stay empty, and a value outside the options or the services stays one to choose.
+const agentFields = ref([]);
+const services = ref([]);
 const form = reactive({
   service: '',
   customerName: '',
@@ -47,9 +53,42 @@ const isComplete = computed(() =>
   )
 );
 
+const fieldsByName = computed(() =>
+  Object.fromEntries(agentFields.value.map(field => [field.name, field]))
+);
+
+const withValue = (choices, value) =>
+  value && !choices.includes(value) ? [...choices, value] : choices;
+
+const toOptions = choices => choices.map(value => ({ value, label: value }));
+
+const serviceOptions = computed(() =>
+  toOptions(withValue(services.value, form.service))
+);
+
+const choiceOptions = (field, value) => [
+  { value: '', label: t('BOOKINGS.FORM.NO_CHOICE') },
+  ...toOptions(withValue(field.options, value)),
+];
+
+const fieldLabel = name =>
+  fieldsByName.value[name]?.required
+    ? t('BOOKINGS.FORM.REQUIRED_FIELD', { name })
+    : name;
+
 // A new booking starts with the customer's name and the agent's fields; an existing one with its own values, in the
-// viewer's time zone.
-const open = ({ current = null, customerName = '', fields = [] } = {}) => {
+// viewer's time zone. Both load the fields of the conversation's agent first.
+const open = async ({ current = null, customerName = '' } = {}) => {
+  try {
+    const { data } = await BookingsAPI.fields(
+      current ? current.conversation.display_id : props.conversationId
+    );
+    agentFields.value = data.fields;
+    services.value = data.services;
+  } catch {
+    useAlert(t('BOOKINGS.FORM.FIELDS_ERROR'));
+    return;
+  }
   booking.value = current;
   slotTaken.value = '';
   const at = current && new Date(current.scheduled_at);
@@ -61,7 +100,7 @@ const open = ({ current = null, customerName = '', fields = [] } = {}) => {
     notes: current?.notes || '',
     details: current
       ? { ...current.details }
-      : Object.fromEntries(fields.map(field => [field, ''])),
+      : Object.fromEntries(agentFields.value.map(field => [field.name, ''])),
   });
   dialogRef.value.open();
 };
@@ -113,7 +152,19 @@ defineExpose({ open });
   >
     <div class="flex flex-col gap-3">
       <Banner v-if="slotTaken" color="amber">{{ slotTaken }}</Banner>
+      <div v-if="services.length" class="flex flex-col gap-1">
+        <span class="mb-0.5 text-heading-3 text-n-slate-12">
+          {{ t('BOOKINGS.FORM.SERVICE') }}
+        </span>
+        <Select
+          v-model="form.service"
+          :options="serviceOptions"
+          :placeholder="t('BOOKINGS.FORM.CHOOSE_SERVICE')"
+          :aria-label="t('BOOKINGS.FORM.SERVICE')"
+        />
+      </div>
       <Input
+        v-else
         id="booking-service"
         v-model="form.service"
         :label="t('BOOKINGS.FORM.SERVICE')"
@@ -139,12 +190,31 @@ defineExpose({ open });
           :label="t('BOOKINGS.FORM.TIME')"
         />
       </div>
-      <Input
-        v-for="(value, field) in form.details"
-        :key="field"
-        v-model="form.details[field]"
-        :label="field"
-      />
+      <template v-for="(value, name) in form.details" :key="name">
+        <div
+          v-if="fieldsByName[name]?.type === FIELD_TYPES.choice"
+          class="flex flex-col gap-1"
+        >
+          <span class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ fieldLabel(name) }}
+          </span>
+          <Select
+            v-model="form.details[name]"
+            :options="choiceOptions(fieldsByName[name], value)"
+            :aria-label="name"
+          />
+        </div>
+        <Input
+          v-else
+          v-model="form.details[name]"
+          :label="fieldLabel(name)"
+          :inputmode="
+            fieldsByName[name]?.type === FIELD_TYPES.number
+              ? 'numeric'
+              : undefined
+          "
+        />
+      </template>
       <TextArea
         id="booking-notes"
         v-model="form.notes"

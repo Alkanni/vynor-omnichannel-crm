@@ -19,6 +19,7 @@ import TagInput from 'dashboard/components-next/taginput/TagInput.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import AiAgentPlayground from '../components/AiAgentPlayground.vue';
+import BookingFieldsEditor from '../components/BookingFieldsEditor.vue';
 import CollapsiblePanel from '../components/CollapsiblePanel.vue';
 import SettingsField from '../components/SettingsField.vue';
 import ToggleField from '../components/ToggleField.vue';
@@ -104,7 +105,11 @@ const toForm = agent => ({
   booking_enabled: agent.booking_enabled,
   booking_conditions: agent.booking_conditions || '',
   booking_label_id: agent.booking_label_id,
-  booking_fields: [...agent.booking_fields],
+  booking_fields: agent.booking_fields.map(field => ({
+    ...field,
+    options: [...field.options],
+  })),
+  booking_services: [...agent.booking_services],
   booking_confirmed_message: agent.booking_confirmed_message || '',
   booking_cancelled_message: agent.booking_cancelled_message || '',
   booking_summary_template: agent.booking_summary_template || '',
@@ -869,15 +874,23 @@ onMounted(async () => {
                 />
               </SettingsField>
               <SettingsField
+                :title="t('AI_AGENTS.GENERAL.BOOKING.SERVICES.TITLE')"
+                :description="
+                  t('AI_AGENTS.GENERAL.BOOKING.SERVICES.DESCRIPTION')
+                "
+              >
+                <TagInput
+                  v-model="form.booking_services"
+                  :placeholder="
+                    t('AI_AGENTS.GENERAL.BOOKING.SERVICES.PLACEHOLDER')
+                  "
+                />
+              </SettingsField>
+              <SettingsField
                 :title="t('AI_AGENTS.GENERAL.BOOKING.FIELDS.TITLE')"
                 :description="t('AI_AGENTS.GENERAL.BOOKING.FIELDS.DESCRIPTION')"
               >
-                <TagInput
-                  v-model="form.booking_fields"
-                  :placeholder="
-                    t('AI_AGENTS.GENERAL.BOOKING.FIELDS.PLACEHOLDER')
-                  "
-                />
+                <BookingFieldsEditor v-model="form.booking_fields" />
               </SettingsField>
               <SettingsField
                 :title="t('AI_AGENTS.GENERAL.BOOKING.SUMMARY_TEMPLATE.TITLE')"

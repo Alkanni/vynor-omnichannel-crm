@@ -175,10 +175,30 @@
           "SEARCH_PLACEHOLDER": "Search labels",
           "EMPTY": "No labels found"
         },
+        "SERVICES": {
+          "TITLE": "Services",
+          "DESCRIPTION": "Up to 30 services the AI agent can book, so every booking names a service the same way. Leave it empty to let the AI agent write the service the customer asks for. Press Enter after each one.",
+          "PLACEHOLDER": "e.g. Regular service"
+        },
         "FIELDS": {
           "TITLE": "Extra booking fields",
-          "DESCRIPTION": "Every booking has the customer name, service, date, time, and notes. Add up to 10 more fields for your business, such as a plate number. Press Enter after each one.",
-          "PLACEHOLDER": "e.g. Plate number"
+          "DESCRIPTION": "Every booking has the customer name, service, date, time, and notes. Add up to 10 more fields for your business, such as a plate number. The AI agent asks for a required field before the summary and does not record a booking without it; staff can still save a booking without it.",
+          "NAME": "Field name",
+          "NAME_PLACEHOLDER": "e.g. Plate number",
+          "TYPE": "Field type",
+          "TYPES": {
+            "TEXT": "Text",
+            "NUMBER": "Number",
+            "CHOICE": "Choice"
+          },
+          "FIELD_DESCRIPTION": "Description for the AI agent",
+          "DESCRIPTION_PLACEHOLDER": "Description for the AI agent (optional), e.g. Example: D 1234 ABC",
+          "OPTIONS_PLACEHOLDER": "Add 2 to 20 options. Press Enter after each one.",
+          "REQUIRED": "Required",
+          "MOVE_UP": "Move up",
+          "MOVE_DOWN": "Move down",
+          "REMOVE": "Remove field",
+          "ADD": "Add field"
         },
         "SUMMARY_TEMPLATE": {
           "TITLE": "Booking summary template",

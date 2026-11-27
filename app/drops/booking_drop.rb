@@ -32,7 +32,7 @@ class BookingDrop < BaseDrop
   # The agent's own fields that have a value, one "name: value" line each, in the order of the agent's fields, since a
   # stored booking keeps them in jsonb's order.
   def extra_fields
-    order = Array(@obj.ai_agent&.booking_fields)
+    order = Array(@obj.ai_agent&.booking_fields).pluck('name')
     filled = @obj.details.select { |_name, value| value.present? }
     filled.sort_by { |name, _value| order.index(name) || order.size }.map { |name, value| "#{name}: #{value}" }.join("\n")
   end

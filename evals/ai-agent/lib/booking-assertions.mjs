@@ -3,8 +3,9 @@
 // for a case that must not request a booking, else what it must request. The summary assertions of
 // promptfooconfig.booking-summary.yaml (issue #206) do the same over the `bookingSummary` metadata (the summary bubble a
 // live reply of an agent with a summary template ends with) and the `summary` metadata of a case, in the shape of
-// `booking`; a case without it must show none. Dates are relative to when the case runs, in the agent's time zone, so a
-// case reads "besok" the way the agent does.
+// `booking`; a case without it must show none. The assertions of promptfooconfig.booking-fields.yaml (issue #207) add the
+// `exact` values of `booking` and the `asks` words of a case. Dates are relative to when the case runs, in the agent's
+// time zone, so a case reads "besok" the way the agent does.
 const ZONE = 'Asia/Jakarta';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_DAYS = 7;
@@ -150,5 +151,41 @@ export function summaryNotRepeated(_output, { metadata, test }) {
     reason: repeated.length
       ? `the model also wrote ${JSON.stringify(repeated)}`
       : 'summary only from the template',
+  };
+}
+
+// The requested booking holds the `exact` values as written: the service and the agent fields named there; passes when
+// either side has no booking.
+export function withExactValues(_output, { metadata, test }) {
+  const exact = test.metadata.booking?.exact;
+  if (!exact || !metadata.booking) return true;
+
+  const wrong = Object.entries(exact)
+    .map(([field, value]) => [
+      field,
+      field === 'service'
+        ? metadata.booking.service
+        : metadata.booking.details?.[field],
+      value,
+    ])
+    .filter(([, got, value]) => got !== value)
+    .map(([field, got]) => `${field} "${got}"`);
+  return {
+    pass: wrong.length === 0,
+    score: wrong.length === 0 ? 1 : 0,
+    reason: wrong.length ? `unexpected ${wrong.join(', ')}` : 'values exact',
+  };
+}
+
+// A reply that must ask for a required field uses one of the `asks` words.
+export function asksAsExpected(output, { test }) {
+  const words = test.metadata.asks;
+  if (!words) return true;
+
+  const pass = words.some(word => includes(output, word));
+  return {
+    pass,
+    score: pass ? 1 : 0,
+    reason: pass ? 'asks for the field' : `none of ${words.join(', ')}`,
   };
 }

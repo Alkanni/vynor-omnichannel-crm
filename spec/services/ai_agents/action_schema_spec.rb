@@ -42,9 +42,12 @@ RSpec.describe AiAgents::ActionSchema do
       { 'customer_name' => ' Budi ', 'service' => 'Cuci salon', 'date' => '2026-11-21', 'time' => '9:30', 'notes' => '', 'Plat nomor' => 'B 1234 CD' }
     end
 
+    # A field as the migration converts a field name, which the model fills as before.
+    let(:plate) { { 'name' => 'Plat nomor', 'description' => '', 'type' => 'text', 'options' => [], 'required' => false } }
+
     before do
       ai_agent.update!(booking_enabled: true, booking_conditions: 'Saat customer ingin datang ke bengkel.', booking_label_id: label.id,
-                       booking_fields: ['Plat nomor'])
+                       booking_fields: [plate])
     end
 
     context 'with the bookings feature' do
@@ -69,6 +72,61 @@ RSpec.describe AiAgents::ActionSchema do
           expect(schema.calendar).to start_with('Calendar: Thursday 2026-11-19 (today), Friday 2026-11-20 (tomorrow), ' \
                                                 'Saturday 2026-11-21 (the day after tomorrow), Sunday 2026-11-22,')
           expect(schema.calendar).to end_with('Thursday 2026-12-03')
+        end
+      end
+
+      it 'gives plain text fields the instructions that field names had, without the required fields or the services' do
+        expect(schema.instructions).to eq(
+          "#{described_class::BOOKING_INSTRUCTIONS}#{described_class::HELD_BOOKING_INSTRUCTIONS}Condition:\nSaat customer ingin datang ke bengkel." \
+          "\nBookings already in this conversation:\n##{held.id} Cuci salon, 2026-11-20 10:00, requested"
+        )
+      end
+
+      context 'with described, typed, and required fields and a list of services' do
+        let(:fields) do
+          [plate.merge('description' => 'Contoh: D 1234 ABC', 'required' => true), plate.merge('name' => 'Kilometer', 'type' => 'number'),
+           plate.merge('name' => 'Tipe kendaraan', 'description' => 'Jenis kendaraan', 'type' => 'choice', 'options' => %w[Mobil Motor],
+                       'required' => true)]
+        end
+        let(:values) { booking.merge('Kilometer' => '45000', 'Tipe kendaraan' => 'Mobil') }
+
+        before { ai_agent.update!(booking_fields: fields, booking_services: ['Cuci salon', 'Ganti oli']) }
+
+        it 'describes each field to the model, with the options of a choice or of the services, and hints for numbers and required fields' do
+          booking_schema = schema.json_schema('ai_agent_reply')[:schema][:properties][:booking]
+
+          expect(booking_schema[:properties]).to eq(
+            'customer_name' => { type: 'string' }, 'service' => { type: 'string', enum: ['Cuci salon', 'Ganti oli', ''] },
+            'date' => { type: 'string' }, 'time' => { type: 'string' }, 'notes' => { type: 'string' }, 'replaces_booking' => { type: 'string' },
+            'Plat nomor' => { type: 'string', description: 'Required. Contoh: D 1234 ABC' },
+            'Kilometer' => { type: 'string', description: 'Digits only.' },
+            'Tipe kendaraan' => { type: 'string', enum: ['Mobil', 'Motor', ''], description: 'Required. Jenis kendaraan' }
+          )
+          expect(booking_schema[:required]).to eq(booking_schema[:properties].keys)
+        end
+
+        it 'asks for the required fields before the summary, right after the booking instructions' do
+          required = format(AiAgent::BookingFields::REQUIRED_INSTRUCTIONS, names: '"Plat nomor", "Tipe kendaraan"')
+
+          expect(schema.instructions).to include("#{described_class::BOOKING_INSTRUCTIONS}#{required}#{described_class::HELD_BOOKING_INSTRUCTIONS}")
+          expect(required.squish).to include('before the summary, ask the customer for each of them')
+
+          ai_agent.update!(booking_fields: fields.map { |field| field.merge('required' => false) })
+          expect(schema.instructions).not_to include('are required')
+        end
+
+        it 'returns why a booking with an empty required field cannot be one, naming those fields' do
+          expect(schema.parse('create_booking' => true, 'booking' => values.merge('Plat nomor' => ' ', 'Tipe kendaraan' => '')))
+            .to include(booking: nil, booking_rejection: :missing_required_field, booking_missing_fields: ['Plat nomor', 'Tipe kendaraan'])
+          expect(schema.parse('create_booking' => true, 'booking' => values.merge('Kilometer' => ''))[:booking])
+            .to include(details: { 'Plat nomor' => 'B 1234 CD', 'Kilometer' => '', 'Tipe kendaraan' => 'Mobil' })
+        end
+
+        it 'keeps a value outside the options of a choice or of the services, and a number that is not digits, as written' do
+          values = self.values.merge('service' => 'Poles body', 'Tipe kendaraan' => 'Truk', 'Kilometer' => '45 ribu')
+
+          expect(schema.parse('create_booking' => true, 'booking' => values)[:booking])
+            .to include(service: 'Poles body', details: { 'Plat nomor' => 'B 1234 CD', 'Kilometer' => '45 ribu', 'Tipe kendaraan' => 'Truk' })
         end
       end
 

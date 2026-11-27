@@ -148,6 +148,21 @@ RSpec.describe AiAgents::ConversationSession do
         expect(rejections.sole.content).to include('because the date and time have already passed')
       end
 
+      it 'tells the staff which required fields the booking left empty' do
+        session.apply!(**rejection, booking_rejection: :missing_required_field, booking_missing_fields: ['Plat nomor'])
+        create(:message, **message_attributes, content: 'Jadi ya')
+        session.apply!(**rejection, booking_rejection: :missing_required_field, booking_missing_fields: ['Plat nomor', 'Tipe kendaraan'])
+
+        expect(rejections.pluck(:content)).to eq(
+          ["#{ai_agent.name} could not record the booking the customer asked for because the required field Plat nomor is empty. " \
+           'Follow it up with the customer.',
+           "#{ai_agent.name} could not record the booking the customer asked for because the required fields Plat nomor, Tipe kendaraan " \
+           'are empty. Follow it up with the customer.']
+        )
+        expect(rejections.last.additional_attributes).to include('ai_agent_booking_rejected' => 'missing_required_field')
+        expect(conversation.reload.label_list).to eq(['booking'])
+      end
+
       it 'rejects a booking without a name when the contact has none either' do
         conversation.contact.update!(name: '')
 

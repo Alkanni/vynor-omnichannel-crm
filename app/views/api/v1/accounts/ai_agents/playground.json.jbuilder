@@ -2,10 +2,11 @@ json.messages @reply.messages
 json.handoff @reply.handoff
 json.labels @reply.labels
 json.sheet_row @reply.sheet_row
-# What a live reply would request as a booking, or why one it asked for cannot be a booking (see
-# AiAgents::ActionSchema#parse); the playground records none.
+# What a live reply would request as a booking, or why one it asked for cannot be a booking, with the required fields
+# it left empty (see AiAgents::ActionSchema#parse); the playground records none.
 json.booking @reply.booking
 json.booking_rejection @reply.booking_rejection
+json.booking_missing_fields @reply.booking_missing_fields
 # The summary bubble the reply ends with (the last of messages), or why the booking it asked to show cannot be one (see
 # AiAgents::ReplyGenerator#booking_summary).
 json.booking_summary @reply.booking_summary

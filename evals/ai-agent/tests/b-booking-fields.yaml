@@ -1,0 +1,101 @@
+# B-BF. Structured booking fields (issue #207) against the `booking_fields` agent of fixtures/bengkel-booking.json: the
+# required `Mobil` and `Nomor polisi`, the choice `Transmisi` (Manual or Matic), the number `Kilometer`, and a list of
+# services. `booking` is what the reply must request, as in tests/b-booking.yaml, and `exact` the values it must hold as
+# written: the service from the list and the option of a choice the customer described in other words. `asks` lists the
+# words of which the reply must use one, when it must ask for a required field before the summary. Only "besok" is used,
+# so the cases hold on any day before a day the workshop is open.
+
+# The required plate number is missing, so the reply asks for it before the summary.
+- description: 'B-BF-01: nomor polisi belum disebut, ditanyakan sebelum ringkasan'
+  metadata:
+    id: B-BF-01
+    category: ask
+    booking: null
+    asks: ['polisi', 'plat', 'nopol']
+  vars:
+    conversation: |-
+      Mau booking servis berkala besok jam 10 pagi, atas nama Andi. Mobilnya Avanza 2019.
+
+# The customer confirms a summary that lacks the plate number: the reply asks for it instead of recording the booking.
+- description: 'B-BF-02: ringkasan tanpa nomor polisi dikonfirmasi, nomor polisi ditanyakan dulu'
+  metadata:
+    id: B-BF-02
+    category: ask
+    booking: null
+    asks: ['polisi', 'plat', 'nopol']
+  vars:
+    conversation: |-
+      Mau spooring besok jam 11 siang, nama Budi, mobil Innova 2015.
+      AI: Baik, Kak Budi. Spooring dan balancing untuk Toyota Innova 2015, besok jam 11 siang. Sudah benar, Kak?
+      Iya betul.
+
+# The customer describes the transmission in other words, which the reply maps to its option.
+- description: 'B-BF-03: transmisi otomatis jadi Matic, layanan dari daftar'
+  metadata:
+    id: B-BF-03
+    category: positive
+    booking:
+      {
+        days: 1,
+        time: '13:00',
+        service: 'ganti oli',
+        name: 'rina',
+        details: { Mobil: 'brio', Nomor polisi: 'D 1234 ABC' },
+        exact: { service: 'Ganti oli', Transmisi: 'Matic' },
+      }
+  vars:
+    conversation: |-
+      Mau ganti oli besok jam 1 siang. Saya Rina, mobil Honda Brio 2020 transmisinya otomatis, plat D 1234 ABC.
+      AI: Baik, Kak Rina. Ganti oli untuk Honda Brio 2020 (D 1234 ABC), besok jam 1 siang. Sudah sesuai, Kak?
+      Betul, sesuai.
+
+- description: 'B-BF-04: mobil masih pakai kopling jadi Manual, "servis rutin" jadi Servis berkala'
+  metadata:
+    id: B-BF-04
+    category: positive
+    booking:
+      {
+        days: 1,
+        time: '09:00',
+        service: 'servis berkala',
+        name: 'dodi',
+        details: { Mobil: 'xenia', Nomor polisi: 'B 5678 XY' },
+        exact: { service: 'Servis berkala', Transmisi: 'Manual' },
+      }
+  vars:
+    conversation: |-
+      Saya Dodi, mau servis rutin besok jam 9 pagi. Mobil Xenia 2018, masih pakai kopling. Nopolnya B 5678 XY.
+      AI: Baik, Kak Dodi. Servis berkala untuk Daihatsu Xenia 2018 (B 5678 XY), besok jam 9 pagi. Sudah benar, Kak?
+      Oke sip.
+
+# The plate number comes after the reply asked for it, and the odometer reading in words becomes digits.
+- description: 'B-BF-05: nomor polisi diberikan setelah ditanya, kilometer jadi angka'
+  metadata:
+    id: B-BF-05
+    category: positive
+    booking:
+      {
+        days: 1,
+        time: '14:00',
+        service: 'tune up',
+        name: 'sari',
+        details: { Mobil: 'jazz', Nomor polisi: 'B 1111 CD' },
+        exact: { service: 'Tune up', Kilometer: '45000' },
+      }
+  vars:
+    conversation: |-
+      Booking tune up besok jam 2 siang, nama Sari, mobil Jazz 2017, kilometernya sekitar 45 ribu.
+      AI: Baik, Kak Sari. Boleh tahu nomor polisi mobilnya, Kak?
+      B 1111 CD.
+      AI: Terima kasih, Kak. Tune up untuk Honda Jazz 2017 (B 1111 CD), besok jam 2 siang. Sudah benar, Kak?
+      Ya.
+
+# A question about a listed service is not a booking.
+- description: 'B-BF-06: tanya harga layanan, bukan booking'
+  metadata:
+    id: B-BF-06
+    category: negative
+    booking: null
+  vars:
+    conversation: |-
+      Berapa harga ganti oli untuk Brio, Kak?

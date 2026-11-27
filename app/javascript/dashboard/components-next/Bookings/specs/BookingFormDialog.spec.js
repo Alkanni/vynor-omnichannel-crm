@@ -2,15 +2,20 @@ import { flushPromises, shallowMount } from '@vue/test-utils';
 import { useAlert } from 'dashboard/composables';
 import BookingsAPI from 'dashboard/api/bookings';
 import Input from 'dashboard/components-next/input/Input.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import Banner from 'dashboard/components-next/banner/Banner.vue';
 import BookingFormDialog from '../BookingFormDialog.vue';
 
 vi.mock('dashboard/api/bookings', () => ({
-  default: { create: vi.fn(), update: vi.fn() },
+  default: { create: vi.fn(), update: vi.fn(), fields: vi.fn() },
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: key => key }) }));
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key, params) => (params ? `${key} ${JSON.stringify(params)}` : key),
+  }),
+}));
 
 const openDialog = vi.fn();
 const closeDialog = vi.fn();
@@ -33,10 +38,43 @@ const mountForm = () =>
 const SLOT_TAKEN =
   'Booking #3 is already confirmed for Ganti oli at 2026-11-25 10:00 WIB. Choose another time or service.';
 
+const AGENT_FIELDS = [
+  {
+    name: 'Plat nomor',
+    description: 'Contoh: D 1234 ABC',
+    type: 'text',
+    options: [],
+    required: true,
+  },
+  {
+    name: 'Kilometer',
+    description: '',
+    type: 'number',
+    options: [],
+    required: false,
+  },
+  {
+    name: 'Mobil',
+    description: '',
+    type: 'choice',
+    options: ['Avanza', 'Xenia'],
+    required: false,
+  },
+];
+
 const values = wrapper =>
   wrapper
     .findAllComponents(Input)
     .map(input => [input.props('label'), input.props('modelValue')]);
+
+const selects = wrapper =>
+  wrapper
+    .findAllComponents(Select)
+    .map(select => [
+      select.props('ariaLabel'),
+      select.props('modelValue'),
+      select.props('options').map(option => option.value),
+    ]);
 
 const confirm = wrapper =>
   wrapper.findComponent(DialogStub).vm.$emit('confirm');
@@ -44,13 +82,20 @@ const confirm = wrapper =>
 describe('BookingFormDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    BookingsAPI.fields.mockResolvedValue({
+      data: { fields: [], services: [] },
+    });
   });
 
-  it('starts a new booking with the customer name and the agent fields', async () => {
+  it('starts a new booking with the customer name and the agent fields, each as its type asks', async () => {
+    BookingsAPI.fields.mockResolvedValue({
+      data: { fields: AGENT_FIELDS, services: [] },
+    });
     const wrapper = mountForm();
-    wrapper.vm.open({ customerName: 'Rina', fields: ['Plat nomor'] });
+    wrapper.vm.open({ customerName: 'Rina' });
     await flushPromises();
 
+    expect(BookingsAPI.fields).toHaveBeenCalledWith(12);
     expect(openDialog).toHaveBeenCalled();
     expect(wrapper.findComponent(DialogStub).props('title')).toBe(
       'BOOKINGS.FORM.NEW_TITLE'
@@ -60,25 +105,39 @@ describe('BookingFormDialog', () => {
       ['BOOKINGS.FORM.CUSTOMER_NAME', 'Rina'],
       ['BOOKINGS.FORM.DATE', ''],
       ['BOOKINGS.FORM.TIME', ''],
-      ['Plat nomor', ''],
+      ['BOOKINGS.FORM.REQUIRED_FIELD {"name":"Plat nomor"}', ''],
+      ['Kilometer', ''],
     ]);
+    const inputs = wrapper.findAllComponents(Input);
+    expect(inputs[5].attributes('inputmode')).toBe('numeric');
+    expect(inputs[4].attributes('inputmode')).toBeUndefined();
+    expect(selects(wrapper)).toEqual([['Mobil', '', ['', 'Avanza', 'Xenia']]]);
     expect(
       wrapper.findComponent(DialogStub).props('disableConfirmButton')
     ).toBe(true);
   });
 
-  it('records the booking for the conversation, at the local date and time', async () => {
+  it('records the booking for the conversation, at the local date and time, with a required field left empty', async () => {
+    BookingsAPI.fields.mockResolvedValue({
+      data: { fields: AGENT_FIELDS, services: ['Poles body', 'Ganti oli'] },
+    });
     const saved = { id: 9, status: 'confirmed' };
     BookingsAPI.create.mockResolvedValue({ data: saved });
     const wrapper = mountForm();
-    wrapper.vm.open({ customerName: 'Rina', fields: ['Plat nomor'] });
+    wrapper.vm.open({ customerName: 'Rina' });
     await flushPromises();
 
+    const [service, car] = wrapper.findAllComponents(Select);
+    expect(service.props('options').map(option => option.value)).toEqual([
+      'Poles body',
+      'Ganti oli',
+    ]);
+    service.vm.$emit('update:modelValue', 'Poles body');
+    car.vm.$emit('update:modelValue', 'Xenia');
     const inputs = wrapper.findAllComponents(Input);
-    inputs[0].vm.$emit('update:modelValue', 'Poles body');
-    inputs[2].vm.$emit('update:modelValue', '2026-11-25');
-    inputs[3].vm.$emit('update:modelValue', '10:00');
-    inputs[4].vm.$emit('update:modelValue', 'B 9 XY');
+    inputs[1].vm.$emit('update:modelValue', '2026-11-25');
+    inputs[2].vm.$emit('update:modelValue', '10:00');
+    inputs[4].vm.$emit('update:modelValue', '45000');
     wrapper.findComponent(TextArea).vm.$emit('update:modelValue', 'Bawa STNK');
     await flushPromises();
     confirm(wrapper);
@@ -90,14 +149,17 @@ describe('BookingFormDialog', () => {
       customer_name: 'Rina',
       scheduled_at: new Date(2026, 10, 25, 10, 0).toISOString(),
       notes: 'Bawa STNK',
-      details: { 'Plat nomor': 'B 9 XY' },
+      details: { 'Plat nomor': '', Kilometer: '45000', Mobil: 'Xenia' },
     });
     expect(wrapper.emitted('saved')).toEqual([[saved]]);
     expect(closeDialog).toHaveBeenCalled();
     expect(useAlert).toHaveBeenCalledWith('BOOKINGS.FORM.SAVE_SUCCESS');
   });
 
-  it('edits a booking with its own values, and keeps the form open when saving fails', async () => {
+  it('edits a booking with its own values, kept as choices when outside the options, and keeps the form open when saving fails', async () => {
+    BookingsAPI.fields.mockResolvedValue({
+      data: { fields: AGENT_FIELDS, services: ['Ganti oli'] },
+    });
     BookingsAPI.update.mockRejectedValue(new Error('Unprocessable'));
     const wrapper = mountForm();
     const scheduledAt = new Date(2026, 10, 23, 9, 30).toISOString();
@@ -108,20 +170,29 @@ describe('BookingFormDialog', () => {
         customer_name: 'Andi',
         scheduled_at: scheduledAt,
         notes: null,
-        details: { Mobil: 'Avanza' },
+        details: { Mobil: 'Innova', Warna: 'Hitam' },
+        conversation: { id: 30, display_id: 7 },
       },
     });
     await flushPromises();
 
+    expect(BookingsAPI.fields).toHaveBeenCalledWith(7);
     expect(wrapper.findComponent(DialogStub).props('title')).toBe(
       'BOOKINGS.FORM.EDIT_TITLE'
     );
     expect(values(wrapper)).toEqual([
-      ['BOOKINGS.FORM.SERVICE', 'Servis berkala'],
       ['BOOKINGS.FORM.CUSTOMER_NAME', 'Andi'],
       ['BOOKINGS.FORM.DATE', '2026-11-23'],
       ['BOOKINGS.FORM.TIME', '09:30'],
-      ['Mobil', 'Avanza'],
+      ['Warna', 'Hitam'],
+    ]);
+    expect(selects(wrapper)).toEqual([
+      [
+        'BOOKINGS.FORM.SERVICE',
+        'Servis berkala',
+        ['Ganti oli', 'Servis berkala'],
+      ],
+      ['Mobil', 'Innova', ['', 'Avanza', 'Xenia', 'Innova']],
     ]);
 
     confirm(wrapper);
@@ -132,12 +203,22 @@ describe('BookingFormDialog', () => {
       customer_name: 'Andi',
       scheduled_at: scheduledAt,
       notes: '',
-      details: { Mobil: 'Avanza' },
+      details: { Mobil: 'Innova', Warna: 'Hitam' },
     });
     expect(closeDialog).not.toHaveBeenCalled();
     expect(wrapper.emitted('saved')).toBeUndefined();
     expect(useAlert).toHaveBeenCalledWith('BOOKINGS.FORM.SAVE_ERROR');
     expect(wrapper.findComponent(Banner).exists()).toBe(false);
+  });
+
+  it('opens no form and tells the user when the agent fields cannot load', async () => {
+    BookingsAPI.fields.mockRejectedValue(new Error('Network Error'));
+    const wrapper = mountForm();
+    wrapper.vm.open({ customerName: 'Rina' });
+    await flushPromises();
+
+    expect(openDialog).not.toHaveBeenCalled();
+    expect(useAlert).toHaveBeenCalledWith('BOOKINGS.FORM.FIELDS_ERROR');
   });
 
   it('warns in the form about the confirmed booking that holds the slot, stays open, and forgets it on the next open', async () => {

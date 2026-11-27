@@ -4,7 +4,9 @@ RSpec.describe AiAgents::BookingSummary do
   let(:account) { create(:account) }
   let(:ai_agent) do
     create(:ai_agent, account: account, timezone: 'Asia/Jakarta', booking_enabled: true, booking_conditions: 'Saat customer ingin datang.',
-                      booking_label_id: create(:label, account: account).id, booking_fields: ['Plat nomor', 'Mobil'],
+                      booking_label_id: create(:label, account: account).id,
+                      booking_fields: [{ 'name' => 'Plat nomor', 'description' => '', 'type' => 'text', 'options' => [], 'required' => true },
+                                       { 'name' => 'Mobil', 'description' => '', 'type' => 'text', 'options' => [], 'required' => false }],
                       booking_summary_template: "Ringkasan\nNama: {{booking.customer_name}}\nLayanan: {{booking.service}}\n" \
                                                 "Tanggal: {{booking.date}} {{booking.time}}\n{{booking.extra_fields}}\nCatatan: {{booking.notes}}")
   end
@@ -51,7 +53,8 @@ RSpec.describe AiAgents::BookingSummary do
 
   it 'leaves the bubbles of the model as they are and says why a booking that cannot be one has no summary' do
     {
-      { 'time' => 'jam 1 siang' } => :invalid_schedule, { 'date' => '2026-11-18' } => :past_schedule, { 'service' => ' ' } => :missing_service
+      { 'time' => 'jam 1 siang' } => :invalid_schedule, { 'date' => '2026-11-18' } => :past_schedule, { 'service' => ' ' } => :missing_service,
+      { 'Plat nomor' => ' ' } => :missing_required_field
     }.each do |change, reason|
       expect(summary.add_to(reply, 'show_booking_summary' => true, 'booking' => booking.merge(change)))
         .to have_attributes(messages: ['Baik, Kak.'], booking_summary: nil, booking_summary_rejection: reason), change.inspect
